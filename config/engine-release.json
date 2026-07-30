@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "engineId": "cx26.3-w11-cyder007",
+  "versionLabel": "CX26.3.0-W11-Cyder007",
+  "base": {
+    "crossover": "26.3.0",
+    "wine": "11.0"
+  },
+  "hostArchitecture": "x86_64",
+  "windowsArchitectures": [
+    "i386",
+    "x86_64"
+  ],
+  "minimumCyderVersion": "0.8.3",
+  "patches": [
+    "cyder-compatdb-runtime.patch",
+    "wine-11.1-rtlwalkframechain-null-function.patch",
+    "cyder-ntdll-frame-walk-page-fault-guard.patch"
+  ]
+}
+

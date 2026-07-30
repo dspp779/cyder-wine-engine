@@ -1,0 +1,20 @@
+# Build inputs and outputs
+.brew-x86
+build
+install
+dist/
+logs/
+tools/archives
+tools/runtime/
+
+# Local signing credentials
+auth/
+.env
+
+# OS/editor noise
+.DS_Store
+
+*.tar.gz
+*.tar.xz
+*.tar.zst
+*.zip
