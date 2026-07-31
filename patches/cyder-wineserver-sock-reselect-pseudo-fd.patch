@@ -1,0 +1,18 @@
+--- a/server/sock.c
++++ b/server/sock.c
+@@ -821,7 +821,14 @@
+ 
+ static void sock_reselect( struct sock *sock )
+ {
+-    int ev = sock_get_poll_events( sock->fd );
++    int ev;
++
++    /* An uninitialized socket still uses a pseudo-fd, which has no entry in
++     * the poll array; set_fd_events() would abort wineserver and hang every
++     * client process. Only sock_reselect_async() guarded against this. */
++    if (!sock->type || !sock->fd) return;
++
++    ev = sock_get_poll_events( sock->fd );
+ 
+     if (debug_level)
+         fprintf(stderr,"sock_reselect(%p): new mask %x\n", sock, ev);

@@ -13,6 +13,7 @@ tests=(
   test-cyder-engine-version.sh
   test-engine-manifest.sh
   test-ntdll-frame-walk-guard.sh
+  test-wineserver-poll-guard-patches.sh
 )
 
 for test_file in "${tests[@]}"; do

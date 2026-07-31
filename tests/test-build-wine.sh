@@ -4,6 +4,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/tests/assert.sh"
 
+build_script="$(<"$ROOT/scripts/build-wine.sh")"
+assert_contains "$build_script" "if (!func) break;" \
+  "build should recognize the upstream frame-walk guard after the Cyder page-fault patch rewrites its context"
+
 output="$(bash "$ROOT/scripts/build-wine.sh" --cx 26 --dry-run --bootstrap-brew --install-deps 2>&1 || true)"
 
 if [[ "$output" != *"Homebrew/brew"* && "$output" != *"Homebrew already present"* ]]; then
@@ -39,6 +43,10 @@ assert_contains "$output" "$ROOT/patches/wine-11.1-rtlwalkframechain-null-functi
   "build should backport the upstream x64 null-function stop"
 assert_contains "$output" "$ROOT/patches/cyder-ntdll-frame-walk-page-fault-guard.patch" \
   "build should guard x86_64 frame walking against invalid unwind metadata"
+assert_contains "$output" "$ROOT/patches/cyder-wineserver-sock-reselect-pseudo-fd.patch" \
+  "build should stop sock_reselect() from touching an uninitialized socket's pseudo-fd"
+assert_contains "$output" "$ROOT/patches/cyder-wineserver-poll-slot-guard.patch" \
+  "build should keep an inconsistent poll slot from aborting wineserver"
 # Tarball trees skip make_*; git checkouts regenerate.
 if [[ -e "$ROOT/build/cx26/sources/wine/.git" ]]; then
   assert_contains "$output" "./tools/make_requests" "dry-run should rebuild Wine generated files"
@@ -85,8 +93,10 @@ if [[ -d "$ROOT/build/cx26/sources/wine" ]]; then
   )"
   if [[ "$output_cx25_build" == *"rtlwalkframechain-null-function.patch"* ||
         "$output_cx25_build" == *"ntdll-frame-walk-page-fault-guard.patch"* ||
-        "$output_cx25_build" == *"obsolete/cyder-ntdll-frame-walk-guard.patch"* ]]; then
-    echo "ASSERT failed: CX25 builds must not migrate or apply CX26 frame-walk patches" >&2
+        "$output_cx25_build" == *"obsolete/cyder-ntdll-frame-walk-guard.patch"* ||
+        "$output_cx25_build" == *"cyder-wineserver-sock-reselect-pseudo-fd.patch"* ||
+        "$output_cx25_build" == *"cyder-wineserver-poll-slot-guard.patch"* ]]; then
+    echo "ASSERT failed: CX25 builds must not migrate or apply CX26-only patches" >&2
     exit 1
   fi
 fi

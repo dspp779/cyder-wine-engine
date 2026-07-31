@@ -60,7 +60,9 @@ cat >"$OUTPUT" <<EOF
   "patches": [
     "cyder-compatdb-runtime.patch",
     "wine-11.1-rtlwalkframechain-null-function.patch",
-    "cyder-ntdll-frame-walk-page-fault-guard.patch"
+    "cyder-ntdll-frame-walk-page-fault-guard.patch",
+    "cyder-wineserver-sock-reselect-pseudo-fd.patch",
+    "cyder-wineserver-poll-slot-guard.patch"
   ]
 }
 EOF

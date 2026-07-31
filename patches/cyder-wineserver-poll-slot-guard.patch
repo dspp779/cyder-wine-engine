@@ -1,0 +1,23 @@
+--- a/server/fd.c
++++ b/server/fd.c
+@@ -1662,7 +1662,19 @@
+ void set_fd_events( struct fd *fd, int events )
+ {
+     int user = fd->poll_index;
+-    assert( poll_users[user] == fd );
++
++    /* A pseudo-fd has no poll slot, and a released fd's slot may already have
++     * been reused by another fd. Asserting here aborts wineserver, which hangs
++     * every client process, so report the inconsistency and skip instead. */
++    if (user < 0 || user >= nb_users || poll_users[user] != fd)
++    {
++        static int reported;
++
++        if (reported++ < 10)
++            fprintf( stderr, "wineserver: set_fd_events: stale poll slot %d for fd %p"
++                     " (unix_fd=%d user=%p events=%d)\n", user, fd, fd->unix_fd, fd->user, events );
++        return;
++    }
+ 
+     set_fd_epoll_events( fd, user, events );
+ 

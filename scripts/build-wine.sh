@@ -323,6 +323,12 @@ apply_cyder_patch() {
     echo "Applied $(basename "$patch_file")"
   elif patch --reverse --batch --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
     echo "Already applied: $(basename "$patch_file")"
+  elif [[ "$(basename "$patch_file")" == "wine-11.1-rtlwalkframechain-null-function.patch" ]] &&
+       grep -Fq 'if (!func) break;' "$WINE_SRC/dlls/ntdll/signal_x86_64.c" 2>/dev/null; then
+    # The Cyder page-fault patch rewrites the surrounding block, so patch
+    # cannot reverse-check this upstream hunk once both patches are present.
+    # Detect the stable upstream guard directly for idempotent migrations.
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
   else
     echo "Cannot apply required Wine patch: $patch_file" >&2
     exit 1
@@ -366,6 +372,8 @@ if [[ "$CX_VERSION" == "26" ]]; then
     "$OGOM/patches/wine-11.1-rtlwalkframechain-null-function.patch"
   apply_cyder_patch "$OGOM/patches/wine-11.1-rtlwalkframechain-null-function.patch"
   apply_cyder_patch "$OGOM/patches/cyder-ntdll-frame-walk-page-fault-guard.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-wineserver-sock-reselect-pseudo-fd.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-wineserver-poll-slot-guard.patch"
 fi
 
 # CrossOver tarball is not a git checkout; make_makefiles requires `git ls-files`.

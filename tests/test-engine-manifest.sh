@@ -23,5 +23,7 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "\"artifactSHA256\": \"$art
   "sidecar manifest should pin the archive"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "rtlwalkframechain-null-function" \
   "manifest should record the ordered frame-walk patch set"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-poll-slot-guard.patch" \
+  "manifest should record the wineserver poll-slot patch set"
 
 echo "PASS test-engine-manifest"
