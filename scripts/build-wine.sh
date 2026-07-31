@@ -345,6 +345,12 @@ apply_cyder_patch() {
   elif [[ "$(basename "$patch_file")" == "cyder-wineserver-pipe-end-disconnect-null-fd.patch" ]] &&
        grep -Fq 'pipe_end_disconnect: null fd' "$WINE_SRC/server/named_pipe.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-wineserver-async-terminate-null-fd.patch" ]] &&
+       grep -Fq '!async->fd || !is_fd_overlapped' "$WINE_SRC/server/async.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-wineserver-add-completion-guard.patch" ]] &&
+       grep -Fq 'add_completion: invalid completion' "$WINE_SRC/server/completion.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
   else
     echo "Cannot apply required Wine patch: $patch_file" >&2
     exit 1
@@ -393,7 +399,9 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-exit-diagnostics.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-fd-reselect-async-null-ops.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-sock-rebind-async-fd.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-wineserver-async-terminate-null-fd.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-pipe-end-disconnect-null-fd.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-wineserver-add-completion-guard.patch"
 fi
 
 # CrossOver tarball is not a git checkout; make_makefiles requires `git ls-files`.

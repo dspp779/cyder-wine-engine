@@ -1,0 +1,38 @@
+--- a/server/async.c
++++ b/server/async.c
+@@ -239,6 +239,12 @@ static void async_destroy( struct object *obj )
+     release_object( async->thread );
+ }
+ 
++/* Clear weak async->fd from outside async.c (struct async is opaque). */
++void async_clear_weak_fd( struct async *async )
++{
++    if (async) async->fd = NULL;
++}
++
+ /* notifies client thread of new status of its async request */
+ void async_terminate( struct async *async, unsigned int status )
+ {
+@@ -268,8 +274,9 @@ void async_terminate( struct async *async, unsigned int status )
+         /* this can happen if the initial status was unknown (i.e. for device
+          * files). the client should not fill the IOSB in this case; pass it as
+          * NULL to communicate that.
+-         * note that we check the IOSB status and not the initial status */
+-        if (NT_ERROR( status ) && (!is_fd_overlapped( async->fd ) || !async->pending))
++         * note that we check the IOSB status and not the initial status.
++         * async->fd may already be NULL (free_async_queue / pipe teardown). */
++        if (NT_ERROR( status ) && (!async->fd || !is_fd_overlapped( async->fd ) || !async->pending))
+             data.async_io.sb = 0;
+         else
+             data.async_io.sb = async->data.iosb;
+--- a/server/file.h
++++ b/server/file.h
+@@ -269,6 +269,7 @@ extern void async_set_initial_status( struct async *async, unsigned int status );
+ extern void async_wake_obj( struct async *async );
+ extern int async_waiting( struct async_queue *queue );
+ extern int async_queue_has_waiting_asyncs( struct async_queue *queue );
+ extern void async_terminate( struct async *async, unsigned int status );
++extern void async_clear_weak_fd( struct async *async );
+ extern void async_request_complete( struct async *async, unsigned int status, data_size_t result,
+                                     data_size_t out_size, void *out_data );
+ extern void async_request_complete_alloc( struct async *async, unsigned int status, data_size_t result,

@@ -1,0 +1,47 @@
+--- a/server/completion.c
++++ b/server/completion.c
+@@ -35,6 +35,7 @@
+ #include "file.h"
+ #include "handle.h"
+ #include "request.h"
++#include "process.h"
+ 
+ 
+ static const WCHAR completion_name[] = {'I','o','C','o','m','p','l','e','t','i','o','n'};
+@@ -298,9 +299,22 @@
+ void add_completion( struct completion *completion, apc_param_t ckey, apc_param_t cvalue,
+                      unsigned int status, apc_param_t information )
+ {
+-    struct comp_msg *msg = mem_alloc( sizeof( *msg ) );
+-    struct completion_wait *wait;
++    struct comp_msg *msg;
++    struct completion_wait *wait, *wait_next;
++
++    /* Job teardown may still hold a dangling completion_port pointer after the
++     * completion object was destroyed (leave-game / wineserver -k path). */
++    if (!completion || completion->obj.ops != &completion_ops)
++    {
++        static int reported;
++
++        if (reported++ < 10)
++            wineserver_diag_printf( "wineserver: add_completion: invalid completion %p\n",
++                                    completion );
++        return;
++    }
+ 
++    msg = mem_alloc( sizeof( *msg ) );
+     if (!msg)
+         return;
+ 
+@@ -311,8 +325,10 @@
+ 
+     list_add_tail( &completion->queue, &msg->queue_entry );
+     completion->depth++;
+-    LIST_FOR_EACH_ENTRY( wait, &completion->wait_queue, struct completion_wait, wait_queue_entry )
++    LIST_FOR_EACH_ENTRY_SAFE( wait, wait_next, &completion->wait_queue, struct completion_wait, wait_queue_entry )
+     {
++        if (wait->obj.ops != &completion_wait_ops || wait->completion != completion)
++            continue;
+         wake_up( &wait->obj, 1 );
+         if (list_empty( &completion->queue )) return;
+     }

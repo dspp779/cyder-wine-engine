@@ -10,7 +10,9 @@ Patch order for the CX26.3 / Wine 11.0 Cyder007 engine:
 6. `cyder-wineserver-exit-diagnostics.patch`
 7. `cyder-wineserver-fd-reselect-async-null-ops.patch`
 8. `cyder-wineserver-sock-rebind-async-fd.patch`
-9. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
+9. `cyder-wineserver-async-terminate-null-fd.patch`
+10. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
+11. `cyder-wineserver-add-completion-guard.patch`
 
 `wine-11.1-rtlwalkframechain-null-function.patch` is the minimal upstream
 Wine 11.1–11.14 behavior backport: stop x86_64 frame walking when no runtime
@@ -71,13 +73,27 @@ a new fd without updating those weak pointers. The patch exports
 the old fd so matching weak pointers become the new fd (still weak; no
 grab/release). Soft-guards stay as belt-and-suspenders.
 
+`cyder-wineserver-async-terminate-null-fd.patch` guards `async_terminate()` when
+`async->fd` is already NULL (`free_async_queue` / pipe teardown). Without it,
+`is_fd_overlapped(NULL)` SIGSEGVs (`si_addr=0`) on `STATUS_PIPE_BROKEN` wakeups.
+Also exports `async_clear_weak_fd()` so `named_pipe.c` can clear opaque weak
+pointers before terminate.
+
 `cyder-wineserver-pipe-end-disconnect-null-fd.patch` guards
 `pipe_end_disconnect()` when `pipe_end->fd` is NULL. Confirmed leave-game SIGSEGV
 at `si_addr=0xf8` (`&fd->wait_q`) on `kill_process` → `handle_table_destroy` →
 `pipe_end_destroy` → `pipe_end_disconnect` → `fd_async_wake_up`. Logs via
 `wineserver_diag_printf` (rate-limited), skips `fd_async_wake_up` /
-`set_fd_signaled`, and continues other disconnect cleanup. Also null-checks the
-peer fd wake in `reselect_read_queue`.
+`set_fd_signaled`, and when fd is NULL uses `free_async_queue` instead of
+`async_wake_up(STATUS_PIPE_BROKEN)` (which still hit null/dangling `async->fd`).
+Also nulls weak `message->async->fd` before terminate and null-checks the peer fd
+wake in `reselect_read_queue`.
+
+`cyder-wineserver-add-completion-guard.patch` hardens `add_completion()` for
+job teardown (`release_job_process` → `add_job_completion`) when
+`job->completion_port` is a dangling pointer (`si_addr=0x18` / invalid wait).
+Validates `completion_ops`, skips bad `completion_wait` entries, and logs via
+`wineserver_diag_printf`.
 
 ### Idempotent apply markers
 
@@ -92,7 +108,9 @@ strings as “already applied”:
 | `cyder-wineserver-exit-diagnostics.patch` | `wineserver_diag_printf` (`main.c`) |
 | `cyder-wineserver-fd-reselect-async-null-ops.patch` | `fd_reselect_async: missing ops` (`fd.c`) |
 | `cyder-wineserver-sock-rebind-async-fd.patch` | `cyder: sock_rebind_async_fds` (`sock.c`) |
+| `cyder-wineserver-async-terminate-null-fd.patch` | `!async->fd || !is_fd_overlapped` (`async.c`) |
 | `cyder-wineserver-pipe-end-disconnect-null-fd.patch` | `pipe_end_disconnect: null fd` (`named_pipe.c`) |
+| `cyder-wineserver-add-completion-guard.patch` | `add_completion: invalid completion` (`completion.c`) |
 
 New patches that may be amended in place should include a unique marker and a
 matching detection branch. Operational steps:

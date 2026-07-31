@@ -9,6 +9,7 @@ FD_PATCH="$ROOT/patches/cyder-wineserver-poll-slot-guard.patch"
 DIAG_PATCH="$ROOT/patches/cyder-wineserver-exit-diagnostics.patch"
 RESELECT_PATCH="$ROOT/patches/cyder-wineserver-fd-reselect-async-null-ops.patch"
 REBIND_PATCH="$ROOT/patches/cyder-wineserver-sock-rebind-async-fd.patch"
+ASYNC_PATCH="$ROOT/patches/cyder-wineserver-async-terminate-null-fd.patch"
 PIPE_PATCH="$ROOT/patches/cyder-wineserver-pipe-end-disconnect-null-fd.patch"
 
 if [[ ! -f "$ARCHIVE" ]]; then
@@ -39,9 +40,11 @@ patch --forward --batch -s -p1 -d "$SOURCE" < "$FD_PATCH"
 patch --forward --batch -s -p1 -d "$SOURCE" < "$DIAG_PATCH"
 patch --forward --batch -s -p1 -d "$SOURCE" < "$RESELECT_PATCH"
 patch --forward --batch -s -p1 -d "$SOURCE" < "$REBIND_PATCH"
+patch --forward --batch -s -p1 -d "$SOURCE" < "$ASYNC_PATCH"
 
 # Upstream (post prior patches) must still call unguarded.
 rg -Fq 'fd_async_wake_up( pipe_end->fd, ASYNC_TYPE_WAIT, status );' "$PIPE_FILE"
+rg -Fq 'async_wake_up( &pipe_end->read_q, status );' "$PIPE_FILE"
 rg -Fq 'if (status == STATUS_PIPE_DISCONNECTED) set_fd_signaled( pipe_end->fd, 0 );' "$PIPE_FILE"
 if rg -Fq 'pipe_end_disconnect: null fd' "$PIPE_FILE"; then
   echo "FAIL: null-fd diagnostic already present before applying pipe-end patch" >&2
@@ -51,10 +54,12 @@ fi
 PIPE_SHA="$(shasum -a 256 "$PIPE_FILE" | awk '{print $1}')"
 patch --forward --batch -s -p1 -d "$SOURCE" < "$PIPE_PATCH"
 
-# Guard must null-check fd and log via the exit-diagnostics helper.
+# Guard must null-check fd, free queue when null, and log via exit-diagnostics helper.
 rg -Fq '!pipe_end->fd' "$PIPE_FILE"
 rg -Fq 'pipe_end_disconnect: null fd' "$PIPE_FILE"
 rg -Fq 'wineserver_diag_printf' "$PIPE_FILE"
+rg -Fq 'free_async_queue( &pipe_end->read_q );' "$PIPE_FILE"
+rg -Fq 'if (!pipe_end->fd) async_clear_weak_fd( async );' "$PIPE_FILE"
 rg -Fq 'if (status == STATUS_PIPE_DISCONNECTED && pipe_end->fd) set_fd_signaled( pipe_end->fd, 0 );' "$PIPE_FILE"
 # Must still wake when fd is present.
 rg -Fq 'fd_async_wake_up( pipe_end->fd, ASYNC_TYPE_WAIT, status );' "$PIPE_FILE"
