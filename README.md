@@ -9,7 +9,7 @@ engine artifact during the first extraction phase.
 
 ## Current release target
 
-- Engine: `CX26.3.0-W11-Cyder007-rc1`
+- Engine: `CX26.3.0-W11-Cyder007`
 - Base: CrossOver 26.3.0 / Wine 11.0
 - Host: macOS x86_64 under Rosetta 2
 - Product deployment floor: macOS 10.15 (`.env` / `MACOSX_DEPLOYMENT_TARGET`, default 10.15)

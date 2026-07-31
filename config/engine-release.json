@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "engineId": "cx26.3-w11-cyder007",
-  "versionLabel": "CX26.3.0-W11-Cyder007-rc1",
+  "versionLabel": "CX26.3.0-W11-Cyder007",
   "base": {
     "crossover": "26.3.0",
     "wine": "11.0"
