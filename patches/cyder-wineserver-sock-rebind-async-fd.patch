@@ -1,0 +1,109 @@
+--- a/server/file.h
++++ b/server/file.h
+@@ -258,6 +258,7 @@
+                                            int is_system );
+ extern obj_handle_t async_handoff( struct async *async, data_size_t *result, int force_blocking );
+ extern void queue_async( struct async_queue *queue, struct async *async );
++extern void async_queue_rebind_fd( struct async_queue *queue, struct fd *old_fd, struct fd *new_fd );
+ extern void async_set_timeout( struct async *async, timeout_t timeout, unsigned int status );
+ extern void async_set_result( struct object *obj, unsigned int status, apc_param_t total );
+ extern void async_set_completion_callback( struct async *async, async_completion_callback func, void *private );
+--- a/server/async.c
++++ b/server/async.c
+@@ -312,7 +312,26 @@
+         release_object( &async->obj );
+     }
+ }
++
+ 
++/* Rebind weak async->fd pointers after an fd object is replaced.
++ * queue_async() releases the strong ref but keeps async->fd as a weak pointer
++ * (nulled only in free_async_queue). Sockets may replace sock->fd without
++ * destroying the sock-local queues, so update matching weak pointers to the
++ * new fd (no grab/release — still weak). */
++void async_queue_rebind_fd( struct async_queue *queue, struct fd *old_fd, struct fd *new_fd )
++{
++    struct async *async;
++
++    if (!queue || !old_fd || old_fd == new_fd) return;
++
++    LIST_FOR_EACH_ENTRY( async, &queue->queue, struct async, queue_entry )
++    {
++        if (async->fd == old_fd)
++            async->fd = new_fd;
++    }
++}
++
+ void queue_async( struct async_queue *queue, struct async *async )
+ {
+     /* fd will be set to NULL in free_async_queue when fd is destroyed */
+--- a/server/sock.c
++++ b/server/sock.c
+@@ -471,6 +471,7 @@
+ static void sock_cancel_async( struct fd *fd, struct async *async );
+ static void sock_reselect_async( struct fd *fd, struct async_queue *queue );
+ 
++static void sock_rebind_async_fds( struct sock *sock, struct fd *old_fd, struct fd *new_fd );
+ static int accept_into_socket( struct sock *sock, struct sock *acceptsock );
+ static struct sock *accept_socket( struct sock *sock );
+ static int sock_get_ntstatus( int err );
+@@ -2059,11 +2060,17 @@
+ 
+     if (sock->fd)
+     {
+-        options = get_fd_options( sock->fd );
+-        release_object( sock->fd );
+-    }
++        struct fd *old_fd = sock->fd;
++        struct fd *new_fd;
+ 
+-    if (!(sock->fd = create_anonymous_fd( &sock_fd_ops, sockfd, &sock->obj, options )))
++        options = get_fd_options( old_fd );
++        if (!(new_fd = create_anonymous_fd( &sock_fd_ops, sockfd, &sock->obj, options )))
++            return -1;
++        sock_rebind_async_fds( sock, old_fd, new_fd );
++        release_object( old_fd );
++        sock->fd = new_fd;
++    }
++    else if (!(sock->fd = create_anonymous_fd( &sock_fd_ops, sockfd, &sock->obj, options )))
+     {
+         return -1;
+     }
+@@ -2162,6 +2169,29 @@
+     return acceptsock;
+ }
+ 
++
++/* When sock->fd is replaced (accept_into / init_socket), sock-local async queues
++ * still hold weak async->fd pointers at the old object (see queue_async). Rebind
++ * them to new_fd before release_object(old_fd) so later async_terminate →
++ * fd_reselect_async does not hit a destroyed fd / NULL fd_ops (leave-game
++ * livelock under soft-guards, or SIGSEGV without). Marker: cyder: sock_rebind_async_fds */
++static void sock_rebind_async_fds( struct sock *sock, struct fd *old_fd, struct fd *new_fd )
++{
++    static const char cyder_sock_rebind_async_fd_marker[] __attribute__((used)) =
++        "cyder: sock_rebind_async_fds";
++
++    (void)cyder_sock_rebind_async_fd_marker;
++
++    if (!sock || !old_fd || old_fd == new_fd) return;
++
++    async_queue_rebind_fd( &sock->read_q, old_fd, new_fd );
++    async_queue_rebind_fd( &sock->write_q, old_fd, new_fd );
++    async_queue_rebind_fd( &sock->ifchange_q, old_fd, new_fd );
++    async_queue_rebind_fd( &sock->accept_q, old_fd, new_fd );
++    async_queue_rebind_fd( &sock->connect_q, old_fd, new_fd );
++    async_queue_rebind_fd( &sock->poll_q, old_fd, new_fd );
++}
++
+ static int accept_into_socket( struct sock *sock, struct sock *acceptsock )
+ {
+     union unix_sockaddr unix_addr;
+@@ -2205,6 +2235,7 @@
+     acceptsock->deferred = NULL;
+     acceptsock->connect_time = current_time;
+     fd_copy_completion( acceptsock->fd, newfd );
++    sock_rebind_async_fds( acceptsock, acceptsock->fd, newfd );
+     release_object( acceptsock->fd );
+     acceptsock->fd = newfd;
+ 

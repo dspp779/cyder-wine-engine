@@ -63,7 +63,10 @@ cat >"$OUTPUT" <<EOF
     "cyder-ntdll-frame-walk-page-fault-guard.patch",
     "cyder-wineserver-sock-reselect-pseudo-fd.patch",
     "cyder-wineserver-poll-slot-guard.patch",
-    "cyder-wineserver-exit-diagnostics.patch"
+    "cyder-wineserver-exit-diagnostics.patch",
+    "cyder-wineserver-fd-reselect-async-null-ops.patch",
+    "cyder-wineserver-sock-rebind-async-fd.patch",
+    "cyder-wineserver-pipe-end-disconnect-null-fd.patch"
   ]
 }
 EOF

@@ -9,7 +9,8 @@ Patch order for the CX26.3 / Wine 11.0 Cyder007 engine:
 5. `cyder-wineserver-poll-slot-guard.patch`
 6. `cyder-wineserver-exit-diagnostics.patch`
 7. `cyder-wineserver-fd-reselect-async-null-ops.patch`
-8. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
+8. `cyder-wineserver-sock-rebind-async-fd.patch`
+9. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
 
 `wine-11.1-rtlwalkframechain-null-function.patch` is the minimal upstream
 Wine 11.1–11.14 behavior backport: stop x86_64 frame walking when no runtime
@@ -58,7 +59,17 @@ against a NULL `fd_ops` (or missing `reselect_async`) vtable. Confirmed SIGSEGV
 at offset 0x58 (`si_addr=0x58`) on the path `sock_poll_event` →
 `complete_async_poll` → `async_terminate` → `async_reselect` →
 `fd_reselect_async`. Logs via `wineserver_diag_printf` (rate-limited) and returns
-instead of aborting.
+instead of aborting. Kept as a safety net after the proper rebind fix below.
+
+`cyder-wineserver-sock-rebind-async-fd.patch` is the correctness fix for that
+crash/livelock: `queue_async()` keeps a weak `async->fd`, but sock I/O asyncs
+live on sock-local queues (`read_q`/`write_q`/`accept_q`/`connect_q`/`poll_q`/
+`ifchange_q`), which `free_async_queue` only clears when the sock is destroyed.
+`accept_into_socket` / `init_socket` used to `release_object(old fd)` and assign
+a new fd without updating those weak pointers. The patch exports
+`async_queue_rebind_fd()` and calls `sock_rebind_async_fds()` before releasing
+the old fd so matching weak pointers become the new fd (still weak; no
+grab/release). Soft-guards stay as belt-and-suspenders.
 
 `cyder-wineserver-pipe-end-disconnect-null-fd.patch` guards
 `pipe_end_disconnect()` when `pipe_end->fd` is NULL. Confirmed leave-game SIGSEGV

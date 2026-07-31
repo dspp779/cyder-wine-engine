@@ -16,6 +16,7 @@ tests=(
   test-wineserver-poll-guard-patches.sh
   test-wineserver-exit-diagnostics.sh
   test-wineserver-fd-reselect-async-null-ops.sh
+  test-wineserver-sock-rebind-async-fd.sh
   test-wineserver-pipe-end-disconnect-null-fd.sh
 )
 

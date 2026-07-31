@@ -51,6 +51,10 @@ assert_contains "$output" "$ROOT/patches/cyder-wineserver-exit-diagnostics.patch
   "build should leave wineserver exit breadcrumbs for silent death diagnosis"
 assert_contains "$output" "$ROOT/patches/cyder-wineserver-fd-reselect-async-null-ops.patch" \
   "build should guard fd_reselect_async against NULL fd_ops"
+assert_contains "$output" "$ROOT/patches/cyder-wineserver-sock-rebind-async-fd.patch" \
+  "build should rebind weak async->fd when sock fd is replaced"
+assert_contains "$output" "$ROOT/patches/cyder-wineserver-pipe-end-disconnect-null-fd.patch" \
+  "build should guard pipe_end_disconnect against NULL fd"
 # Tarball trees skip make_*; git checkouts regenerate.
 if [[ -e "$ROOT/build/cx26/sources/wine/.git" ]]; then
   assert_contains "$output" "./tools/make_requests" "dry-run should rebuild Wine generated files"
@@ -101,7 +105,9 @@ if [[ -d "$ROOT/build/cx26/sources/wine" ]]; then
         "$output_cx25_build" == *"cyder-wineserver-sock-reselect-pseudo-fd.patch"* ||
         "$output_cx25_build" == *"cyder-wineserver-poll-slot-guard.patch"* ||
         "$output_cx25_build" == *"cyder-wineserver-exit-diagnostics.patch"* ||
-        "$output_cx25_build" == *"cyder-wineserver-fd-reselect-async-null-ops.patch"* ]]; then
+        "$output_cx25_build" == *"cyder-wineserver-fd-reselect-async-null-ops.patch"* ||
+        "$output_cx25_build" == *"cyder-wineserver-sock-rebind-async-fd.patch"* ||
+        "$output_cx25_build" == *"cyder-wineserver-pipe-end-disconnect-null-fd.patch"* ]]; then
     echo "ASSERT failed: CX25 builds must not migrate or apply CX26-only patches" >&2
     exit 1
   fi

@@ -27,5 +27,7 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-poll-slot
   "manifest should record the wineserver poll-slot patch set"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-exit-diagnostics.patch" \
   "manifest should record the wineserver exit-diagnostics patch"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-sock-rebind-async-fd.patch" \
+  "manifest should record the wineserver sock-rebind-async-fd patch"
 
 echo "PASS test-engine-manifest"

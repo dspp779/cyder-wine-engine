@@ -8,6 +8,7 @@ SOCK_PATCH="$ROOT/patches/cyder-wineserver-sock-reselect-pseudo-fd.patch"
 FD_PATCH="$ROOT/patches/cyder-wineserver-poll-slot-guard.patch"
 DIAG_PATCH="$ROOT/patches/cyder-wineserver-exit-diagnostics.patch"
 RESELECT_PATCH="$ROOT/patches/cyder-wineserver-fd-reselect-async-null-ops.patch"
+REBIND_PATCH="$ROOT/patches/cyder-wineserver-sock-rebind-async-fd.patch"
 PIPE_PATCH="$ROOT/patches/cyder-wineserver-pipe-end-disconnect-null-fd.patch"
 
 if [[ ! -f "$ARCHIVE" ]]; then
@@ -22,6 +23,8 @@ tar -xzf "$ARCHIVE" -C "$TMP_DIR" \
   sources/wine/server/named_pipe.c \
   sources/wine/server/fd.c \
   sources/wine/server/sock.c \
+  sources/wine/server/async.c \
+  sources/wine/server/file.h \
   sources/wine/server/signal.c \
   sources/wine/server/main.c \
   sources/wine/server/process.c \
@@ -35,6 +38,7 @@ patch --forward --batch -s -p1 -d "$SOURCE" < "$SOCK_PATCH"
 patch --forward --batch -s -p1 -d "$SOURCE" < "$FD_PATCH"
 patch --forward --batch -s -p1 -d "$SOURCE" < "$DIAG_PATCH"
 patch --forward --batch -s -p1 -d "$SOURCE" < "$RESELECT_PATCH"
+patch --forward --batch -s -p1 -d "$SOURCE" < "$REBIND_PATCH"
 
 # Upstream (post prior patches) must still call unguarded.
 rg -Fq 'fd_async_wake_up( pipe_end->fd, ASYNC_TYPE_WAIT, status );' "$PIPE_FILE"
