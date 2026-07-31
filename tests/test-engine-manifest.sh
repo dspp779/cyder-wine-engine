@@ -25,5 +25,7 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "rtlwalkframechain-null-fun
   "manifest should record the ordered frame-walk patch set"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-poll-slot-guard.patch" \
   "manifest should record the wineserver poll-slot patch set"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-exit-diagnostics.patch" \
+  "manifest should record the wineserver exit-diagnostics patch"
 
 echo "PASS test-engine-manifest"

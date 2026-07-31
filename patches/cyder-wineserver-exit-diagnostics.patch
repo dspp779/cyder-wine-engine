@@ -1,0 +1,190 @@
+--- a/server/signal.c
++++ b/server/signal.c
+@@ -183,6 +183,7 @@
+ static void sigterm_callback(void)
+ {
+     flush_registry();
++    wineserver_log_exit_state();
+     exit(1);
+ }
+ 
+@@ -193,20 +194,34 @@
+ }
+ 
+ /* SIGHUP handler */
+-static void do_sighup( int signum )
++static void do_sighup( int signum, siginfo_t *si, void *context )
+ {
++    fprintf( stderr, "wineserver: received signal %d (%s) from pid %d uid %d\n",
++             signum, "SIGHUP",
++             si ? (int)si->si_pid : -1, si ? (int)si->si_uid : -1 );
++    fflush( stderr );
+     do_signal( handler_sighup );
+ }
+ 
+-/* SIGTERM handler */
+-static void do_sigterm( int signum )
++/* SIGTERM / SIGQUIT handler */
++static void do_sigterm( int signum, siginfo_t *si, void *context )
+ {
++    fprintf( stderr, "wineserver: received signal %d (%s) from pid %d uid %d\n",
++             signum, signum == SIGQUIT ? "SIGQUIT" : "SIGTERM",
++             si ? (int)si->si_pid : -1, si ? (int)si->si_uid : -1 );
++    fflush( stderr );
++    wineserver_log_exit_state();
+     do_signal( handler_sigterm );
+ }
+ 
+ /* SIGINT handler */
+-static void do_sigint( int signum )
++static void do_sigint( int signum, siginfo_t *si, void *context )
+ {
++    fprintf( stderr, "wineserver: received signal %d (%s) from pid %d uid %d\n",
++             signum, "SIGINT",
++             si ? (int)si->si_pid : -1, si ? (int)si->si_uid : -1 );
++    fflush( stderr );
++    wineserver_log_exit_state();
+     do_signal( handler_sigint );
+ }
+ 
+@@ -296,15 +311,19 @@
+ #ifdef SIG_PTHREAD_CANCEL
+     sigaction( SIG_PTHREAD_CANCEL, &action, NULL );
+ #endif
+-    action.sa_handler = do_sighup;
++    action.sa_flags = SA_SIGINFO;
++    action.sa_sigaction = do_sighup;
+     sigaction( SIGHUP, &action, NULL );
+-    action.sa_handler = do_sigint;
++    action.sa_sigaction = do_sigint;
+     sigaction( SIGINT, &action, NULL );
++    action.sa_flags = 0;
+     action.sa_handler = do_sigalrm;
+     sigaction( SIGALRM, &action, NULL );
+-    action.sa_handler = do_sigterm;
++    action.sa_flags = SA_SIGINFO;
++    action.sa_sigaction = do_sigterm;
+     sigaction( SIGQUIT, &action, NULL );
+     sigaction( SIGTERM, &action, NULL );
++    action.sa_flags = 0;
+     if (core_dump_disabled())
+     {
+         action.sa_handler = do_sigsegv;
+--- a/server/main.c
++++ b/server/main.c
+@@ -36,6 +36,7 @@
+ #endif
+ 
+ #include "object.h"
++#include "process.h"
+ #include "file.h"
+ #include "thread.h"
+ #include "request.h"
+@@ -214,8 +215,12 @@
+     exit(1);
+ }
+ 
+-static void sigterm_handler( int signum )
++static void sigterm_handler( int signum, siginfo_t *si, void *context )
+ {
++    /* Temporary handlers installed before init_signals(). */
++    fprintf( stderr, "wineserver: early signal %d from pid %d uid %d\n",
++             signum, si ? (int)si->si_pid : -1, si ? (int)si->si_uid : -1 );
++    fflush( stderr );
+     exit(1);  /* make sure atexit functions get called */
+ }
+ 
+@@ -249,12 +254,18 @@
+     parse_options( argc, argv, "d::fhk::p::vw", long_options, option_callback );
+ 
+     /* setup temporary handlers before the real signal initialization is done */
+-    signal( SIGPIPE, SIG_IGN );
+-    signal( SIGHUP, sigterm_handler );
+-    signal( SIGINT, sigterm_handler );
+-    signal( SIGQUIT, sigterm_handler );
+-    signal( SIGTERM, sigterm_handler );
+-    signal( SIGABRT, sigterm_handler );
++    {
++        struct sigaction early;
++        sigemptyset( &early.sa_mask );
++        early.sa_flags = SA_SIGINFO;
++        early.sa_sigaction = sigterm_handler;
++        signal( SIGPIPE, SIG_IGN );
++        sigaction( SIGHUP, &early, NULL );
++        sigaction( SIGINT, &early, NULL );
++        sigaction( SIGQUIT, &early, NULL );
++        sigaction( SIGTERM, &early, NULL );
++        sigaction( SIGABRT, &early, NULL );
++    }
+     init_limits();
+ 
+     sock_init();
+@@ -270,5 +281,8 @@
+     init_threading();
+     init_registry();
+     main_loop();
++    fprintf( stderr, "wineserver: main_loop returned\n" );
++    fflush( stderr );
++    wineserver_log_exit_state();
+     return 0;
+ }
+--- a/server/process.c
++++ b/server/process.c
+@@ -73,6 +73,17 @@
+ static struct timeout_user *shutdown_timeout;  /* timeout for server shutdown */
+ static int shutdown_stage;  /* current stage in the shutdown process */
+ 
++/* Cyder: leave an explicit breadcrumb when wineserver is about to exit so a
++ * silent SIGTERM / main_loop return can be distinguished from a crash. */
++void wineserver_log_exit_state(void)
++{
++    fprintf( stderr, "wineserver: exit state running_processes=%d user_processes=%d"
++             " shutdown_stage=%d\n",
++             running_processes, user_processes, shutdown_stage );
++    fflush( stderr );
++}
++
++
+ static const WCHAR process_name[] = {'P','r','o','c','e','s','s'};
+ 
+ struct type_descr process_type =
+--- a/server/process.h
++++ b/server/process.h
+@@ -133,6 +133,9 @@
+ #define USE_PTRACE
+ #endif
+ 
++/* Cyder diagnostic: dump process counters when wineserver is exiting. */
++extern void wineserver_log_exit_state(void);
++
+ extern void init_tracing_mechanism(void);
+ extern void init_process_tracing( struct process *process );
+ extern void finish_process_tracing( struct process *process );
+--- a/server/fd.c
++++ b/server/fd.c
+@@ -1001,7 +1001,12 @@
+             }
+         }
+     }
++    fprintf( stderr, "wineserver: main_loop exiting active_users=%d nb_users=%d\n",
++             active_users, nb_users );
++    fflush( stderr );
++    wineserver_log_exit_state();
+ }
++
+ 
+ 
+ /****************************************************************/
+@@ -1671,8 +1676,11 @@
+         static int reported;
+ 
+         if (reported++ < 10)
+-            fprintf( stderr, "wineserver: set_fd_events: stale poll slot %d for fd %p"
++        {
++            fprintf( stderr, "wineserver: FATAL: set_fd_events: stale poll slot %d for fd %p"
+                      " (unix_fd=%d user=%p events=%d)\n", user, fd, fd->unix_fd, fd->user, events );
++            fflush( stderr );
++        }
+         return;
+     }
+ 

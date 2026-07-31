@@ -14,6 +14,7 @@ tests=(
   test-engine-manifest.sh
   test-ntdll-frame-walk-guard.sh
   test-wineserver-poll-guard-patches.sh
+  test-wineserver-exit-diagnostics.sh
 )
 
 for test_file in "${tests[@]}"; do

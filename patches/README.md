@@ -7,6 +7,7 @@ Patch order for the CX26.3 / Wine 11.0 Cyder007 engine:
 3. `cyder-ntdll-frame-walk-page-fault-guard.patch`
 4. `cyder-wineserver-sock-reselect-pseudo-fd.patch`
 5. `cyder-wineserver-poll-slot-guard.patch`
+6. `cyder-wineserver-exit-diagnostics.patch`
 
 `wine-11.1-rtlwalkframechain-null-function.patch` is the minimal upstream
 Wine 11.1–11.14 behavior backport: stop x86_64 frame walking when no runtime
@@ -35,6 +36,13 @@ missing poll slot reports one diagnostic line and skips instead of aborting.
 This also covers the unrelated use-after-free path reported upstream in 2018
 (<https://wine-devel.winehq.narkive.com/E13v3OXT>), which the sock.c fix cannot
 address. Both are still unfixed in Wine 11.11 and have no Bugzilla entry.
+
+`cyder-wineserver-exit-diagnostics.patch` is temporary diagnosis for silent
+wineserver exits observed after the poll-slot work: SIGTERM/SIGINT/SIGHUP/SIGQUIT
+handlers print `si_pid`/`si_uid`, `main_loop` return dumps `active_users` and
+process counters, and the stale-poll message is upgraded to `FATAL` with an
+immediate `fflush`. Behavior otherwise stays non-aborting so freeze reproduction
+still yields a readable launch log.
 
 `obsolete/cyder-ntdll-frame-walk-guard.patch` is retained only to migrate an
 incremental Cyder006 source tree. It is removed before the two replacement
