@@ -95,7 +95,9 @@ same hunk (e.g. poll-slot diagnostics upgraded by exit-diagnostics).
 | `cyder-wineserver-exit-diagnostics.patch` | `wineserver_diag_printf` in `server/main.c` |
 | `cyder-wineserver-fd-reselect-async-null-ops.patch` | `fd_reselect_async: missing ops` in `server/fd.c` |
 | `cyder-wineserver-sock-rebind-async-fd.patch` | `cyder: sock_rebind_async_fds` in `server/sock.c` |
+| `cyder-wineserver-async-terminate-null-fd.patch` | `!async->fd || !is_fd_overlapped` in `server/async.c` |
 | `cyder-wineserver-pipe-end-disconnect-null-fd.patch` | `pipe_end_disconnect: null fd` in `server/named_pipe.c` |
+| `cyder-wineserver-add-completion-guard.patch` | `add_completion: invalid completion` in `server/completion.c` |
 
 When adding a new patch that may be rewritten by a later one, add a unique
 string marker and a matching `grep -Fq` branch in `scripts/build-wine.sh`.

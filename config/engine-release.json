@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "engineId": "cx26.3-w11-cyder007",
-  "versionLabel": "CX26.3.0-W11-Cyder007",
+  "engineId": "cx26.3-w11-cyder008",
+  "versionLabel": "CX26.3.0-W11-Cyder008",
   "base": {
     "crossover": "26.3.0",
     "wine": "11.0"
@@ -11,7 +11,7 @@
     "i386",
     "x86_64"
   ],
-  "minimumCyderVersion": "0.8.3",
+  "minimumCyderVersion": "0.9.0",
   "patches": [
     "cyder-compatdb-runtime.patch",
     "wine-11.1-rtlwalkframechain-null-function.patch",
@@ -21,6 +21,9 @@
     "cyder-wineserver-exit-diagnostics.patch",
     "cyder-wineserver-fd-reselect-async-null-ops.patch",
     "cyder-wineserver-sock-rebind-async-fd.patch",
-    "cyder-wineserver-pipe-end-disconnect-null-fd.patch"
-  ]
+    "cyder-wineserver-async-terminate-null-fd.patch",
+    "cyder-wineserver-pipe-end-disconnect-null-fd.patch",
+    "cyder-wineserver-add-completion-guard.patch"
+  ],
+  "notes": "Queued next pack after Cyder007. Teardown hardening docs: docs/wineserver-teardown-hardening-cyder008.md. Do not ship until pack-engine-artifact.sh produces a signed archive and Cyder pins it."
 }

@@ -18,7 +18,9 @@ tests=(
   test-wineserver-exit-diagnostics.sh
   test-wineserver-fd-reselect-async-null-ops.sh
   test-wineserver-sock-rebind-async-fd.sh
+  test-wineserver-async-terminate-null-fd.sh
   test-wineserver-pipe-end-disconnect-null-fd.sh
+  test-wineserver-add-completion-guard.sh
 )
 
 for test_file in "${tests[@]}"; do
