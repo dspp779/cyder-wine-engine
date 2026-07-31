@@ -8,6 +8,44 @@ if [[ -z "${OGOM:-}" ]]; then
   export OGOM="$(cd "$SCRIPT_DIR/.." && pwd)"
 fi
 
+# Optional project .env (gitignored). Only KEY=VALUE lines; no shell expansion.
+# Recognized: MACOSX_DEPLOYMENT_TARGET, CYDER_MIN_OS (alias for the former).
+_cyder_load_dotenv() {
+  local env_file="$OGOM/.env"
+  local line key value
+  [[ -f "$env_file" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    [[ "$line" == export[[:space:]]* ]] && line="${line#export}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    key="${line%%=*}"
+    value="${line#*=}"
+    key="${key%"${key##*[![:space:]]}"}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    value="${value%\"}"
+    value="${value#\"}"
+    value="${value%\'}"
+    value="${value#\'}"
+    case "$key" in
+      MACOSX_DEPLOYMENT_TARGET | CYDER_MIN_OS)
+        [[ "$value" =~ ^[0-9]+(\.[0-9]+)*$ ]] || {
+          echo "Ignoring invalid $key in $env_file: $value" >&2
+          continue
+        }
+        # Do not override an explicit environment value.
+        if [[ -z "${MACOSX_DEPLOYMENT_TARGET:-}" ]]; then
+          export MACOSX_DEPLOYMENT_TARGET="$value"
+        fi
+        ;;
+    esac
+  done <"$env_file"
+}
+_cyder_load_dotenv
+unset -f _cyder_load_dotenv
+
 export CX_VERSION="${CX_VERSION:-26}"
 # Project-local x86_64 Homebrew. Ignore shell profile HOMEBREW_PREFIX=/opt/homebrew
 # (arm64); Rosetta brew cannot install into that prefix.
@@ -57,13 +95,12 @@ export VKD3D_SRC="${VKD3D_SRC:-$BUILD_DIR/cx${CX_VERSION}/sources/vkd3d}"
 export BLUECG_PREFIX="${BLUECG_PREFIX:-$OGOM/BlueCrossgateNew}"
 export ENTITLEMENTS_PLIST="${ENTITLEMENTS_PLIST:-$OGOM/config/entitlements.plist}"
 export CYDER_CROSSOVER_VERSION="${CYDER_CROSSOVER_VERSION:-26.3.0}"
-# Product floor for the current CX26 Cyder engine is 10.15: Wine itself
-# (bin/wine, ntdll.so, …) and libMoltenVK.dylib are built with this target.
-# Disabling MoltenVK at runtime does not unlock older macOS for this artifact;
-# a lower floor would require rebuilding Wine with a lower
-# MACOSX_DEPLOYMENT_TARGET (configure historically mentions ~10.7). Apple
-# Silicon still needs macOS 11+ for Rosetta 2.
+# Product floor for host Mach-O (wine, ntdll.so, bundled dylibs). Prefer
+# .env / MACOSX_DEPLOYMENT_TARGET; default 10.15. Apple Silicon still needs
+# macOS 11+ for Rosetta 2. A lower floor needs a full Wine rebuild.
 export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-10.15}"
+export CYDER_MIN_OS="${CYDER_MIN_OS:-$MACOSX_DEPLOYMENT_TARGET}"
+export CYDER_MACOSX_VERSION_MIN_FLAG="-mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
 export ARCH_CMD="arch -x86_64"
 
 export PATH="$LLVM_MINGW/bin:$HOMEBREW_PREFIX/bin:$PATH"

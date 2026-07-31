@@ -71,6 +71,10 @@ assert_contains "$output" "make -j" "dry-run should show the compile step"
 assert_contains "$output" "make install" "dry-run should show the install step"
 assert_contains "$output" "bundle-wine-dylibs.sh" "dry-run should bundle relocatable dylibs after install"
 assert_contains "$output" "--without-vulkan" "default dry-run should disable Vulkan"
+assert_contains "$output" "mmacosx-version-min=" \
+  "configure/make must bake -mmacosx-version-min so incremental builds keep the product floor"
+assert_contains "$output" "host minOS: MACOSX_DEPLOYMENT_TARGET=" \
+  "dry-run should report the resolved host minOS"
 
 output_vk_homebrew="$(bash "$ROOT/scripts/build-wine.sh" --cx 26 --dry-run --install-deps --with-vulkan --vulkan-source homebrew 2>&1 || true)"
 assert_contains "$output_vk_homebrew" "molten-vk" "homebrew vulkan deps should include molten-vk"

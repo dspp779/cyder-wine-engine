@@ -329,6 +329,22 @@ apply_cyder_patch() {
     # cannot reverse-check this upstream hunk once both patches are present.
     # Detect the stable upstream guard directly for idempotent migrations.
     echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-wineserver-poll-slot-guard.patch" ]] &&
+       grep -Fq 'stale poll slot' "$WINE_SRC/server/fd.c" 2>/dev/null; then
+    # exit-diagnostics rewrites the same diagnostic line, so reverse dry-run fails.
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-wineserver-exit-diagnostics.patch" ]] &&
+       grep -Fq 'wineserver_diag_printf' "$WINE_SRC/server/main.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-wineserver-fd-reselect-async-null-ops.patch" ]] &&
+       grep -Fq 'fd_reselect_async: missing ops' "$WINE_SRC/server/fd.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-wineserver-sock-rebind-async-fd.patch" ]] &&
+       grep -Fq 'cyder: sock_rebind_async_fds' "$WINE_SRC/server/sock.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-wineserver-pipe-end-disconnect-null-fd.patch" ]] &&
+       grep -Fq 'pipe_end_disconnect: null fd' "$WINE_SRC/server/named_pipe.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
   else
     echo "Cannot apply required Wine patch: $patch_file" >&2
     exit 1
@@ -393,6 +409,14 @@ fi
 
 cd "$WINE_SRC/build64"
 
+# Bake -mmacosx-version-min into host CFLAGS so incremental `make` without an
+# exported MACOSX_DEPLOYMENT_TARGET still cannot drift to the SDK default (15+).
+CYDER_MIN_OS_TARGET="${MACOSX_DEPLOYMENT_TARGET:-10.15}"
+CYDER_MIN_FLAG="${CYDER_MACOSX_VERSION_MIN_FLAG:--mmacosx-version-min=${CYDER_MIN_OS_TARGET}}"
+CYDER_HOST_CFLAGS="${CFLAGS:--g -O2} ${CYDER_MIN_FLAG}"
+CYDER_HOST_OBJCFLAGS="${OBJCFLAGS:--g -O2} ${CYDER_MIN_FLAG}"
+CYDER_HOST_LDFLAGS="${LDFLAGS:-} ${CYDER_MIN_FLAG}"
+
 CONFIGURE_CMD=(
   arch -x86_64 env
   PATH="$BUILD_PATH"
@@ -400,7 +424,10 @@ CONFIGURE_CMD=(
   PKG_CONFIG="$HOMEBREW_PREFIX/bin/pkg-config"
   PKG_CONFIG_PATH="$VULKAN_PKG_PC_PATH"
   LIBRARY_PATH="${LIBRARY_PATH:-}"
-  MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-10.15}"
+  MACOSX_DEPLOYMENT_TARGET="$CYDER_MIN_OS_TARGET"
+  CFLAGS="$CYDER_HOST_CFLAGS"
+  OBJCFLAGS="$CYDER_HOST_OBJCFLAGS"
+  LDFLAGS="$CYDER_HOST_LDFLAGS"
   ../configure
   -C
   --enable-win64
@@ -421,15 +448,18 @@ for arg in "${CONFIGURE_CMD[@]}"; do
   printf '%q ' "$arg"
 done
 printf '\n'
+echo "host minOS: MACOSX_DEPLOYMENT_TARGET=$CYDER_MIN_OS_TARGET ($CYDER_MIN_FLAG)"
 
 run "${CONFIGURE_CMD[@]}"
 
 if [[ "$CONFIGURE_ONLY" -eq 0 ]]; then
   run arch -x86_64 env PATH="$BUILD_PATH" PKG_CONFIG_PATH="$VULKAN_PKG_PC_PATH" \
-    LIBRARY_PATH="${LIBRARY_PATH:-}" MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-10.15}" \
+    LIBRARY_PATH="${LIBRARY_PATH:-}" MACOSX_DEPLOYMENT_TARGET="$CYDER_MIN_OS_TARGET" \
+    CFLAGS="$CYDER_HOST_CFLAGS" OBJCFLAGS="$CYDER_HOST_OBJCFLAGS" LDFLAGS="$CYDER_HOST_LDFLAGS" \
     make -j"$JOBS"
   run arch -x86_64 env PATH="$BUILD_PATH" PKG_CONFIG_PATH="$VULKAN_PKG_PC_PATH" \
-    LIBRARY_PATH="${LIBRARY_PATH:-}" MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-10.15}" \
+    LIBRARY_PATH="${LIBRARY_PATH:-}" MACOSX_DEPLOYMENT_TARGET="$CYDER_MIN_OS_TARGET" \
+    CFLAGS="$CYDER_HOST_CFLAGS" OBJCFLAGS="$CYDER_HOST_OBJCFLAGS" LDFLAGS="$CYDER_HOST_LDFLAGS" \
     make install
   if [[ "$DRY_RUN" -eq 1 ]]; then
     echo "+ GRAPHICS_INSTALL=${GRAPHICS_INSTALL:-} VULKAN_MODE=$VULKAN_MODE $SCRIPT_DIR/bundle-wine-dylibs.sh"
