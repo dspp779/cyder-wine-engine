@@ -46,9 +46,9 @@ rg -Fq 'wineserver_log_exit_state' "$SOURCE/server/main.c"
 rg -Fq 'wineserver_log_exit_state' "$SOURCE/server/process.c"
 rg -Fq 'running_processes=' "$SOURCE/server/process.c"
 
-# Stale poll slot must be impossible to miss in the launch log.
+# Stale poll slot must be impossible to miss (diag helper flushes stderr + prefix log).
 rg -Fq 'FATAL: set_fd_events: stale poll slot' "$SOURCE/server/fd.c"
-rg -Fq 'fflush( stderr )' "$SOURCE/server/fd.c"
+rg -Fq 'fflush( stderr )' "$SOURCE/server/process.c"
 
 # Round-trip the diagnostic patch alone (poll/sock stay applied).
 FD_SHA="$(shasum -a 256 "$SOURCE/server/fd.c" | awk '{print $1}')"
