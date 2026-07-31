@@ -39,12 +39,14 @@ address. Both are still unfixed in Wine 11.11 and have no Bugzilla entry.
 
 `cyder-wineserver-exit-diagnostics.patch` is temporary diagnosis for silent
 wineserver exits observed after the poll-slot work: SIGTERM/SIGINT/SIGHUP/SIGQUIT
-handlers print `si_pid`/`si_uid`, `main_loop` return dumps `active_users` and
-process counters, and the stale-poll message is upgraded to `FATAL` with an
-immediate `fflush`, and every diagnostic line is also appended to
-`$WINEPREFIX/cyder-wineserver-diag.log` (via `config_dir_fd`) so a killed gzip
-capture pipe cannot erase the death reason. Behavior otherwise stays
-non-aborting.
+handlers print `si_pid`/`si_uid` (and sender `path=` via `proc_pidpath` on
+Apple), `main_loop` return dumps `active_users` and process counters, and the
+stale-poll message is upgraded to `FATAL` with an immediate `fflush`. On
+SIGSEGV (when core dumps are disabled) it logs `si_addr`/`si_code` plus a
+`backtrace()` frame/symbol dump before abort. Every diagnostic line is also
+appended to `$WINEPREFIX/cyder-wineserver-diag.log` (via `config_dir_fd`) so a
+killed gzip capture pipe cannot erase the death reason. Non-SEGV behavior
+otherwise stays non-aborting.
 
 `obsolete/cyder-ntdll-frame-walk-guard.patch` is retained only to migrate an
 incremental Cyder006 source tree. It is removed before the two replacement

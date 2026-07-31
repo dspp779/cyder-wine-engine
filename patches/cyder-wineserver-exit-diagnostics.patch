@@ -1,6 +1,54 @@
+--- a/server/fd.c
++++ b/server/fd.c
+@@ -1001,9 +1001,13 @@
+             }
+         }
+     }
++    wineserver_diag_printf( "wineserver: main_loop exiting active_users=%d nb_users=%d\n",
++                            active_users, nb_users );
++    wineserver_log_exit_state();
+ }
+ 
+ 
++
+ /****************************************************************/
+ /* device functions */
+ 
+@@ -1671,8 +1675,11 @@
+         static int reported;
+ 
+         if (reported++ < 10)
+-            fprintf( stderr, "wineserver: set_fd_events: stale poll slot %d for fd %p"
+-                     " (unix_fd=%d user=%p events=%d)\n", user, fd, fd->unix_fd, fd->user, events );
++        {
++            wineserver_diag_printf( "wineserver: FATAL: set_fd_events: stale poll slot %d for fd %p"
++                                    " (unix_fd=%d user=%p events=%d)\n",
++                                    user, fd, fd->unix_fd, fd->user, events );
++        }
+         return;
+     }
+ 
 --- a/server/signal.c
 +++ b/server/signal.c
-@@ -183,6 +183,7 @@
+@@ -22,12 +22,17 @@
+ 
+ #include <signal.h>
+ #include <stdio.h>
++#include <stdlib.h>
+ #include <sys/time.h>
+ #include <poll.h>
+ #ifdef HAVE_SYS_RESOURCE_H
+ #include <sys/resource.h>
+ #endif
+ #include <unistd.h>
++#include <execinfo.h>
++#ifdef __APPLE__
++# include <libproc.h>
++#endif
+ 
+ #include "file.h"
+ #include "object.h"
+@@ -183,6 +188,7 @@
  static void sigterm_callback(void)
  {
      flush_registry();
@@ -8,16 +56,45 @@
      exit(1);
  }
  
-@@ -193,20 +194,31 @@
+@@ -192,21 +198,56 @@
+     shutdown_master_socket();
  }
  
++
++/* Cyder: best-effort signal breadcrumbs (not strictly async-signal-safe,
++ * but do_sigsegv already used fprintf/abort). */
++static void wineserver_diag_sender_path( int pid, char *buf, size_t buflen )
++{
++    if (!buf || !buflen) return;
++    buf[0] = '\0';
++#ifdef __APPLE__
++    if (pid > 0)
++        proc_pidpath( pid, buf, buflen );
++#else
++    (void)pid;
++#endif
++}
++
++static void wineserver_diag_received_signal( int signum, const char *name, siginfo_t *si )
++{
++    char path[1024];
++    int pid = si ? (int)si->si_pid : -1;
++    int uid = si ? (int)si->si_uid : -1;
++
++    wineserver_diag_sender_path( pid, path, sizeof(path) );
++    if (path[0])
++        wineserver_diag_printf( "wineserver: received signal %d (%s) from pid %d uid %d path=%s\n",
++                                signum, name, pid, uid, path );
++    else
++        wineserver_diag_printf( "wineserver: received signal %d (%s) from pid %d uid %d\n",
++                                signum, name, pid, uid );
++}
++
  /* SIGHUP handler */
 -static void do_sighup( int signum )
 +static void do_sighup( int signum, siginfo_t *si, void *context )
  {
-+    wineserver_diag_printf( "wineserver: received signal %d (%s) from pid %d uid %d\n",
-+                            signum, "SIGHUP",
-+                            si ? (int)si->si_pid : -1, si ? (int)si->si_uid : -1 );
++    wineserver_diag_received_signal( signum, "SIGHUP", si );
      do_signal( handler_sighup );
  }
  
@@ -26,9 +103,7 @@
 +/* SIGTERM / SIGQUIT handler */
 +static void do_sigterm( int signum, siginfo_t *si, void *context )
  {
-+    wineserver_diag_printf( "wineserver: received signal %d (%s) from pid %d uid %d\n",
-+                            signum, signum == SIGQUIT ? "SIGQUIT" : "SIGTERM",
-+                            si ? (int)si->si_pid : -1, si ? (int)si->si_uid : -1 );
++    wineserver_diag_received_signal( signum, signum == SIGQUIT ? "SIGQUIT" : "SIGTERM", si );
 +    wineserver_log_exit_state();
      do_signal( handler_sigterm );
  }
@@ -37,14 +112,47 @@
 -static void do_sigint( int signum )
 +static void do_sigint( int signum, siginfo_t *si, void *context )
  {
-+    wineserver_diag_printf( "wineserver: received signal %d (%s) from pid %d uid %d\n",
-+                            signum, "SIGINT",
-+                            si ? (int)si->si_pid : -1, si ? (int)si->si_uid : -1 );
++    wineserver_diag_received_signal( signum, "SIGINT", si );
 +    wineserver_log_exit_state();
      do_signal( handler_sigint );
  }
  
-@@ -296,15 +308,19 @@
+@@ -222,10 +263,31 @@
+     do_signal( handler_sigchld );
+ }
+ 
+-/* SIGSEGV handler */
+-static void do_sigsegv( int signum )
++/* SIGSEGV handler — Cyder: capture fault address + backtrace before abort. */
++static void do_sigsegv( int signum, siginfo_t *si, void *context )
+ {
+-    fprintf( stderr, "wineserver crashed, please enable coredumps (ulimit -c unlimited) and restart.\n");
++    void *stack[64];
++    int n, i;
++    char **syms;
++
++    (void)signum;
++    (void)context;
++    wineserver_diag_printf( "wineserver: SIGSEGV pid=%d si_addr=%p si_code=%d\n",
++                            (int)getpid(),
++                            si ? si->si_addr : NULL,
++                            si ? si->si_code : -1 );
++    wineserver_log_exit_state();
++    n = backtrace( stack, (int)(sizeof(stack) / sizeof(stack[0])) );
++    for (i = 0; i < n; i++)
++        wineserver_diag_printf( "wineserver: SIGSEGV frame[%d]=%p\n", i, stack[i] );
++    syms = backtrace_symbols( stack, n );
++    if (syms)
++    {
++        for (i = 0; i < n; i++)
++            wineserver_diag_printf( "wineserver: SIGSEGV sym[%d]=%s\n", i, syms[i] );
++        free( syms );
++    }
++    wineserver_diag_printf( "wineserver crashed, please enable coredumps (ulimit -c unlimited) and restart.\n" );
+     abort();
+ }
+ 
+@@ -296,19 +358,25 @@
  #ifdef SIG_PTHREAD_CANCEL
      sigaction( SIG_PTHREAD_CANCEL, &action, NULL );
  #endif
@@ -66,7 +174,14 @@
 +    action.sa_flags = 0;
      if (core_dump_disabled())
      {
-         action.sa_handler = do_sigsegv;
+-        action.sa_handler = do_sigsegv;
++        action.sa_flags = SA_SIGINFO;
++        action.sa_sigaction = do_sigsegv;
+         sigaction( SIGSEGV, &action, NULL );
++        action.sa_flags = 0;
+     }
+     action.sa_handler = SIG_IGN;
+     sigaction( SIGXFSZ, &action, NULL );
 --- a/server/main.c
 +++ b/server/main.c
 @@ -36,6 +36,7 @@
@@ -115,7 +230,15 @@
      init_limits();
  
      sock_init();
-@@ -270,5 +280,7 @@
+@@ -263,6 +273,7 @@
+     msync_init();
+ 
+     if (debug_level) fprintf( stderr, "wineserver: starting (pid=%ld)\n", (long) getpid() );
++    wineserver_diag_printf( "wineserver: diag start pid=%d\n", (int)getpid() );
+     set_current_time();
+     init_signals();
+     init_memory();
+@@ -270,5 +281,7 @@
      init_threading();
      init_registry();
      main_loop();
@@ -186,33 +309,3 @@
  extern void init_tracing_mechanism(void);
  extern void init_process_tracing( struct process *process );
  extern void finish_process_tracing( struct process *process );
---- a/server/fd.c
-+++ b/server/fd.c
-@@ -1001,9 +1001,13 @@
-             }
-         }
-     }
-+    wineserver_diag_printf( "wineserver: main_loop exiting active_users=%d nb_users=%d\n",
-+                            active_users, nb_users );
-+    wineserver_log_exit_state();
- }
- 
- 
-+
- /****************************************************************/
- /* device functions */
- 
-@@ -1671,8 +1675,11 @@
-         static int reported;
- 
-         if (reported++ < 10)
--            fprintf( stderr, "wineserver: set_fd_events: stale poll slot %d for fd %p"
--                     " (unix_fd=%d user=%p events=%d)\n", user, fd, fd->unix_fd, fd->user, events );
-+        {
-+            wineserver_diag_printf( "wineserver: FATAL: set_fd_events: stale poll slot %d for fd %p"
-+                                    " (unix_fd=%d user=%p events=%d)\n",
-+                                    user, fd, fd->unix_fd, fd->user, events );
-+        }
-         return;
-     }
- 

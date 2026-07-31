@@ -37,6 +37,15 @@ rg -Fq 'wineserver: received signal' "$SOURCE/server/signal.c"
 rg -Fq 'si->si_pid' "$SOURCE/server/signal.c"
 rg -Fq 'SA_SIGINFO' "$SOURCE/server/signal.c"
 
+# SEGV diagnostics: fault address + backtrace + sender path + start breadcrumb.
+rg -Fq 'SIGSEGV pid=' "$SOURCE/server/signal.c"
+rg -Fq 'backtrace(' "$SOURCE/server/signal.c"
+rg -Fq 'diag start pid=' "$SOURCE/server/main.c"
+if ! rg -Fq 'wineserver_diag_received_signal' "$SOURCE/server/signal.c" && ! rg -Fq 'path=%s' "$SOURCE/server/signal.c"; then
+  echo "FAIL: missing wineserver_diag_received_signal or path=%s in signal.c" >&2
+  exit 1
+fi
+
 # Early handlers (before init_signals) must also leave a breadcrumb.
 rg -Fq 'wineserver: early signal' "$SOURCE/server/main.c"
 
