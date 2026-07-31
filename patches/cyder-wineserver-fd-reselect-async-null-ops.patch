@@ -1,0 +1,20 @@
+--- a/server/fd.c
++++ b/server/fd.c
+@@ -2321,6 +2321,17 @@
+ 
+ void fd_reselect_async( struct fd *fd, struct async_queue *queue )
+ {
++    /* A released or pseudo fd may have no ops; calling through NULL aborts
++     * wineserver (SIGSEGV at vtable offset) and hangs every client. */
++    if (!fd || !fd->fd_ops || !fd->fd_ops->reselect_async)
++    {
++        static int reported;
++
++        if (reported++ < 10)
++            wineserver_diag_printf( "wineserver: fd_reselect_async: missing ops for fd %p"
++                                    " (ops=%p)\n", fd, fd ? fd->fd_ops : NULL );
++        return;
++    }
+     fd->fd_ops->reselect_async( fd, queue );
+ }
+ 

@@ -15,6 +15,7 @@ tests=(
   test-ntdll-frame-walk-guard.sh
   test-wineserver-poll-guard-patches.sh
   test-wineserver-exit-diagnostics.sh
+  test-wineserver-fd-reselect-async-null-ops.sh
 )
 
 for test_file in "${tests[@]}"; do

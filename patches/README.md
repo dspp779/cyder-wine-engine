@@ -8,6 +8,7 @@ Patch order for the CX26.3 / Wine 11.0 Cyder007 engine:
 4. `cyder-wineserver-sock-reselect-pseudo-fd.patch`
 5. `cyder-wineserver-poll-slot-guard.patch`
 6. `cyder-wineserver-exit-diagnostics.patch`
+7. `cyder-wineserver-fd-reselect-async-null-ops.patch`
 
 `wine-11.1-rtlwalkframechain-null-function.patch` is the minimal upstream
 Wine 11.1–11.14 behavior backport: stop x86_64 frame walking when no runtime
@@ -47,6 +48,13 @@ SIGSEGV (when core dumps are disabled) it logs `si_addr`/`si_code` plus a
 appended to `$WINEPREFIX/cyder-wineserver-diag.log` (via `config_dir_fd`) so a
 killed gzip capture pipe cannot erase the death reason. Non-SEGV behavior
 otherwise stays non-aborting.
+
+`cyder-wineserver-fd-reselect-async-null-ops.patch` guards `fd_reselect_async()`
+against a NULL `fd_ops` (or missing `reselect_async`) vtable. Confirmed SIGSEGV
+at offset 0x58 (`si_addr=0x58`) on the path `sock_poll_event` →
+`complete_async_poll` → `async_terminate` → `async_reselect` →
+`fd_reselect_async`. Logs via `wineserver_diag_printf` (rate-limited) and returns
+instead of aborting.
 
 `obsolete/cyder-ntdll-frame-walk-guard.patch` is retained only to migrate an
 incremental Cyder006 source tree. It is removed before the two replacement
