@@ -31,6 +31,8 @@ patch --forward --batch -s -p1 -d "$SOURCE" < "$FD_PATCH"
 patch --forward --batch -s -p1 -d "$SOURCE" < "$DIAG_PATCH"
 
 # Signal handlers must record the sender pid before silent exit/shutdown.
+rg -Fq 'cyder-wineserver-diag.log' "$SOURCE/server/process.c"
+rg -Fq 'wineserver_diag_printf' "$SOURCE/server/process.c"
 rg -Fq 'wineserver: received signal' "$SOURCE/server/signal.c"
 rg -Fq 'si->si_pid' "$SOURCE/server/signal.c"
 rg -Fq 'SA_SIGINFO' "$SOURCE/server/signal.c"

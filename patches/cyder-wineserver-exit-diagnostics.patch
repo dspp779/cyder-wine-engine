@@ -8,17 +8,16 @@
      exit(1);
  }
  
-@@ -193,20 +194,34 @@
+@@ -193,20 +194,31 @@
  }
  
  /* SIGHUP handler */
 -static void do_sighup( int signum )
 +static void do_sighup( int signum, siginfo_t *si, void *context )
  {
-+    fprintf( stderr, "wineserver: received signal %d (%s) from pid %d uid %d\n",
-+             signum, "SIGHUP",
-+             si ? (int)si->si_pid : -1, si ? (int)si->si_uid : -1 );
-+    fflush( stderr );
++    wineserver_diag_printf( "wineserver: received signal %d (%s) from pid %d uid %d\n",
++                            signum, "SIGHUP",
++                            si ? (int)si->si_pid : -1, si ? (int)si->si_uid : -1 );
      do_signal( handler_sighup );
  }
  
@@ -27,10 +26,9 @@
 +/* SIGTERM / SIGQUIT handler */
 +static void do_sigterm( int signum, siginfo_t *si, void *context )
  {
-+    fprintf( stderr, "wineserver: received signal %d (%s) from pid %d uid %d\n",
-+             signum, signum == SIGQUIT ? "SIGQUIT" : "SIGTERM",
-+             si ? (int)si->si_pid : -1, si ? (int)si->si_uid : -1 );
-+    fflush( stderr );
++    wineserver_diag_printf( "wineserver: received signal %d (%s) from pid %d uid %d\n",
++                            signum, signum == SIGQUIT ? "SIGQUIT" : "SIGTERM",
++                            si ? (int)si->si_pid : -1, si ? (int)si->si_uid : -1 );
 +    wineserver_log_exit_state();
      do_signal( handler_sigterm );
  }
@@ -39,15 +37,14 @@
 -static void do_sigint( int signum )
 +static void do_sigint( int signum, siginfo_t *si, void *context )
  {
-+    fprintf( stderr, "wineserver: received signal %d (%s) from pid %d uid %d\n",
-+             signum, "SIGINT",
-+             si ? (int)si->si_pid : -1, si ? (int)si->si_uid : -1 );
-+    fflush( stderr );
++    wineserver_diag_printf( "wineserver: received signal %d (%s) from pid %d uid %d\n",
++                            signum, "SIGINT",
++                            si ? (int)si->si_pid : -1, si ? (int)si->si_uid : -1 );
 +    wineserver_log_exit_state();
      do_signal( handler_sigint );
  }
  
-@@ -296,15 +311,19 @@
+@@ -296,15 +308,19 @@
  #ifdef SIG_PTHREAD_CANCEL
      sigaction( SIG_PTHREAD_CANCEL, &action, NULL );
  #endif
@@ -80,7 +77,7 @@
  #include "file.h"
  #include "thread.h"
  #include "request.h"
-@@ -214,8 +215,12 @@
+@@ -214,8 +215,11 @@
      exit(1);
  }
  
@@ -88,13 +85,12 @@
 +static void sigterm_handler( int signum, siginfo_t *si, void *context )
  {
 +    /* Temporary handlers installed before init_signals(). */
-+    fprintf( stderr, "wineserver: early signal %d from pid %d uid %d\n",
-+             signum, si ? (int)si->si_pid : -1, si ? (int)si->si_uid : -1 );
-+    fflush( stderr );
++    wineserver_diag_printf( "wineserver: early signal %d from pid %d uid %d\n",
++                            signum, si ? (int)si->si_pid : -1, si ? (int)si->si_uid : -1 );
      exit(1);  /* make sure atexit functions get called */
  }
  
-@@ -249,12 +254,18 @@
+@@ -249,12 +253,18 @@
      parse_options( argc, argv, "d::fhk::p::vw", long_options, option_callback );
  
      /* setup temporary handlers before the real signal initialization is done */
@@ -119,29 +115,58 @@
      init_limits();
  
      sock_init();
-@@ -270,5 +281,8 @@
+@@ -270,5 +280,7 @@
      init_threading();
      init_registry();
      main_loop();
-+    fprintf( stderr, "wineserver: main_loop returned\n" );
-+    fflush( stderr );
++    wineserver_diag_printf( "wineserver: main_loop returned\n" );
 +    wineserver_log_exit_state();
      return 0;
  }
 --- a/server/process.c
 +++ b/server/process.c
-@@ -73,6 +73,17 @@
+@@ -73,6 +73,47 @@
  static struct timeout_user *shutdown_timeout;  /* timeout for server shutdown */
  static int shutdown_stage;  /* current stage in the shutdown process */
  
-+/* Cyder: leave an explicit breadcrumb when wineserver is about to exit so a
-+ * silent SIGTERM / main_loop return can be distinguished from a crash. */
++/* Cyder: dual-write diagnostics to stderr and $WINEPREFIX/cyder-wineserver-diag.log
++ * so a killed gzip capture pipe cannot erase the only copy of the death reason. */
++void wineserver_diag_printf( const char *fmt, ... )
++{
++    va_list ap, ap2;
++    int fd = -1;
++
++    va_start( ap, fmt );
++    va_copy( ap2, ap );
++    vfprintf( stderr, fmt, ap );
++    fflush( stderr );
++    va_end( ap );
++
++    if (config_dir_fd != -1)
++        fd = openat( config_dir_fd, "cyder-wineserver-diag.log",
++                     O_WRONLY | O_CREAT | O_APPEND, 0600 );
++    if (fd == -1)
++    {
++        const char *prefix = getenv( "WINEPREFIX" );
++        char path[PATH_MAX];
++        if (prefix && snprintf( path, sizeof(path), "%s/cyder-wineserver-diag.log",
++                                prefix ) < (int)sizeof(path))
++            fd = open( path, O_WRONLY | O_CREAT | O_APPEND, 0600 );
++    }
++    if (fd != -1)
++    {
++        vdprintf( fd, fmt, ap2 );
++        fsync( fd );
++        close( fd );
++    }
++    va_end( ap2 );
++}
++
 +void wineserver_log_exit_state(void)
 +{
-+    fprintf( stderr, "wineserver: exit state running_processes=%d user_processes=%d"
-+             " shutdown_stage=%d\n",
-+             running_processes, user_processes, shutdown_stage );
-+    fflush( stderr );
++    wineserver_diag_printf( "wineserver: exit state running_processes=%d user_processes=%d"
++                            " shutdown_stage=%d\n",
++                            running_processes, user_processes, shutdown_stage );
 +}
 +
 +
@@ -150,11 +175,12 @@
  struct type_descr process_type =
 --- a/server/process.h
 +++ b/server/process.h
-@@ -133,6 +133,9 @@
+@@ -133,6 +133,10 @@
  #define USE_PTRACE
  #endif
  
 +/* Cyder diagnostic: dump process counters when wineserver is exiting. */
++extern void wineserver_diag_printf( const char *fmt, ... );
 +extern void wineserver_log_exit_state(void);
 +
  extern void init_tracing_mechanism(void);
@@ -162,28 +188,30 @@
  extern void finish_process_tracing( struct process *process );
 --- a/server/fd.c
 +++ b/server/fd.c
-@@ -1001,7 +1001,12 @@
+@@ -1001,9 +1001,13 @@
              }
          }
      }
-+    fprintf( stderr, "wineserver: main_loop exiting active_users=%d nb_users=%d\n",
-+             active_users, nb_users );
-+    fflush( stderr );
++    wineserver_diag_printf( "wineserver: main_loop exiting active_users=%d nb_users=%d\n",
++                            active_users, nb_users );
 +    wineserver_log_exit_state();
  }
+ 
+ 
 +
- 
- 
  /****************************************************************/
-@@ -1671,8 +1676,11 @@
+ /* device functions */
+ 
+@@ -1671,8 +1675,11 @@
          static int reported;
  
          if (reported++ < 10)
 -            fprintf( stderr, "wineserver: set_fd_events: stale poll slot %d for fd %p"
+-                     " (unix_fd=%d user=%p events=%d)\n", user, fd, fd->unix_fd, fd->user, events );
 +        {
-+            fprintf( stderr, "wineserver: FATAL: set_fd_events: stale poll slot %d for fd %p"
-                      " (unix_fd=%d user=%p events=%d)\n", user, fd, fd->unix_fd, fd->user, events );
-+            fflush( stderr );
++            wineserver_diag_printf( "wineserver: FATAL: set_fd_events: stale poll slot %d for fd %p"
++                                    " (unix_fd=%d user=%p events=%d)\n",
++                                    user, fd, fd->unix_fd, fd->user, events );
 +        }
          return;
      }
