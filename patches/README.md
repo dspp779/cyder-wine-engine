@@ -9,6 +9,7 @@ Patch order for the CX26.3 / Wine 11.0 Cyder007 engine:
 5. `cyder-wineserver-poll-slot-guard.patch`
 6. `cyder-wineserver-exit-diagnostics.patch`
 7. `cyder-wineserver-fd-reselect-async-null-ops.patch`
+8. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
 
 `wine-11.1-rtlwalkframechain-null-function.patch` is the minimal upstream
 Wine 11.1–11.14 behavior backport: stop x86_64 frame walking when no runtime
@@ -55,6 +56,14 @@ at offset 0x58 (`si_addr=0x58`) on the path `sock_poll_event` →
 `complete_async_poll` → `async_terminate` → `async_reselect` →
 `fd_reselect_async`. Logs via `wineserver_diag_printf` (rate-limited) and returns
 instead of aborting.
+
+`cyder-wineserver-pipe-end-disconnect-null-fd.patch` guards
+`pipe_end_disconnect()` when `pipe_end->fd` is NULL. Confirmed leave-game SIGSEGV
+at `si_addr=0xf8` (`&fd->wait_q`) on `kill_process` → `handle_table_destroy` →
+`pipe_end_destroy` → `pipe_end_disconnect` → `fd_async_wake_up`. Logs via
+`wineserver_diag_printf` (rate-limited), skips `fd_async_wake_up` /
+`set_fd_signaled`, and continues other disconnect cleanup. Also null-checks the
+peer fd wake in `reselect_read_queue`.
 
 `obsolete/cyder-ntdll-frame-walk-guard.patch` is retained only to migrate an
 incremental Cyder006 source tree. It is removed before the two replacement

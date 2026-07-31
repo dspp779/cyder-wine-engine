@@ -1,0 +1,43 @@
+--- a/server/named_pipe.c
++++ b/server/named_pipe.c
+@@ -473,7 +473,18 @@
+ 
+     pipe_end->state = status == STATUS_PIPE_DISCONNECTED
+         ? FILE_PIPE_DISCONNECTED_STATE : FILE_PIPE_CLOSING_STATE;
+-    fd_async_wake_up( pipe_end->fd, ASYNC_TYPE_WAIT, status );
++    /* A pipe_end may still be alive with fd == NULL (init failure, or teardown
++     * races). fd_async_wake_up / set_fd_signaled would SIGSEGV at wait_q. */
++    if (!pipe_end->fd)
++    {
++        static int reported;
++
++        if (reported++ < 10)
++            wineserver_diag_printf( "wineserver: pipe_end_disconnect: null fd for pipe_end %p\n",
++                                    pipe_end );
++    }
++    else
++        fd_async_wake_up( pipe_end->fd, ASYNC_TYPE_WAIT, status );
+     async_wake_up( &pipe_end->read_q, status );
+     LIST_FOR_EACH_ENTRY_SAFE( message, next, &pipe_end->message_queue, struct pipe_message, entry )
+     {
+@@ -483,7 +494,7 @@
+         async_terminate( async, status );
+         release_object( async );
+     }
+-    if (status == STATUS_PIPE_DISCONNECTED) set_fd_signaled( pipe_end->fd, 0 );
++    if (status == STATUS_PIPE_DISCONNECTED && pipe_end->fd) set_fd_signaled( pipe_end->fd, 0 );
+ 
+     if (connection)
+     {
+@@ -1048,7 +1059,10 @@
+     if (pipe_end->connection)
+     {
+         if (list_empty( &pipe_end->message_queue ))
+-            fd_async_wake_up( pipe_end->connection->fd, ASYNC_TYPE_WAIT, STATUS_SUCCESS );
++        {
++            if (pipe_end->connection->fd)
++                fd_async_wake_up( pipe_end->connection->fd, ASYNC_TYPE_WAIT, STATUS_SUCCESS );
++        }
+         else if (reselect_write)
+             reselect_write_queue( pipe_end->connection );
+     }

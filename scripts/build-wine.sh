@@ -376,6 +376,7 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-poll-slot-guard.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-exit-diagnostics.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-fd-reselect-async-null-ops.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-wineserver-pipe-end-disconnect-null-fd.patch"
 fi
 
 # CrossOver tarball is not a git checkout; make_makefiles requires `git ls-files`.
