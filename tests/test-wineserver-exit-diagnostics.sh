@@ -37,10 +37,25 @@ rg -Fq 'wineserver: received signal' "$SOURCE/server/signal.c"
 rg -Fq 'si->si_pid' "$SOURCE/server/signal.c"
 rg -Fq 'SA_SIGINFO' "$SOURCE/server/signal.c"
 
-# SEGV diagnostics: fault address + backtrace + sender path + start breadcrumb.
-rg -Fq 'SIGSEGV pid=' "$SOURCE/server/signal.c"
+# SEGV/BUS diagnostics: always-on handlers (not gated on core_dump_disabled),
+# fault address + backtrace + sender path + start breadcrumb.
+rg -Fq 'SIGSEGV' "$SOURCE/server/signal.c"
+rg -Fq 'SIGBUS' "$SOURCE/server/signal.c"
+rg -Fq 'si_addr' "$SOURCE/server/signal.c"
 rg -Fq 'backtrace(' "$SOURCE/server/signal.c"
 rg -Fq 'diag start pid=' "$SOURCE/server/main.c"
+# Literal "SIGSEGV pid=" may be gone (format uses %s name), but pid= logging remains.
+if ! rg -Fq 'SIGSEGV pid=' "$SOURCE/server/signal.c" && ! rg -Fq 'pid=%d si_addr=' "$SOURCE/server/signal.c"; then
+  echo "FAIL: missing SIGSEGV pid= / pid=%d si_addr= logging in signal.c" >&2
+  exit 1
+fi
+rg -Fq 'sigaction( SIGSEGV' "$SOURCE/server/signal.c"
+rg -Fq 'sigaction( SIGBUS' "$SOURCE/server/signal.c"
+# Handler install must not be gated solely inside core_dump_disabled().
+if rg -n 'if \(core_dump_disabled' "$SOURCE/server/signal.c"; then
+  echo "FAIL: SIGSEGV install still gated on core_dump_disabled()" >&2
+  exit 1
+fi
 if ! rg -Fq 'wineserver_diag_received_signal' "$SOURCE/server/signal.c" && ! rg -Fq 'path=%s' "$SOURCE/server/signal.c"; then
   echo "FAIL: missing wineserver_diag_received_signal or path=%s in signal.c" >&2
   exit 1

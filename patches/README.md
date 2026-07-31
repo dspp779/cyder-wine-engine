@@ -43,12 +43,15 @@ address. Both are still unfixed in Wine 11.11 and have no Bugzilla entry.
 wineserver exits observed after the poll-slot work: SIGTERM/SIGINT/SIGHUP/SIGQUIT
 handlers print `si_pid`/`si_uid` (and sender `path=` via `proc_pidpath` on
 Apple), `main_loop` return dumps `active_users` and process counters, and the
-stale-poll message is upgraded to `FATAL` with an immediate `fflush`. On
-SIGSEGV (when core dumps are disabled) it logs `si_addr`/`si_code` plus a
-`backtrace()` frame/symbol dump before abort. Every diagnostic line is also
-appended to `$WINEPREFIX/cyder-wineserver-diag.log` (via `config_dir_fd`) so a
-killed gzip capture pipe cannot erase the death reason. Non-SEGV behavior
-otherwise stays non-aborting.
+stale-poll message is upgraded to `FATAL` with an immediate `fflush`. SIGSEGV
+and SIGBUS handlers are installed unconditionally (not gated on
+`core_dump_disabled()` / RLIMIT_CORE) so a crash still leaves `si_addr`/`si_code`
+plus a `backtrace()` frame/symbol dump in the diag log before abort — even when
+core dumps are enabled. An `atexit` breadcrumb records clean exits after the
+master socket is up. Every diagnostic line is also appended to
+`$WINEPREFIX/cyder-wineserver-diag.log` (via `config_dir_fd`) so a killed gzip
+capture pipe cannot erase the death reason. Non-SEGV/BUS behavior otherwise
+stays non-aborting.
 
 `cyder-wineserver-fd-reselect-async-null-ops.patch` guards `fd_reselect_async()`
 against a NULL `fd_ops` (or missing `reselect_async`) vtable. Confirmed SIGSEGV

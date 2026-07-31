@@ -117,42 +117,62 @@
      do_signal( handler_sigint );
  }
  
-@@ -222,10 +263,31 @@
+@@ -222,10 +263,33 @@
      do_signal( handler_sigchld );
  }
  
 -/* SIGSEGV handler */
 -static void do_sigsegv( int signum )
-+/* SIGSEGV handler — Cyder: capture fault address + backtrace before abort. */
++/* SIGSEGV/SIGBUS handler — Cyder: always log fault + backtrace before abort.
++ * Installed unconditionally so cores-enabled RLIMIT_CORE cannot silence us. */
 +static void do_sigsegv( int signum, siginfo_t *si, void *context )
  {
 -    fprintf( stderr, "wineserver crashed, please enable coredumps (ulimit -c unlimited) and restart.\n");
 +    void *stack[64];
 +    int n, i;
 +    char **syms;
++    const char *name = (signum == SIGBUS) ? "SIGBUS" : "SIGSEGV";
 +
-+    (void)signum;
 +    (void)context;
-+    wineserver_diag_printf( "wineserver: SIGSEGV pid=%d si_addr=%p si_code=%d\n",
-+                            (int)getpid(),
++    wineserver_diag_printf( "wineserver: %s pid=%d si_addr=%p si_code=%d\n",
++                            name, (int)getpid(),
 +                            si ? si->si_addr : NULL,
 +                            si ? si->si_code : -1 );
 +    wineserver_log_exit_state();
 +    n = backtrace( stack, (int)(sizeof(stack) / sizeof(stack[0])) );
 +    for (i = 0; i < n; i++)
-+        wineserver_diag_printf( "wineserver: SIGSEGV frame[%d]=%p\n", i, stack[i] );
++        wineserver_diag_printf( "wineserver: %s frame[%d]=%p\n", name, i, stack[i] );
 +    syms = backtrace_symbols( stack, n );
 +    if (syms)
 +    {
 +        for (i = 0; i < n; i++)
-+            wineserver_diag_printf( "wineserver: SIGSEGV sym[%d]=%s\n", i, syms[i] );
++            wineserver_diag_printf( "wineserver: %s sym[%d]=%s\n", name, i, syms[i] );
 +        free( syms );
 +    }
-+    wineserver_diag_printf( "wineserver crashed, please enable coredumps (ulimit -c unlimited) and restart.\n" );
++    wineserver_diag_printf( "wineserver crashed (%s); coredumps may still help (ulimit -c unlimited).\n",
++                            name );
      abort();
  }
  
-@@ -296,19 +358,25 @@
+@@ -255,17 +319,6 @@
+     return watchdog != 0;
+ }
+ 
+-static int core_dump_disabled( void )
+-{
+-    int r = 0;
+-#ifdef RLIMIT_CORE
+-    struct rlimit lim;
+-
+-    r = !getrlimit(RLIMIT_CORE, &lim) && (lim.rlim_cur == 0);
+-#endif
+-    return r;
+-}
+-
+ void init_signals(void)
+ {
+     struct sigaction action;
+@@ -296,20 +349,24 @@
  #ifdef SIG_PTHREAD_CANCEL
      sigaction( SIG_PTHREAD_CANCEL, &action, NULL );
  #endif
@@ -171,17 +191,20 @@
 +    action.sa_sigaction = do_sigterm;
      sigaction( SIGQUIT, &action, NULL );
      sigaction( SIGTERM, &action, NULL );
-+    action.sa_flags = 0;
-     if (core_dump_disabled())
-     {
+-    if (core_dump_disabled())
+-    {
 -        action.sa_handler = do_sigsegv;
-+        action.sa_flags = SA_SIGINFO;
-+        action.sa_sigaction = do_sigsegv;
-         sigaction( SIGSEGV, &action, NULL );
-+        action.sa_flags = 0;
-     }
+-        sigaction( SIGSEGV, &action, NULL );
+-    }
++    /* Always install SEGV/BUS diagnostics (do not gate on core_dump_disabled). */
++    action.sa_flags = SA_SIGINFO;
++    action.sa_sigaction = do_sigsegv;
++    sigaction( SIGSEGV, &action, NULL );
++    sigaction( SIGBUS, &action, NULL );
++    action.sa_flags = 0;
      action.sa_handler = SIG_IGN;
      sigaction( SIGXFSZ, &action, NULL );
+ #ifdef HAVE_SIGINFO_T_SI_FD
 --- a/server/main.c
 +++ b/server/main.c
 @@ -36,6 +36,7 @@
@@ -205,7 +228,19 @@
      exit(1);  /* make sure atexit functions get called */
  }
  
-@@ -249,12 +253,18 @@
+@@ -240,6 +244,11 @@
+ #endif
+     }
+ #endif
++}
++
++static void wineserver_atexit_diag(void)
++{
++    wineserver_diag_printf( "wineserver: atexit pid=%d\n", (int)getpid() );
+ }
+ 
+ int main( int argc, char *argv[] )
+@@ -249,12 +258,18 @@
      parse_options( argc, argv, "d::fhk::p::vw", long_options, option_callback );
  
      /* setup temporary handlers before the real signal initialization is done */
@@ -230,15 +265,16 @@
      init_limits();
  
      sock_init();
-@@ -263,6 +273,7 @@
+@@ -263,6 +278,8 @@
      msync_init();
  
      if (debug_level) fprintf( stderr, "wineserver: starting (pid=%ld)\n", (long) getpid() );
 +    wineserver_diag_printf( "wineserver: diag start pid=%d\n", (int)getpid() );
++    atexit( wineserver_atexit_diag );
      set_current_time();
      init_signals();
      init_memory();
-@@ -270,5 +281,7 @@
+@@ -270,5 +287,7 @@
      init_threading();
      init_registry();
      main_loop();
