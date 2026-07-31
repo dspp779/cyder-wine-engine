@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "engineId": "cx26.3-w11-cyder007",
-  "versionLabel": "CX26.3.0-W11-Cyder007",
+  "versionLabel": "CX26.3.0-W11-Cyder007-rc1",
   "base": {
     "crossover": "26.3.0",
     "wine": "11.0"
@@ -15,7 +15,12 @@
   "patches": [
     "cyder-compatdb-runtime.patch",
     "wine-11.1-rtlwalkframechain-null-function.patch",
-    "cyder-ntdll-frame-walk-page-fault-guard.patch"
+    "cyder-ntdll-frame-walk-page-fault-guard.patch",
+    "cyder-wineserver-sock-reselect-pseudo-fd.patch",
+    "cyder-wineserver-poll-slot-guard.patch",
+    "cyder-wineserver-exit-diagnostics.patch",
+    "cyder-wineserver-fd-reselect-async-null-ops.patch",
+    "cyder-wineserver-sock-rebind-async-fd.patch",
+    "cyder-wineserver-pipe-end-disconnect-null-fd.patch"
   ]
 }
-
