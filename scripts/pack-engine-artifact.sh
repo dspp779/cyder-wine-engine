@@ -128,12 +128,65 @@ if [[ -e "$ENGINE_TREE/lib64/apple_gptk" ]] ||
   exit 1
 fi
 cyder_write_engine_version_file "$ENGINE_TREE" "$ENGINE_VERSION_LABEL"
+
+# Fail closed: DXVK is a first-class graphics backend for this engine.
+for _dxvk_dll in \
+  lib/dxvk/x86_64-windows/d3d11.dll \
+  lib/dxvk/x86_64-windows/dxgi.dll \
+  lib/dxvk/i386-windows/d3d11.dll \
+  lib/dxvk/i386-windows/dxgi.dll; do
+  if [[ ! -f "$ENGINE_TREE/$_dxvk_dll" ]]; then
+    echo "Refusing to pack engine without $_dxvk_dll (run scripts/build-dxvk.sh or copy lib/dxvk)" >&2
+    exit 1
+  fi
+done
+unset _dxvk_dll
+
 bash "$SCRIPT_DIR/strip-wine-install.sh" "$ENGINE_TREE"
 # Preserve MoltenVK already in the install tree (VULKAN_SOURCE=existing only
 # seeds it when VULKAN_MODE=with; default without would orphan-delete it).
 VULKAN_MODE="${VULKAN_MODE:-with}" VULKAN_SOURCE=existing \
   bash "$SCRIPT_DIR/bundle-wine-dylibs.sh" "$ENGINE_TREE"
 bash "$SCRIPT_DIR/sign-wine.sh" --root "$ENGINE_TREE" --entitlements "$ENTITLEMENTS_PLIST"
+
+# Fail closed: every host Mach-O must stay at/below the product minOS floor.
+python3 - "$ENGINE_TREE" "${MACOSX_DEPLOYMENT_TARGET:-10.15}" <<'PY'
+import re, subprocess, sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+floor_s = sys.argv[2]
+
+def parse(v: str):
+    parts = [int(x) for x in v.split(".")]
+    while len(parts) < 3:
+        parts.append(0)
+    return tuple(parts[:3])
+
+floor = parse(floor_s)
+high = []
+for p in root.rglob("*"):
+    if not p.is_file() or p.is_symlink():
+        continue
+    try:
+        f = subprocess.check_output(["file", "-b", str(p)], text=True, stderr=subprocess.DEVNULL)
+    except Exception:
+        continue
+    if "Mach-O" not in f:
+        continue
+    out = subprocess.check_output(["otool", "-l", str(p)], text=True, stderr=subprocess.DEVNULL)
+    m = re.search(r"\bminos\s+(\d+(?:\.\d+)*)", out)
+    if not m:
+        continue
+    if parse(m.group(1)) > floor:
+        high.append((m.group(1), str(p.relative_to(root))))
+if high:
+    print(f"Refusing to pack: Mach-O minos exceeds product floor {floor_s}:", file=sys.stderr)
+    for ver, rel in sorted(high):
+        print(f"  {ver}  {rel}", file=sys.stderr)
+    sys.exit(1)
+print(f"OK: staged engine Mach-O minos ≤ {floor_s}")
+PY
 NTDLL="$ENGINE_TREE/lib/wine/x86_64-windows/ntdll.dll"
 [[ -f "$NTDLL" ]] || {
   echo "Missing packaged NTDLL: $NTDLL" >&2
