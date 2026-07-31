@@ -1,0 +1,18 @@
+---
+description: Read incremental build and patch guide before Wine make or new patches
+alwaysApply: true
+---
+
+# Engine incremental builds and patches
+
+Before any incremental `make` in `build64`, editing Wine sources under
+`build/**/sources/wine`, adding/updating `patches/*.patch`, or packing an
+engine artifact:
+
+1. Read `docs/incremental-build-and-patches.md`.
+2. Read `patches/README.md` for apply order.
+3. Follow `AGENTS.md` non-negotiables (minOS 10.15, CX26-only wineserver/frame-walk patches, pack gates).
+
+Do not run host `clang`/`make` without `source scripts/env-x86_64.sh` (or
+equivalent `MACOSX_DEPLOYMENT_TARGET` + `-mmacosx-version-min`). Prefer
+`scripts/rebuild-wine-host-unix.sh` when repairing minOS drift.

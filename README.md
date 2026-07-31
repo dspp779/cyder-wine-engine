@@ -9,10 +9,10 @@ engine artifact during the first extraction phase.
 
 ## Current release target
 
-- Engine: `CX26.3.0-W11-Cyder007`
+- Engine: `CX26.3.0-W11-Cyder007-rc1`
 - Base: CrossOver 26.3.0 / Wine 11.0
 - Host: macOS x86_64 under Rosetta 2
-- Product deployment floor: macOS 10.15
+- Product deployment floor: macOS 10.15 (`.env` / `MACOSX_DEPLOYMENT_TARGET`, default 10.15)
 - Architectures: x86_64 host with i386 and x86_64 Windows PE support
 
 The ordered patch set is recorded in
@@ -49,21 +49,32 @@ bash scripts/build-wine.sh --cx 26 --with-vulkan --vulkan-source crossover
 ```
 
 Incremental builds reuse `build/cx26/sources/wine/build64` and the install tree.
+See **[`docs/incremental-build-and-patches.md`](docs/incremental-build-and-patches.md)**
+for env/minOS rules, patch markers, cheatsheets, and pack gates. Agents
+(Codex, Cursor, Claude, Antigravity): start from [`AGENTS.md`](AGENTS.md) and
+[`docs/ai-agent-setup.md`](docs/ai-agent-setup.md).
+
 The patch application is idempotent and migrates a Cyder006 combined frame-walk
 patch into the split Cyder007 patch set.
 
-During the local phase-one migration, an existing CyderBits checkout can be
-reused without copying its large ignored trees:
+Large ignored trees live in this repo (not CyderBits/ogom):
+
+- `.brew-x86`
+- `build`
+- `install`
+- `tools/archives`
+
+A CyderBits/ogom checkout may keep compatibility symlinks pointing here so old
+scripts still resolve the same paths. Prefer building and packing from this
+repository.
+
+Host minOS comes from `.env` (`MACOSX_DEPLOYMENT_TARGET`, see `.env.example`)
+or defaults to `10.15`. `build-wine.sh` bakes `-mmacosx-version-min=…` into
+configure/make. After a bad incremental build, repair with:
 
 ```sh
-OGOM_ARCHIVES_DIR=/path/to/CyderBits/tools/archives \
-OGOM_BUILD_DIR=/path/to/CyderBits/build \
-WINE_INSTALL=/path/to/CyderBits/install/wine-cx26-x86_64 \
-  bash scripts/build-wine.sh --cx 26 --without-vulkan
+bash scripts/rebuild-wine-host-unix.sh
 ```
-
-Local symlinks for `.brew-x86`, `build`, `install`, and `tools/archives` are
-also safe because all four paths are ignored by this repository.
 
 ## Test
 

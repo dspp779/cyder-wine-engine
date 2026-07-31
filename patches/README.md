@@ -79,6 +79,25 @@ at `si_addr=0xf8` (`&fd->wait_q`) on `kill_process` → `handle_table_destroy` �
 `set_fd_signaled`, and continues other disconnect cleanup. Also null-checks the
 peer fd wake in `reselect_read_queue`.
 
+### Idempotent apply markers
+
+When a later patch rewrites an earlier hunk, `patch --reverse --dry-run` can fail
+even though the feature is present. `scripts/build-wine.sh` then treats these
+strings as “already applied”:
+
+| Patch | Marker |
+|-------|--------|
+| `wine-11.1-rtlwalkframechain-null-function.patch` | `if (!func) break;` (`signal_x86_64.c`) |
+| `cyder-wineserver-poll-slot-guard.patch` | `stale poll slot` (`fd.c`) |
+| `cyder-wineserver-exit-diagnostics.patch` | `wineserver_diag_printf` (`main.c`) |
+| `cyder-wineserver-fd-reselect-async-null-ops.patch` | `fd_reselect_async: missing ops` (`fd.c`) |
+| `cyder-wineserver-sock-rebind-async-fd.patch` | `cyder: sock_rebind_async_fds` (`sock.c`) |
+| `cyder-wineserver-pipe-end-disconnect-null-fd.patch` | `pipe_end_disconnect: null fd` (`named_pipe.c`) |
+
+New patches that may be amended in place should include a unique marker and a
+matching detection branch. Operational steps:
+[`docs/incremental-build-and-patches.md`](../docs/incremental-build-and-patches.md).
+
 `obsolete/cyder-ntdll-frame-walk-guard.patch` is retained only to migrate an
 incremental Cyder006 source tree. It is removed before the two replacement
 patches are applied.
