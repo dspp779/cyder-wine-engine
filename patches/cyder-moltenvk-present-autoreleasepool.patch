@@ -1,0 +1,67 @@
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKImage.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKImage.mm
+@@ -1555,18 +1555,23 @@
+ 	id<CAMetalDrawable> mtlDrwbl = getCAMetalDrawable();
+ 	MVKSwapchainSignaler signaler = getPresentationSignaler();
+ 	[mtlCmdBuff addScheduledHandler: ^(id<MTLCommandBuffer> mcb) {
+-
+-		addPresentedHandler(mtlDrwbl, presentInfo, signaler);
++		// Cyder: Metal scheduled-handler threads may not drain an ambient
++		// NSAutoreleasePool. nextDrawable/present create per-frame ObjC and
++		// IOSurfaceSharedEvent bookkeeping that otherwise accumulates as Mach
++		// ports (Activity Monitor Ports) under DXVK. Drain here each present.
++		@autoreleasepool {
++			addPresentedHandler(mtlDrwbl, presentInfo, signaler);
+ 
+-		// Try to do any present mode transitions as late as possible in an attempt
+-		// to avoid visual disruptions on any presents already on the queue.
+-		if (presentInfo.presentMode != VK_PRESENT_MODE_MAX_ENUM_KHR) {
+-			mtlDrwbl.layer.displaySyncEnabledMVK = (presentInfo.presentMode != VK_PRESENT_MODE_IMMEDIATE_KHR);
+-		}
+-		if (presentInfo.desiredPresentTime) {
+-			[mtlDrwbl presentAtTime: (double)presentInfo.desiredPresentTime * 1.0e-9];
+-		} else {
+-			[mtlDrwbl present];
++			// Try to do any present mode transitions as late as possible in an attempt
++			// to avoid visual disruptions on any presents already on the queue.
++			if (presentInfo.presentMode != VK_PRESENT_MODE_MAX_ENUM_KHR) {
++				mtlDrwbl.layer.displaySyncEnabledMVK = (presentInfo.presentMode != VK_PRESENT_MODE_IMMEDIATE_KHR);
++			}
++			if (presentInfo.desiredPresentTime) {
++				[mtlDrwbl presentAtTime: (double)presentInfo.desiredPresentTime * 1.0e-9];
++			} else {
++				[mtlDrwbl present];
++			}
+ 		}
+ 	}];
+ 
+@@ -1580,10 +1585,12 @@
+ 	auto* fence = presentInfo.fence;
+ 	if (fence) { fence->retain(); }
+ 	[mtlCmdBuff addCompletedHandler: ^(id<MTLCommandBuffer> mcb) {
+-		signal(fence);
+-		if (fence) { fence->release(); }
+-		[mtlDrwbl release];
+-		release();
++		@autoreleasepool {
++			signal(fence);
++			if (fence) { fence->release(); }
++			[mtlDrwbl release];
++			release();
++		}
+ 	}];
+ 
+ 	signal(signaler.semaphore, signaler.semaphoreSignalToken, mtlCmdBuff);
+@@ -1622,7 +1629,11 @@
+ #if !MVK_OS_SIMULATOR && defined(__MAC_10_15_4)
+ 	if ([mtlDrawable respondsToSelector: @selector(addPresentedHandler:)]) {
+ 		[mtlDrawable addPresentedHandler: ^(id<MTLDrawable> mtlDrwbl) {
+-			endPresentation(presentInfo, signaler, mtlDrwbl.presentedTime * 1.0e9);
++			// Cyder: presented-handler callbacks also need a local pool; the
++			// QuartzCore callback thread is not AppKit's main event loop.
++			@autoreleasepool {
++				endPresentation(presentInfo, signaler, mtlDrwbl.presentedTime * 1.0e9);
++			}
+ 		}];
+ 	} else
+ #endif
