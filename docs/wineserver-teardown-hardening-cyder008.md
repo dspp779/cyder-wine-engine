@@ -1,8 +1,8 @@
 # Wineserver leave/teardown hardening → Cyder008
 
 Date: 2026-07-31  
-Status: **queued for next engine pack** (`CX26.3.0-W11-Cyder008`)  
-Shipped GA remains: `CX26.3.0-W11-Cyder007` (Cyder 0.9.0)
+Status: **packed and pinned for Cyder 0.9.3** (`CX26.3.0-W11-Cyder008`)
+Previous GA: `CX26.3.0-W11-Cyder007` (Cyder 0.9.0–0.9.2)
 
 ## Why
 
@@ -56,7 +56,7 @@ bash tests/test-wineserver-add-completion-guard.sh
 
 Registered in `tests/run.sh`.
 
-## Pack checklist (when cutting Cyder008)
+## Completed pack checklist
 
 1. Confirm `config/engine-version.txt` / `config/engine-release.json` say
    `CX26.3.0-W11-Cyder008` and list all three patches above.

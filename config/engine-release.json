@@ -25,5 +25,5 @@
     "cyder-wineserver-pipe-end-disconnect-null-fd.patch",
     "cyder-wineserver-add-completion-guard.patch"
   ],
-  "notes": "Queued next pack after Cyder007. Teardown hardening docs: docs/wineserver-teardown-hardening-cyder008.md. Do not ship until pack-engine-artifact.sh produces a signed archive and Cyder pins it."
+  "notes": "Cyder008 adds teardown hardening and the complete NTDLL frame-walk guard set. Packed and pinned for Cyder 0.9.3 after engine tests, minOS checks, signature verification, and archive round-trip validation."
 }

@@ -42,34 +42,33 @@ if [[ -n "$ARTIFACT_SHA256" && ! "$ARTIFACT_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
 fi
 
 mkdir -p "$(dirname "$OUTPUT")"
-cat >"$OUTPUT" <<EOF
-{
-  "schemaVersion": 1,
-  "engineId": "cx26.3-w11-cyder007",
-  "versionLabel": "$VERSION_LABEL",
-  "base": {
-    "crossover": "26.3.0",
-    "wine": "11.0"
-  },
-  "hostArchitecture": "x86_64",
-  "windowsArchitectures": ["i386", "x86_64"],
-  "minimumCyderVersion": "0.8.3",
-  "ntdllSHA256": "$NTDLL_SHA256",
-  "artifact": $(if [[ -n "$ARTIFACT" ]]; then printf '"%s"' "$ARTIFACT"; else printf 'null'; fi),
-  "artifactSHA256": $(if [[ -n "$ARTIFACT_SHA256" ]]; then printf '"%s"' "$ARTIFACT_SHA256"; else printf 'null'; fi),
-  "patches": [
-    "cyder-compatdb-runtime.patch",
-    "wine-11.1-rtlwalkframechain-null-function.patch",
-    "cyder-ntdll-frame-walk-page-fault-guard.patch",
-    "cyder-wineserver-sock-reselect-pseudo-fd.patch",
-    "cyder-wineserver-poll-slot-guard.patch",
-    "cyder-wineserver-exit-diagnostics.patch",
-    "cyder-wineserver-fd-reselect-async-null-ops.patch",
-    "cyder-wineserver-sock-rebind-async-fd.patch",
-    "cyder-wineserver-pipe-end-disconnect-null-fd.patch"
-  ]
+RELEASE_CONFIG="$ROOT/config/engine-release.json"
+[[ -f "$RELEASE_CONFIG" ]] || {
+  echo "Missing engine release metadata: $RELEASE_CONFIG" >&2
+  exit 1
 }
-EOF
+
+# Keep the release identity, compatibility floor, architectures, and ordered
+# patch list in one canonical file. The version and checksums are build outputs
+# and intentionally replace their config counterparts here.
+python3 - "$RELEASE_CONFIG" "$OUTPUT" "$VERSION_LABEL" "$NTDLL_SHA256" \
+  "$ARTIFACT" "$ARTIFACT_SHA256" <<'PY'
+import json
+import sys
+
+config_path, output_path, version, ntdll_sha, artifact, artifact_sha = sys.argv[1:]
+with open(config_path, encoding="utf-8") as stream:
+    manifest = json.load(stream)
+
+manifest["versionLabel"] = version
+manifest["ntdllSHA256"] = ntdll_sha
+manifest["artifact"] = artifact or None
+manifest["artifactSHA256"] = artifact_sha or None
+
+with open(output_path, "w", encoding="utf-8") as stream:
+    json.dump(manifest, stream, ensure_ascii=False, indent=2)
+    stream.write("\n")
+PY
 
 plutil -convert json -o /dev/null -- "$OUTPUT"
 echo "Wrote engine manifest: $OUTPUT"
