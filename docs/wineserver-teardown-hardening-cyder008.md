@@ -24,6 +24,15 @@ One real play session after installing the rebuilt wineserver into
 intermittent, so this is **not** proof the livelock is gone — only that
 teardown guards are in the local runtime and did not regress that session.
 
+**Later the same evening (~20:05):** leave-game livelock **reproduced** on
+**MSync + DXVK** while the **running** wineserver still had every Cyder008
+teardown marker (`pipe_end_disconnect: null fd`, `add_completion: invalid`,
+`async_clear_weak_fd`, etc.). Capture:
+`ogom/debug/hang-20260731-200537/analysis.txt`.
+
+Conclusion: these patches address force-kill SIGSEGV only; they do **not**
+stop the grap `NtQueryDirectoryObject` ↔ `req_get_directory_entries` livelock.
+
 ## Patches (apply order after sock-rebind)
 
 | Patch | Role |
