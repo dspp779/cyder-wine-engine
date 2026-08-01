@@ -1,0 +1,102 @@
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKSync.mm	2026-08-01 11:42:03
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKSync.mm	2026-08-01 11:42:03
+@@ -19,6 +19,8 @@
+ #include "MVKSync.h"
+ #include "MVKFoundation.h"
+ #include "MVKInstance.h"
++
++#include <thread>
+ 
+ using namespace std;
+ 
+@@ -523,7 +525,16 @@
+ 	return rslt;
+ }
+ 
+-// Create a blocking fence sitter, add it to each semaphore, wait, then remove it.
++// Poll timeline counter values instead of registering MTLSharedEvent
++// notifyListener callbacks via MVKFenceSitter.
++//
++// Cyder: each -[MTLSharedEvent notifyListener:atValue:block:] retains a Mach
++// receive right until the event reaches the waited value. DXVK issues many
++// finite-timeout vkWaitSemaphores that expire first, so those rights
++// accumulate (~80+/s Ports growth under MapleStory Classic + DXVK). Upstream
++// #1860 only released the MTLSharedEventListener object; it does not cancel
++// pending notifyListener registrations. Polling getCounterValue() avoids the
++// Metal listener path entirely for host waits.
+ VkResult mvkWaitSemaphores(MVKDevice* device,
+ 						   const VkSemaphoreWaitInfo* pWaitInfo,
+ 						   uint64_t timeout) {
+@@ -532,31 +543,52 @@
+ 		return device->getConfigurationResult();
+ 	}
+ 
+-	VkResult rslt = VK_SUCCESS;
+ 	bool waitAny = mvkIsAnyFlagEnabled(pWaitInfo->flags, VK_SEMAPHORE_WAIT_ANY_BIT);
+-	bool alreadySignaled = false;
+-	MVKFenceSitter fenceSitter(!waitAny);
+ 
+-	for (uint32_t i = 0; i < pWaitInfo->semaphoreCount; i++) {
+-		if (((MVKTimelineSemaphore*)pWaitInfo->pSemaphores[i])->registerWait(&fenceSitter, pWaitInfo, i) && waitAny) {
+-			// In this case, we don't need to wait.
+-			alreadySignaled = true;
+-			break;
+-		}
+-	}
++	auto isReached = [&](uint32_t index) -> bool {
++		auto* sem = (MVKTimelineSemaphore*)pWaitInfo->pSemaphores[index];
++		return sem->getCounterValue() >= pWaitInfo->pValues[index];
++	};
+ 
+-	bool finished = alreadySignaled || fenceSitter.wait(timeout);
+-	if (device->getConfigurationResult() != VK_SUCCESS) {
+-		rslt = device->getConfigurationResult();
+-	} else if ( !finished ) {
+-		rslt = VK_TIMEOUT;
+-	}
++	auto isComplete = [&]() -> bool {
++		if (pWaitInfo->semaphoreCount == 0) { return true; }
++		if (waitAny) {
++			for (uint32_t i = 0; i < pWaitInfo->semaphoreCount; i++) {
++				if (isReached(i)) { return true; }
++			}
++			return false;
++		}
++		for (uint32_t i = 0; i < pWaitInfo->semaphoreCount; i++) {
++			if ( !isReached(i) ) { return false; }
++		}
++		return true;
++	};
+ 
+-	for (uint32_t i = 0; i < pWaitInfo->semaphoreCount; i++) {
+-		((MVKTimelineSemaphore*)pWaitInfo->pSemaphores[i])->unregisterWait(&fenceSitter);
+-	}
++	if (isComplete()) { return VK_SUCCESS; }
++	if (timeout == 0) { return VK_TIMEOUT; }
+ 
+-	return rslt;
++	const auto start = chrono::steady_clock::now();
++	const bool timed = (timeout != UINT64_MAX);
++	const chrono::nanoseconds budget(timed ? min(timeout, kMVKUndefinedLargeUInt64) : 0);
++
++	// ~100us balances wake latency vs CPU; matches DXVK's high-frequency waits.
++	static constexpr chrono::microseconds kPollSlice(100);
++
++	for (;;) {
++		if (device->getConfigurationResult() != VK_SUCCESS) {
++			return device->getConfigurationResult();
++		}
++		if (isComplete()) { return VK_SUCCESS; }
++
++		if (timed) {
++			auto elapsed = chrono::steady_clock::now() - start;
++			if (elapsed >= budget) { return VK_TIMEOUT; }
++			auto remaining = budget - elapsed;
++			this_thread::sleep_for(remaining < kPollSlice ? remaining : kPollSlice);
++		} else {
++			this_thread::sleep_for(kPollSlice);
++		}
++	}
+ }
+ 
+ 

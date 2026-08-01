@@ -21,6 +21,7 @@ tests=(
   test-wineserver-async-terminate-null-fd.sh
   test-wineserver-pipe-end-disconnect-null-fd.sh
   test-wineserver-add-completion-guard.sh
+  test-moltenvk-timeline-wait-poll.sh
 )
 
 for test_file in "${tests[@]}"; do

@@ -127,3 +127,26 @@ CompatDB runtime.
 The frame-walk and wineserver patches are intentionally CX26-only. CX25 uses a
 Wine 10 base and must not receive them without a separate source and ABI review.
 
+## MoltenVK (graphics stack, not Wine patch order)
+
+Applied under `$MOLTENVK_SRC` via
+`scripts/rebuild-moltenvk-cyder-patches.sh --apply-patches`:
+
+| Patch | Intent |
+|-------|--------|
+| `cyder-moltenvk-timeline-wait-poll.patch` | Host `vkWaitSemaphores` polls timeline counters instead of `MTLSharedEvent notifyListener`, which leaks Mach receive rights on finite-timeout waits (DXVK + MapleStory Classic). |
+| `cyder-moltenvk-present-autoreleasepool.patch` | Drain `@autoreleasepool` on Metal present / presented-handler threads. |
+
+Markers: `Cyder: each -[MTLSharedEvent notifyListener` (`MVKSync.mm`),
+`Cyder: Metal scheduled-handler threads` (`MVKImage.mm`).
+
+When full Xcode is unavailable, deploy the equivalent host-wait fix via the
+re-export shim (Apple clang only):
+
+```bash
+bash tools/cyder-mvk-timeline-wait-poll/install-shim.sh --install-runtime
+```
+
+Undo with `--undo --install-runtime`. Once Xcode can rebuild
+`libMoltenVK.dylib`, prefer the source patch and remove the shim.
+
