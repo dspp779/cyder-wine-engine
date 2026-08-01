@@ -6,6 +6,7 @@ dist/
 logs/
 tools/archives
 tools/runtime/
+tools/cyder-mvk-autorelease/
 
 # Local signing credentials / machine overrides
 auth/
