@@ -16,6 +16,13 @@ Cyder must reject an archive when its sidecar digest, embedded manifest,
 `version` file, or NTDLL SHA-256 disagree. Runtime/prefix ownership remains in
 Cyder; the engine project must never mutate a user's Cyder prefix.
 
+Optional RC-only exception: Cyder may overlay a MoltenVK wait-poll shim into an
+already extracted engine tree without bumping the pinned engine version. Contract
+and inject algorithm:
+[`docs/moltenvk-timeline-wait-poll-app-overlay.md`](moltenvk-timeline-wait-poll-app-overlay.md).
+That overlay must be removed when a properly patched MoltenVK ships in a new
+engine archive.
+
 Cross-repository changes cannot be atomic. A Cyder commit therefore pins an
 already published immutable engine release rather than a moving branch name.
 

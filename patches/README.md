@@ -150,3 +150,7 @@ bash tools/cyder-mvk-timeline-wait-poll/install-shim.sh --install-runtime
 Undo with `--undo --install-runtime`. Once Xcode can rebuild
 `libMoltenVK.dylib`, prefer the source patch and remove the shim.
 
+**Cyder.app RC overlay（不 bump 引擎版號）：** 見
+[`docs/moltenvk-timeline-wait-poll-app-overlay.md`](../docs/moltenvk-timeline-wait-poll-app-overlay.md)。
+
+
