@@ -1,0 +1,12 @@
+--- a/server/async.c
++++ b/server/async.c
+@@ -312,7 +312,8 @@ void free_async_queue( struct async_queue *queue )
+ 
+     LIST_FOR_EACH_ENTRY_SAFE( async, next, &queue->queue, struct async, queue_entry )
+     {
+-        if (!async->completion) async->completion = fd_get_completion( async->fd, &async->comp_key );
++        /* async->fd may already be NULL (pipe_end_disconnect null-fd path). */
++        if (!async->completion && async->fd) async->completion = fd_get_completion( async->fd, &async->comp_key );
+         async->fd = NULL;
+         async_terminate( async, STATUS_HANDLES_CLOSED );
+         async->queue = NULL;

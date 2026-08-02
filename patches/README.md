@@ -11,8 +11,9 @@ Patch order for the CX26.3 / Wine 11.0 Cyder007 engine:
 7. `cyder-wineserver-fd-reselect-async-null-ops.patch`
 8. `cyder-wineserver-sock-rebind-async-fd.patch`
 9. `cyder-wineserver-async-terminate-null-fd.patch`
-10. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
-11. `cyder-wineserver-add-completion-guard.patch`
+10. `cyder-wineserver-free-async-queue-null-fd.patch`
+11. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
+12. `cyder-wineserver-add-completion-guard.patch`
 
 `wine-11.1-rtlwalkframechain-null-function.patch` is the minimal upstream
 Wine 11.1–11.14 behavior backport: stop x86_64 frame walking when no runtime
@@ -79,6 +80,13 @@ grab/release). Soft-guards stay as belt-and-suspenders.
 Also exports `async_clear_weak_fd()` so `named_pipe.c` can clear opaque weak
 pointers before terminate.
 
+`cyder-wineserver-free-async-queue-null-fd.patch` guards `free_async_queue()` when
+queued asyncs already have a NULL weak `async->fd`. Confirmed 2026-08-02: after
+`pipe_end_disconnect` logged `null fd` and called `free_async_queue(&read_q)`,
+unguarded `fd_get_completion(async->fd)` still SIGSEGVd (`si_addr=0`,
+`pipe_end_disconnect+161`). Matches the safe pattern already used in
+`add_async_completion`.
+
 `cyder-wineserver-pipe-end-disconnect-null-fd.patch` guards
 `pipe_end_disconnect()` when `pipe_end->fd` is NULL. Confirmed leave-game SIGSEGV
 at `si_addr=0xf8` (`&fd->wait_q`) on `kill_process` → `handle_table_destroy` →
@@ -109,6 +117,7 @@ strings as “already applied”:
 | `cyder-wineserver-fd-reselect-async-null-ops.patch` | `fd_reselect_async: missing ops` (`fd.c`) |
 | `cyder-wineserver-sock-rebind-async-fd.patch` | `cyder: sock_rebind_async_fds` (`sock.c`) |
 | `cyder-wineserver-async-terminate-null-fd.patch` | `!async->fd || !is_fd_overlapped` (`async.c`) |
+| `cyder-wineserver-free-async-queue-null-fd.patch` | `!async->completion && async->fd` (`async.c`) |
 | `cyder-wineserver-pipe-end-disconnect-null-fd.patch` | `pipe_end_disconnect: null fd` (`named_pipe.c`) |
 | `cyder-wineserver-add-completion-guard.patch` | `add_completion: invalid completion` (`completion.c`) |
 

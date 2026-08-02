@@ -19,6 +19,7 @@ tests=(
   test-wineserver-fd-reselect-async-null-ops.sh
   test-wineserver-sock-rebind-async-fd.sh
   test-wineserver-async-terminate-null-fd.sh
+  test-wineserver-free-async-queue-null-fd.sh
   test-wineserver-pipe-end-disconnect-null-fd.sh
   test-wineserver-add-completion-guard.sh
   test-moltenvk-timeline-wait-poll.sh

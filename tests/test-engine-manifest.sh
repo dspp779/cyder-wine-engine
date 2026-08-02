@@ -37,6 +37,8 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-sock-rebi
   "manifest should record the wineserver sock-rebind-async-fd patch"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-async-terminate-null-fd.patch" \
   "manifest should record the wineserver async-terminate guard"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-free-async-queue-null-fd.patch" \
+  "manifest should record the wineserver free-async-queue guard"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-add-completion-guard.patch" \
   "manifest should record the wineserver add-completion guard"
 

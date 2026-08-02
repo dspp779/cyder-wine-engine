@@ -348,6 +348,9 @@ apply_cyder_patch() {
   elif [[ "$(basename "$patch_file")" == "cyder-wineserver-async-terminate-null-fd.patch" ]] &&
        grep -Fq '!async->fd || !is_fd_overlapped' "$WINE_SRC/server/async.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-wineserver-free-async-queue-null-fd.patch" ]] &&
+       grep -Fq '!async->completion && async->fd' "$WINE_SRC/server/async.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
   elif [[ "$(basename "$patch_file")" == "cyder-wineserver-add-completion-guard.patch" ]] &&
        grep -Fq 'add_completion: invalid completion' "$WINE_SRC/server/completion.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
@@ -400,6 +403,7 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-fd-reselect-async-null-ops.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-sock-rebind-async-fd.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-async-terminate-null-fd.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-wineserver-free-async-queue-null-fd.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-pipe-end-disconnect-null-fd.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-add-completion-guard.patch"
 fi

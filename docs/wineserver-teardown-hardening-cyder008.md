@@ -1,7 +1,7 @@
 # Wineserver leave/teardown hardening → Cyder008
 
-Date: 2026-07-31  
-Status: **packed and pinned for Cyder 0.9.3** (`CX26.3.0-W11-Cyder008`)
+Date: 2026-07-31 (updated 2026-08-02)  
+Status: **in progress for Cyder 0.9.3** (`CX26.3.0-W11-Cyder008` — not yet released)
 Previous GA: `CX26.3.0-W11-Cyder007` (Cyder 0.9.0–0.9.2)
 
 ## Why
@@ -38,6 +38,7 @@ stop the grap `NtQueryDirectoryObject` ↔ `req_get_directory_entries` livelock.
 | Patch | Role |
 |-------|------|
 | `cyder-wineserver-async-terminate-null-fd.patch` | `!async->fd` before `is_fd_overlapped`; export `async_clear_weak_fd()` |
+| `cyder-wineserver-free-async-queue-null-fd.patch` | `!async->completion && async->fd` before `fd_get_completion` in `free_async_queue` |
 | `cyder-wineserver-pipe-end-disconnect-null-fd.patch` | null-fd: diag + `free_async_queue`; clear weak message async fds; peer fd null-check |
 | `cyder-wineserver-add-completion-guard.patch` | reject invalid `completion` / wait entries in `add_completion` |
 
@@ -50,16 +51,30 @@ Diag strings (for `cyder-wineserver-diag.log`):
 
 ```bash
 bash tests/test-wineserver-async-terminate-null-fd.sh
+bash tests/test-wineserver-free-async-queue-null-fd.sh
 bash tests/test-wineserver-pipe-end-disconnect-null-fd.sh
 bash tests/test-wineserver-add-completion-guard.sh
 ```
 
 Registered in `tests/run.sh`.
 
+## Follow-up (2026-08-02 Dock-quit NGS)
+
+After leave livelock, Dock-quit of the grap tray still SIGSEGV'd wineserver
+even though Cyder008 soft-guards were active:
+
+```
+pipe_end_disconnect: null fd for pipe_end …
+SIGSEGV … pipe_end_disconnect+161 → free_async_queue → fd_get_completion(NULL)
+```
+
+`cyder-wineserver-free-async-queue-null-fd.patch` closes that hole inside the
+same Cyder008 set (008 not yet released).
+
 ## Completed pack checklist
 
 1. Confirm `config/engine-version.txt` / `config/engine-release.json` say
-   `CX26.3.0-W11-Cyder008` and list all three patches above.
+   `CX26.3.0-W11-Cyder008` and list all four teardown patches above.
 2. `source scripts/env-x86_64.sh` → incremental or full host rebuild as needed.
 3. `bash scripts/pack-engine-artifact.sh` (DXVK + minOS ≤ 10.15 + codesign).
 4. Pin the new archive into the Cyder app repo (`config/cyder-engine-*`).

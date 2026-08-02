@@ -22,8 +22,9 @@
     "cyder-wineserver-fd-reselect-async-null-ops.patch",
     "cyder-wineserver-sock-rebind-async-fd.patch",
     "cyder-wineserver-async-terminate-null-fd.patch",
+    "cyder-wineserver-free-async-queue-null-fd.patch",
     "cyder-wineserver-pipe-end-disconnect-null-fd.patch",
     "cyder-wineserver-add-completion-guard.patch"
   ],
-  "notes": "Cyder008 adds teardown hardening and the complete NTDLL frame-walk guard set. Packed and pinned for Cyder 0.9.3 after engine tests, minOS checks, signature verification, and archive round-trip validation."
+  "notes": "Cyder008 adds teardown hardening (including free_async_queue null-fd after pipe_end_disconnect soft-guard) and the complete NTDLL frame-walk guard set."
 }
