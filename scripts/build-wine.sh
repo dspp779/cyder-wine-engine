@@ -354,6 +354,9 @@ apply_cyder_patch() {
   elif [[ "$(basename "$patch_file")" == "cyder-wineserver-add-completion-guard.patch" ]] &&
        grep -Fq 'add_completion: invalid completion' "$WINE_SRC/server/completion.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "a6-final-same-view-backing-sync.patch" ]] &&
+       grep -Fq 'macdrv_finalize_window_backing_sync' "$WINE_SRC/dlls/winemac.drv/cocoa_window.m" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
   else
     echo "Cannot apply required Wine patch: $patch_file" >&2
     exit 1
@@ -391,6 +394,7 @@ remove_obsolete_cyder_patch() {
 remove_obsolete_cyder_patch "$OGOM/patches/cyder-steam-webhelper-compat.patch"
 apply_cyder_patch "$OGOM/patches/cyder-compatdb-runtime.patch"
 if [[ "$CX_VERSION" == "26" ]]; then
+  apply_cyder_patch "$OGOM/patches/a6-final-same-view-backing-sync.patch"
   remove_obsolete_cyder_patch \
     "$OGOM/patches/obsolete/cyder-ntdll-frame-walk-guard.patch" \
     "$OGOM/patches/cyder-ntdll-frame-walk-page-fault-guard.patch" \

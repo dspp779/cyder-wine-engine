@@ -13,6 +13,7 @@ tests=(
   test-bundle-wine-dylibs-source.sh
   test-cyder-engine-version.sh
   test-engine-manifest.sh
+  test-winemac-a6-patch.sh
   test-ntdll-frame-walk-guard.sh
   test-wineserver-poll-guard-patches.sh
   test-wineserver-exit-diagnostics.sh
@@ -29,4 +30,3 @@ for test_file in "${tests[@]}"; do
   echo "==> $test_file"
   bash "$ROOT/tests/$test_file"
 done
-

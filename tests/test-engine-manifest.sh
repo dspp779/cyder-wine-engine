@@ -29,6 +29,8 @@ assert_eq "$(plutil -extract minimumCyderVersion raw -o - "$TMP/engine-manifest.
   "manifest should use the canonical minimum Cyder version"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "rtlwalkframechain-null-function" \
   "manifest should record the ordered frame-walk patch set"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "a6-final-same-view-backing-sync.patch" \
+  "manifest should record the winemac backing-sync patch"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-poll-slot-guard.patch" \
   "manifest should record the wineserver poll-slot patch set"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-exit-diagnostics.patch" \

@@ -1,19 +1,24 @@
 # Engine patch set
 
-Patch order for the CX26.3 / Wine 11.0 Cyder007 engine:
+Patch order for the CX26.3 / Wine 11.0 Cyder008 engine:
 
 1. `cyder-compatdb-runtime.patch`
-2. `wine-11.1-rtlwalkframechain-null-function.patch`
-3. `cyder-ntdll-frame-walk-page-fault-guard.patch`
-4. `cyder-wineserver-sock-reselect-pseudo-fd.patch`
-5. `cyder-wineserver-poll-slot-guard.patch`
-6. `cyder-wineserver-exit-diagnostics.patch`
-7. `cyder-wineserver-fd-reselect-async-null-ops.patch`
-8. `cyder-wineserver-sock-rebind-async-fd.patch`
-9. `cyder-wineserver-async-terminate-null-fd.patch`
-10. `cyder-wineserver-free-async-queue-null-fd.patch`
-11. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
-12. `cyder-wineserver-add-completion-guard.patch`
+2. `a6-final-same-view-backing-sync.patch`
+3. `wine-11.1-rtlwalkframechain-null-function.patch`
+4. `cyder-ntdll-frame-walk-page-fault-guard.patch`
+5. `cyder-wineserver-sock-reselect-pseudo-fd.patch`
+6. `cyder-wineserver-poll-slot-guard.patch`
+7. `cyder-wineserver-exit-diagnostics.patch`
+8. `cyder-wineserver-fd-reselect-async-null-ops.patch`
+9. `cyder-wineserver-sock-rebind-async-fd.patch`
+10. `cyder-wineserver-async-terminate-null-fd.patch`
+11. `cyder-wineserver-free-async-queue-null-fd.patch`
+12. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
+13. `cyder-wineserver-add-completion-guard.patch`
+
+`a6-final-same-view-backing-sync.patch` finalizes Retina/backing-size changes
+on the same `NSView` before OpenGL presents again. It prevents the resize,
+Alt+Enter, and minimize/restore black-screen path without forcing a view swap.
 
 `wine-11.1-rtlwalkframechain-null-function.patch` is the minimal upstream
 Wine 11.1–11.14 behavior backport: stop x86_64 frame walking when no runtime
@@ -111,6 +116,7 @@ strings as “already applied”:
 
 | Patch | Marker |
 |-------|--------|
+| `a6-final-same-view-backing-sync.patch` | `macdrv_finalize_window_backing_sync` (`cocoa_window.m`) |
 | `wine-11.1-rtlwalkframechain-null-function.patch` | `if (!func) break;` (`signal_x86_64.c`) |
 | `cyder-wineserver-poll-slot-guard.patch` | `stale poll slot` (`fd.c`) |
 | `cyder-wineserver-exit-diagnostics.patch` | `wineserver_diag_printf` (`main.c`) |
@@ -149,8 +155,12 @@ Applied under `$MOLTENVK_SRC` via
 Markers: `Cyder: each -[MTLSharedEvent notifyListener` (`MVKSync.mm`),
 `Cyder: Metal scheduled-handler threads` (`MVKImage.mm`).
 
-When full Xcode is unavailable, deploy the equivalent host-wait fix via the
-re-export shim (Apple clang only):
+Cyder008 packages the equivalent host-wait fix as an engine-owned re-export
+shim pair (`libMoltenVK.dylib` + `libMoltenVK.real.dylib`). The packer validates
+the dependency and exported wait entry point, so Cyder.app no longer injects
+or builds this workaround at runtime.
+
+For local development, install the re-export shim with Apple clang:
 
 ```bash
 bash tools/cyder-mvk-timeline-wait-poll/install-shim.sh --install-runtime
@@ -159,7 +169,6 @@ bash tools/cyder-mvk-timeline-wait-poll/install-shim.sh --install-runtime
 Undo with `--undo --install-runtime`. Once Xcode can rebuild
 `libMoltenVK.dylib`, prefer the source patch and remove the shim.
 
-**Cyder.app RC overlay（不 bump 引擎版號）：** 見
-[`docs/moltenvk-timeline-wait-poll-app-overlay.md`](../docs/moltenvk-timeline-wait-poll-app-overlay.md)。
-
+The former App-side RC overlay is retained only as historical documentation:
+[`docs/moltenvk-timeline-wait-poll-app-overlay.md`](../docs/moltenvk-timeline-wait-poll-app-overlay.md).
 

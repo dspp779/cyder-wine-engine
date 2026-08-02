@@ -147,6 +147,32 @@ bash "$SCRIPT_DIR/strip-wine-install.sh" "$ENGINE_TREE"
 # seeds it when VULKAN_MODE=with; default without would orphan-delete it).
 VULKAN_MODE="${VULKAN_MODE:-with}" VULKAN_SOURCE=existing \
   bash "$SCRIPT_DIR/bundle-wine-dylibs.sh" "$ENGINE_TREE"
+
+# Cyder008 owns the MoltenVK wait-poll workaround in the engine artifact.
+# Refuse to publish a plain MoltenVK or a broken shim-on-shim pair so the App
+# never needs to mutate the installed engine at runtime.
+if [[ "$ENGINE_VERSION_LABEL" == *Cyder008* ]]; then
+  MOLTENVK_DIR="$ENGINE_TREE/lib/wine/x86_64-unix"
+  MOLTENVK_SHIM="$MOLTENVK_DIR/libMoltenVK.dylib"
+  MOLTENVK_REAL="$MOLTENVK_DIR/libMoltenVK.real.dylib"
+  [[ -f "$MOLTENVK_SHIM" && -f "$MOLTENVK_REAL" ]] || {
+    echo "Refusing to pack Cyder008 without the MoltenVK wait-poll shim pair" >&2
+    exit 1
+  }
+  otool -L "$MOLTENVK_SHIM" | grep -Fq '@loader_path/libMoltenVK.real.dylib' || {
+    echo "Refusing to pack: MoltenVK shim does not re-export libMoltenVK.real.dylib" >&2
+    exit 1
+  }
+  nm -gj "$MOLTENVK_SHIM" | grep -Fxq '_vkWaitSemaphores' || {
+    echo "Refusing to pack: MoltenVK shim does not export vkWaitSemaphores" >&2
+    exit 1
+  }
+  if otool -L "$MOLTENVK_REAL" | tail -n +3 | grep -Fq 'libMoltenVK.real.dylib'; then
+    echo "Refusing to pack: MoltenVK.real.dylib is itself a shim" >&2
+    exit 1
+  fi
+  echo "OK: Cyder008 MoltenVK wait-poll shim pair"
+fi
 bash "$SCRIPT_DIR/sign-wine.sh" --root "$ENGINE_TREE" --entitlements "$ENTITLEMENTS_PLIST"
 
 # Fail closed: every host Mach-O must stay at/below the product minOS floor.

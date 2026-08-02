@@ -1,7 +1,7 @@
 # Wineserver leave/teardown hardening → Cyder008
 
 Date: 2026-07-31 (updated 2026-08-02)  
-Status: **in progress for Cyder 0.9.3** (`CX26.3.0-W11-Cyder008` — not yet released)
+Status: **release candidate for Cyder 0.9.3** (`CX26.3.0-W11-Cyder008`)
 Previous GA: `CX26.3.0-W11-Cyder007` (Cyder 0.9.0–0.9.2)
 
 ## Why
@@ -69,7 +69,7 @@ SIGSEGV … pipe_end_disconnect+161 → free_async_queue → fd_get_completion(N
 ```
 
 `cyder-wineserver-free-async-queue-null-fd.patch` closes that hole inside the
-same Cyder008 set (008 not yet released).
+same Cyder008 set.
 
 ## Completed pack checklist
 
