@@ -23,6 +23,7 @@ tests=(
   test-wineserver-free-async-queue-null-fd.sh
   test-wineserver-pipe-end-disconnect-null-fd.sh
   test-wineserver-add-completion-guard.sh
+  test-ntdll-query-directory-object-trace.sh
   test-moltenvk-timeline-wait-poll.sh
 )
 
