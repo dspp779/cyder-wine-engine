@@ -1,6 +1,6 @@
 # Engine patch set
 
-Patch order for the CX26.3 / Wine 11.0 Cyder008 engine:
+Patch order for the CX26.3 / Wine 11.0 Cyder009 engine:
 
 1. `cyder-compatdb-runtime.patch`
 2. `a6-final-same-view-backing-sync.patch`
@@ -15,6 +15,7 @@ Patch order for the CX26.3 / Wine 11.0 Cyder008 engine:
 11. `cyder-wineserver-free-async-queue-null-fd.patch`
 12. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
 13. `cyder-wineserver-add-completion-guard.patch`
+14. `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch`
 
 `a6-final-same-view-backing-sync.patch` finalizes Retina/backing-size changes
 on the same `NSView` before OpenGL presents again. It prevents the resize,
@@ -108,6 +109,20 @@ job teardown (`release_job_process` → `add_job_completion`) when
 Validates `completion_ops`, skips bad `completion_wait` entries, and logs via
 `wineserver_diag_printf`.
 
+`cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch` is a **narrow bandage**
+for the MapleStory Classic `grap-core64.aes` leave-game busy-loop that hammers
+`NtQueryDirectoryObject` → `get_directory_entries(index=0)` on Wine’s virtual
+HID mouse symlink (`VID_845E`). It marks only that function
+`__attribute__((optnone))` under Clang so host `-O2` codegen cannot form the
+livelock (same class as `-O0` / dead `fprintf` heisenbug bandages). **Not** a
+semantic HID / directory-object fidelity fix. Evidence:
+[`docs/grap-core-qdo-ab-findings.md`](../docs/grap-core-qdo-ab-findings.md).
+
+`cyder-ntdll-query-directory-object-trace.patch` remains for optional diagnosis
+(`CYDER_QDO_TRACE=1`); copy also under `patches/experimental/`. It is **not**
+in the default CX26 apply list (superseded by optnone). See
+[`docs/grap-core-qdo-trace.md`](../docs/grap-core-qdo-trace.md).
+
 ### Idempotent apply markers
 
 When a later patch rewrites an earlier hunk, `patch --reverse --dry-run` can fail
@@ -126,6 +141,8 @@ strings as “already applied”:
 | `cyder-wineserver-free-async-queue-null-fd.patch` | `!async->completion && async->fd` (`async.c`) |
 | `cyder-wineserver-pipe-end-disconnect-null-fd.patch` | `pipe_end_disconnect: null fd` (`named_pipe.c`) |
 | `cyder-wineserver-add-completion-guard.patch` | `add_completion: invalid completion` (`completion.c`) |
+| `cyder-ntdll-query-directory-object-trace.patch` | `cyder QDO` (`dlls/ntdll/unix/sync.c`) — optional / not default |
+| `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch` | `cyder QDO optnone` (`dlls/ntdll/unix/sync.c`) |
 
 New patches that may be amended in place should include a unique marker and a
 matching detection branch. Operational steps:

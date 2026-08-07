@@ -57,6 +57,10 @@ assert_contains "$output" "$ROOT/patches/cyder-wineserver-free-async-queue-null-
   "build should guard free_async_queue against NULL async->fd"
 assert_contains "$output" "$ROOT/patches/cyder-wineserver-pipe-end-disconnect-null-fd.patch" \
   "build should guard pipe_end_disconnect against NULL fd"
+assert_contains "$output" "$ROOT/patches/cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch" \
+  "build should apply NtQueryDirectoryObject optnone leave-game bandage"
+assert_contains "$output" "$ROOT/patches/cyder-ntdll-query-directory-object-trace.patch" \
+  "build should remove obsolete QDO TRACE before applying optnone"
 # Tarball trees skip make_*; git checkouts regenerate.
 if [[ -e "$ROOT/build/cx26/sources/wine/.git" ]]; then
   assert_contains "$output" "./tools/make_requests" "dry-run should rebuild Wine generated files"
@@ -114,7 +118,9 @@ if [[ -d "$ROOT/build/cx26/sources/wine" ]]; then
         "$output_cx25_build" == *"cyder-wineserver-fd-reselect-async-null-ops.patch"* ||
         "$output_cx25_build" == *"cyder-wineserver-sock-rebind-async-fd.patch"* ||
         "$output_cx25_build" == *"cyder-wineserver-free-async-queue-null-fd.patch"* ||
-        "$output_cx25_build" == *"cyder-wineserver-pipe-end-disconnect-null-fd.patch"* ]]; then
+        "$output_cx25_build" == *"cyder-wineserver-pipe-end-disconnect-null-fd.patch"* ||
+        "$output_cx25_build" == *"cyder-ntdll-query-directory-object-trace.patch"* ||
+        "$output_cx25_build" == *"cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch"* ]]; then
     echo "ASSERT failed: CX25 builds must not migrate or apply CX26-only patches" >&2
     exit 1
   fi

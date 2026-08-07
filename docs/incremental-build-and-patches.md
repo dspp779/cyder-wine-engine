@@ -99,6 +99,8 @@ same hunk (e.g. poll-slot diagnostics upgraded by exit-diagnostics).
 | `cyder-wineserver-free-async-queue-null-fd.patch` | `!async->completion && async->fd` in `server/async.c` |
 | `cyder-wineserver-pipe-end-disconnect-null-fd.patch` | `pipe_end_disconnect: null fd` in `server/named_pipe.c` |
 | `cyder-wineserver-add-completion-guard.patch` | `add_completion: invalid completion` in `server/completion.c` |
+| `cyder-ntdll-query-directory-object-trace.patch` | `cyder QDO` in `dlls/ntdll/unix/sync.c` (optional; not default) |
+| `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch` | `cyder QDO optnone` in `dlls/ntdll/unix/sync.c` |
 
 When adding a new patch that may be rewritten by a later one, add a unique
 string marker and a matching `grep -Fq` branch in `scripts/build-wine.sh`.

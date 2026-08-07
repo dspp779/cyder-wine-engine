@@ -354,6 +354,12 @@ apply_cyder_patch() {
   elif [[ "$(basename "$patch_file")" == "cyder-wineserver-add-completion-guard.patch" ]] &&
        grep -Fq 'add_completion: invalid completion' "$WINE_SRC/server/completion.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-ntdll-query-directory-object-trace.patch" ]] &&
+       grep -Fq 'cyder QDO' "$WINE_SRC/dlls/ntdll/unix/sync.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch" ]] &&
+       grep -Fq 'cyder QDO optnone' "$WINE_SRC/dlls/ntdll/unix/sync.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
   elif [[ "$(basename "$patch_file")" == "a6-final-same-view-backing-sync.patch" ]] &&
        grep -Fq 'macdrv_finalize_window_backing_sync' "$WINE_SRC/dlls/winemac.drv/cocoa_window.m" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
@@ -410,6 +416,12 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-free-async-queue-null-fd.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-pipe-end-disconnect-null-fd.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-add-completion-guard.patch"
+  # QDO TRACE was temporary diagnosis (also a heisenbug bandage). Prefer narrow
+  # optnone on NtQueryDirectoryObject for the grap-core leave-game livelock.
+  remove_obsolete_cyder_patch \
+    "$OGOM/patches/cyder-ntdll-query-directory-object-trace.patch" \
+    "$OGOM/patches/cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch"
 fi
 
 # CrossOver tarball is not a git checkout; make_makefiles requires `git ls-files`.

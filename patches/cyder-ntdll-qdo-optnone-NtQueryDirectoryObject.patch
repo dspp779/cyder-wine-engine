@@ -1,0 +1,16 @@
+--- a/dlls/ntdll/unix/sync.c
++++ b/dlls/ntdll/unix/sync.c
+@@ -2076,6 +2076,13 @@
+ /**************************************************************************
+  *           NtQueryDirectoryObject   (NTDLL.@)
+  */
++/* cyder QDO optnone: bandage grap-core leave-game directory-object livelock
++ * under -O2 / Rosetta. Not a semantic HID fix — see docs/grap-core-qdo-ab-findings.md
++ */
++#if defined(__clang__)
++__attribute__((used)) static const char cyder_qdo_optnone_marker[] = "cyder QDO optnone";
++__attribute__((optnone))
++#endif
+ NTSTATUS WINAPI NtQueryDirectoryObject( HANDLE handle, DIRECTORY_BASIC_INFORMATION *buffer,
+                                         ULONG size, BOOLEAN single_entry, BOOLEAN restart,
+                                         ULONG *context, ULONG *ret_size )
