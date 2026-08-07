@@ -16,7 +16,7 @@ Cyder must reject an archive when its sidecar digest, embedded manifest,
 `version` file, or NTDLL SHA-256 disagree. Runtime/prefix ownership remains in
 Cyder; the engine project must never mutate a user's Cyder prefix.
 
-Cyder008 owns the MoltenVK wait-poll shim inside the immutable engine archive.
+Cyder008+ owns the MoltenVK wait-poll shim inside the immutable engine archive.
 The packer rejects an archive without a valid shim/real pair; Cyder.app must not
 build or inject a second copy. The former RC overlay contract is retained as
 historical documentation in

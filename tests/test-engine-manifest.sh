@@ -11,7 +11,7 @@ ntdll_sha="$(printf 'a%.0s' {1..64})"
 artifact_sha="$(printf 'b%.0s' {1..64})"
 bash "$ROOT/scripts/write-engine-manifest.sh" \
   --output "$TMP/engine-manifest.json" \
-  --version "CX26.3.0-W11-Cyder008" \
+  --version "CX26.3.0-W11-Cyder009" \
   --ntdll-sha256 "$ntdll_sha" \
   --artifact "engine-test.tar.xz" \
   --artifact-sha256 "$artifact_sha"
@@ -22,7 +22,7 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "\"ntdllSHA256\": \"$ntdll_
 assert_contains "$(cat "$TMP/engine-manifest.json")" "\"artifactSHA256\": \"$artifact_sha\"" \
   "sidecar manifest should pin the archive"
 assert_eq "$(plutil -extract engineId raw -o - "$TMP/engine-manifest.json")" \
-  "cx26.3-w11-cyder008" \
+  "cx26.3-w11-cyder009" \
   "manifest should use the canonical release engine ID"
 assert_eq "$(plutil -extract minimumCyderVersion raw -o - "$TMP/engine-manifest.json")" \
   "0.9.0" \
@@ -43,5 +43,7 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-free-asyn
   "manifest should record the wineserver free-async-queue guard"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-add-completion-guard.patch" \
   "manifest should record the wineserver add-completion guard"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch" \
+  "manifest should record the NtQueryDirectoryObject optnone bandage"
 
 echo "PASS test-engine-manifest"

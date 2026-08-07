@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "engineId": "cx26.3-w11-cyder008",
-  "versionLabel": "CX26.3.0-W11-Cyder008",
+  "engineId": "cx26.3-w11-cyder009",
+  "versionLabel": "CX26.3.0-W11-Cyder009",
   "base": {
     "crossover": "26.3.0",
     "wine": "11.0"
@@ -25,7 +25,8 @@
     "cyder-wineserver-async-terminate-null-fd.patch",
     "cyder-wineserver-free-async-queue-null-fd.patch",
     "cyder-wineserver-pipe-end-disconnect-null-fd.patch",
-    "cyder-wineserver-add-completion-guard.patch"
+    "cyder-wineserver-add-completion-guard.patch",
+    "cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch"
   ],
-  "notes": "Cyder008 includes the A6 same-view backing-sync fix, the MoltenVK wait-poll shim, teardown hardening (including free_async_queue null-fd after pipe_end_disconnect soft-guard), and the complete NTDLL frame-walk guard set."
+  "notes": "Cyder009 keeps Cyder008 teardown / frame-walk / A6 / MoltenVK wait-poll shim, and replaces temporary NtQueryDirectoryObject TRACE with a narrow optnone bandage on NtQueryDirectoryObject for the grap-core leave-game directory-object livelock (not a semantic HID fix)."
 }
