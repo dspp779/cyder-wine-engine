@@ -1,0 +1,89 @@
+--- a/dlls/ntdll/unix/sync.c.vanilla-qdo-bisect	2026-08-07 22:38:23
++++ b/dlls/ntdll/unix/sync.c	2026-08-07 22:38:23
+@@ -2071,8 +2071,31 @@
+     SERVER_END_REQ;
+     return ret;
+ }
++
++
+ 
++
++/* Bisect v5: if(diag) noinline sink instead of fprintf. */
++static int cyder_qdo_should_trace( LONG *seq_out )
++{
++    static int enabled = -1;
++    static LONG seq;
++    LONG n;
+ 
++    if (enabled < 0)
++        enabled = getenv( "CYDER_QDO_TRACE" ) != NULL;
++    if (!enabled) return 0;
++    n = ++seq;
++    if (seq_out) *seq_out = n;
++    return n <= 64 || (n % 10000) == 0;
++}
++
++__attribute__((noinline)) static void cyder_qdo_sink( void *a, unsigned b, unsigned c,
++                                                      unsigned long d, unsigned long e, long f )
++{
++    (void)a; (void)b; (void)c; (void)d; (void)e; (void)f;
++}
++
+ /**************************************************************************
+  *           NtQueryDirectoryObject   (NTDLL.@)
+  */
+@@ -2081,9 +2104,16 @@
+                                         ULONG *context, ULONG *ret_size )
+ {
+     unsigned int status, i, count, total_len, pos, used_size, used_count, strpool_head;
++    ULONG ctx_in = context ? *context : ~0u;
+     ULONG index = restart ? 0 : *context;
+     struct directory_entry *entries;
++    LONG diag_n = 0;
++    int diag = cyder_qdo_should_trace( &diag_n );
+ 
++    if (diag)
++        cyder_qdo_sink( handle, single_entry, restart, (unsigned long)ctx_in,
++                        (unsigned long)size, (long)diag_n );
++
+     if (!(entries = malloc( size ))) return STATUS_NO_MEMORY;
+ 
+     SERVER_START_REQ( get_directory_entries )
+@@ -2101,6 +2131,9 @@
+     if (status && status != STATUS_MORE_ENTRIES)
+     {
+         free( entries );
++        if (diag)
++            cyder_qdo_sink( NULL, 0, 0, (unsigned long)(context ? *context : ~0u),
++                            0, (long)diag_n );
+         return status;
+     }
+ 
+@@ -2156,17 +2189,27 @@
+     if (!count && !status)
+     {
+         if (ret_size) *ret_size = sizeof(*buffer);
++        if (diag)
++            cyder_qdo_sink( NULL, 0, 0, (unsigned long)(context ? *context : ~0u),
++                            (unsigned long)sizeof(*buffer), (long)diag_n );
+         return STATUS_NO_MORE_ENTRIES;
+     }
+ 
+     if (single_entry && !used_count)
+     {
+         if (ret_size) *ret_size = 2 * sizeof(*buffer) + 2 * sizeof(WCHAR) + total_len;
++        if (diag)
++            cyder_qdo_sink( NULL, 0, 0, (unsigned long)(context ? *context : ~0u),
++                            (unsigned long)(2 * sizeof(*buffer) + 2 * sizeof(WCHAR) + total_len),
++                            (long)diag_n );
+         return STATUS_BUFFER_TOO_SMALL;
+     }
+ 
+     *context = index + used_count;
+     if (ret_size) *ret_size = strpool_head;
++    if (diag)
++        cyder_qdo_sink( NULL, used_count, 0, (unsigned long)*context,
++                        (unsigned long)(ret_size ? *ret_size : 0), (long)diag_n );
+     return status;
+ }
+ 

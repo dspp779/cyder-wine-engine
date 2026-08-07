@@ -1,0 +1,12 @@
+--- a/dlls/ntdll/unix/sync.c.vanilla-qdo-bisect	2026-08-07 22:26:18
++++ b/dlls/ntdll/unix/sync.c	2026-08-07 22:26:22
+@@ -2161,7 +2161,8 @@
+ 
+     if (single_entry && !used_count)
+     {
+-        if (ret_size) *ret_size = 2 * sizeof(*buffer) + 2 * sizeof(WCHAR) + total_len;
++        ULONG need = 2 * sizeof(*buffer) + 2 * sizeof(WCHAR) + total_len;
++        if (ret_size) *ret_size = need;
+         return STATUS_BUFFER_TOO_SMALL;
+     }
+ 

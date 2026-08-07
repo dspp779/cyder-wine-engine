@@ -1,0 +1,51 @@
+--- a/dlls/ntdll/unix/sync.c.vanilla-qdo-bisect	2026-08-07 22:38:23
++++ b/dlls/ntdll/unix/sync.c	2026-08-07 23:01:36
+@@ -2070,8 +2070,31 @@
+     }
+     SERVER_END_REQ;
+     return ret;
++}
++
++
++
++
++/* Bisect v10: same 6-arg call site as v9, but noinline sink (not fprintf). */
++static int cyder_qdo_should_trace( LONG *seq_out )
++{
++    static int enabled = -1;
++    static LONG seq;
++    LONG n;
++
++    if (enabled < 0)
++        enabled = getenv( "CYDER_QDO_TRACE" ) != NULL;
++    if (!enabled) return 0;
++    n = ++seq;
++    if (seq_out) *seq_out = n;
++    return n <= 64 || (n % 10000) == 0;
+ }
+ 
++__attribute__((noinline)) static void cyder_qdo_sink6( void *a, unsigned b, unsigned c,
++                                                       unsigned long d, unsigned long e, long f )
++{
++    (void)a; (void)b; (void)c; (void)d; (void)e; (void)f;
++}
+ 
+ /**************************************************************************
+  *           NtQueryDirectoryObject   (NTDLL.@)
+@@ -2081,9 +2104,16 @@
+                                         ULONG *context, ULONG *ret_size )
+ {
+     unsigned int status, i, count, total_len, pos, used_size, used_count, strpool_head;
++    ULONG ctx_in = context ? *context : ~0u;
+     ULONG index = restart ? 0 : *context;
+     struct directory_entry *entries;
++    LONG diag_n = 0;
++    int diag = cyder_qdo_should_trace( &diag_n );
+ 
++    if (diag)
++        cyder_qdo_sink6( handle, single_entry, restart, (unsigned long)ctx_in,
++                         (unsigned long)size, (long)diag_n );
++
+     if (!(entries = malloc( size ))) return STATUS_NO_MEMORY;
+ 
+     SERVER_START_REQ( get_directory_entries )

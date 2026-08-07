@@ -1,0 +1,62 @@
+--- a/dlls/ntdll/unix/sync.c
++++ b/dlls/ntdll/unix/sync.c
+@@ -2073,6 +2073,47 @@
+ }
+ 
+ 
++
++/* Cyder QDO stuck one-shot (v2): no getenv on hot path after init.
++ * Opt-in: CYDER_QDO_STUCK=1  optional CYDER_QDO_STUCK_THRESHOLD (default 50000)
++ * Marker: "cyder QDO STUCK"
++ */
++static int cyder_qdo_stuck_on = -1;
++static ULONG cyder_qdo_stuck_threshold = 50000;
++static ULONG cyder_qdo_stuck_run;
++static int cyder_qdo_stuck_logged;
++
++static int cyder_qdo_stuck_enabled(void)
++{
++    const char *env;
++    if (cyder_qdo_stuck_on < 0)
++    {
++        cyder_qdo_stuck_on = getenv( "CYDER_QDO_STUCK" ) != NULL;
++        env = getenv( "CYDER_QDO_STUCK_THRESHOLD" );
++        if (env && env[0])
++            cyder_qdo_stuck_threshold = (ULONG)strtoul( env, NULL, 10 );
++    }
++    return cyder_qdo_stuck_on;
++}
++
++static void cyder_qdo_stuck_observe( HANDLE handle, BOOLEAN single_entry, BOOLEAN restart,
++                                    ULONG ctx_in, ULONG index, ULONG size )
++{
++    if (!cyder_qdo_stuck_enabled()) return;
++    if (index == 0)
++        cyder_qdo_stuck_run++;
++    else
++        cyder_qdo_stuck_run = 0;
++
++    if (cyder_qdo_stuck_logged || cyder_qdo_stuck_run < cyder_qdo_stuck_threshold) return;
++    cyder_qdo_stuck_logged = 1;
++    fprintf( stderr,
++             "cyder QDO STUCK h=%p single=%u restart=%u ctx_in=%lu index=%lu size=%lu run=%lu\n",
++             handle, single_entry, restart, (unsigned long)ctx_in, (unsigned long)index,
++             (unsigned long)size, (unsigned long)cyder_qdo_stuck_run );
++    fflush( stderr );
++}
++
+ /**************************************************************************
+  *           NtQueryDirectoryObject   (NTDLL.@)
+  */
+@@ -2081,8 +2122,11 @@
+                                         ULONG *context, ULONG *ret_size )
+ {
+     unsigned int status, i, count, total_len, pos, used_size, used_count, strpool_head;
++    ULONG ctx_in = context ? *context : ~0u;
+     ULONG index = restart ? 0 : *context;
+     struct directory_entry *entries;
++
++    cyder_qdo_stuck_observe( handle, single_entry, restart, ctx_in, index, size );
+ 
+     if (!(entries = malloc( size ))) return STATUS_NO_MEMORY;
+ 

@@ -1,0 +1,47 @@
+--- a/dlls/ntdll/unix/sync.c.vanilla-qdo-bisect	2026-08-07 22:38:23
++++ b/dlls/ntdll/unix/sync.c	2026-08-07 22:39:36
+@@ -2072,7 +2072,33 @@
+     return ret;
+ }
+ 
++
++
++
++/* Bisect v6: QDO format strings forced into binary via used attribute. */
++static const char cyder_qdo_fmt0[] __attribute__((used)) =
++    "cyder QDO enter h=%p single=%u restart=%u ctx_in=%lu size=%lu n=%ld\n";
++static const char cyder_qdo_fmt1[] __attribute__((used)) =
++    "cyder QDO leave early ret=%08x ctx_out=%lu n=%ld\n";
++static const char cyder_qdo_fmt2[] __attribute__((used)) =
++    "cyder QDO leave ret=%08x ctx_out=%lu used=0 ret_size=%lu n=%ld\n";
++static const char cyder_qdo_fmt3[] __attribute__((used)) =
++    "cyder QDO leave ret=%08x ctx_out=%lu used=%u ret_size=%lu n=%ld\n";
+ 
++static int cyder_qdo_should_trace( LONG *seq_out )
++{
++    static int enabled = -1;
++    static LONG seq;
++    LONG n;
++
++    if (enabled < 0)
++        enabled = getenv( "CYDER_QDO_TRACE" ) != NULL;
++    if (!enabled) return 0;
++    n = ++seq;
++    if (seq_out) *seq_out = n;
++    return n <= 64 || (n % 10000) == 0;
++}
++
+ /**************************************************************************
+  *           NtQueryDirectoryObject   (NTDLL.@)
+  */
+@@ -2083,7 +2109,10 @@
+     unsigned int status, i, count, total_len, pos, used_size, used_count, strpool_head;
+     ULONG index = restart ? 0 : *context;
+     struct directory_entry *entries;
++    LONG diag_n = 0;
+ 
++    (void)cyder_qdo_should_trace( &diag_n );
++
+     if (!(entries = malloc( size ))) return STATUS_NO_MEMORY;
+ 
+     SERVER_START_REQ( get_directory_entries )

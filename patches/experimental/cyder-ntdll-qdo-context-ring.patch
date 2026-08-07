@@ -1,0 +1,205 @@
+--- a/dlls/ntdll/unix/sync.c
++++ b/dlls/ntdll/unix/sync.c
+@@ -2073,6 +2073,84 @@
+ }
+ 
+ 
++
++/* Cyder QDO context ring: memory-only + periodic file snapshot.
++ * DO NOT use SIGUSR1 — Wine uses it for thread suspend.
++ * Opt-in: CYDER_QDO_RING=1
++ * Snapshot every 512 records (and final overwrite) to CYDER_QDO_RING_PATH.
++ * Marker: "cyder QDO RING"
++ */
++enum { CYDER_QDO_RING_SIZE = 4096 };
++enum { CYDER_QDO_RING_FLUSH_EVERY = 512 };
++
++struct cyder_qdo_rec
++{
++    ULONG seq;
++    ULONG handle_lo;
++    ULONG single;
++    ULONG restart;
++    ULONG ctx_in;
++    ULONG index;
++    ULONG status;
++    ULONG ctx_out;
++    ULONG used;
++    ULONG size;
++    ULONG phase; /* 1=enter, 2=leave, 3=early */
++};
++
++static struct cyder_qdo_rec cyder_qdo_ring[CYDER_QDO_RING_SIZE];
++static volatile int cyder_qdo_ring_seq;
++static volatile int cyder_qdo_ring_on = -1;
++
++static int cyder_qdo_ring_enabled(void)
++{
++    if (cyder_qdo_ring_on < 0)
++        cyder_qdo_ring_on = getenv( "CYDER_QDO_RING" ) != NULL;
++    return cyder_qdo_ring_on;
++}
++
++static void cyder_qdo_ring_flush(void)
++{
++    const char *path;
++    int fd;
++    int seq, start, i, count;
++    char line[256];
++
++    path = getenv( "CYDER_QDO_RING_PATH" );
++    if (!path || !path[0])
++        path = "/tmp/cyder-qdo-ring.txt";
++    fd = open( path, O_WRONLY | O_CREAT | O_TRUNC, 0644 );
++    if (fd < 0) return;
++
++    seq = cyder_qdo_ring_seq;
++    count = seq < CYDER_QDO_RING_SIZE ? seq : CYDER_QDO_RING_SIZE;
++    start = seq < CYDER_QDO_RING_SIZE ? 0 : (seq - CYDER_QDO_RING_SIZE);
++    {
++        int n = snprintf( line, sizeof(line),
++                          "cyder QDO RING dump seq=%ld count=%ld\n",
++                          (long)seq, (long)count );
++        if (n > 0) write( fd, line, (size_t)n );
++    }
++    for (i = 0; i < count; i++)
++    {
++        const struct cyder_qdo_rec *r = &cyder_qdo_ring[(start + i) % CYDER_QDO_RING_SIZE];
++        int n = snprintf( line, sizeof(line),
++                          "cyder QDO RING p=%u seq=%u h=0x%x single=%u restart=%u ctx_in=%u index=%u status=%08x ctx_out=%u used=%u size=%u\n",
++                          r->phase, r->seq, r->handle_lo, r->single, r->restart,
++                          r->ctx_in, r->index, r->status, r->ctx_out, r->used, r->size );
++        if (n > 0) write( fd, line, (size_t)n );
++    }
++    close( fd );
++}
++
++static void cyder_qdo_ring_push( const struct cyder_qdo_rec *rec )
++{
++    int n = __sync_add_and_fetch( &cyder_qdo_ring_seq, 1 );
++    cyder_qdo_ring[(n - 1) % CYDER_QDO_RING_SIZE] = *rec;
++    if ((n % CYDER_QDO_RING_FLUSH_EVERY) == 0)
++        cyder_qdo_ring_flush();
++}
++
+ /**************************************************************************
+  *           NtQueryDirectoryObject   (NTDLL.@)
+  */
+@@ -2081,8 +2159,25 @@
+                                         ULONG *context, ULONG *ret_size )
+ {
+     unsigned int status, i, count, total_len, pos, used_size, used_count, strpool_head;
++    ULONG ctx_in = context ? *context : ~0u;
+     ULONG index = restart ? 0 : *context;
+     struct directory_entry *entries;
++    int ring = cyder_qdo_ring_enabled();
++
++    if (ring)
++    {
++        struct cyder_qdo_rec rec;
++        memset( &rec, 0, sizeof(rec) );
++        rec.seq = (ULONG)cyder_qdo_ring_seq + 1;
++        rec.handle_lo = (ULONG)(ULONG_PTR)handle;
++        rec.single = single_entry;
++        rec.restart = restart;
++        rec.ctx_in = ctx_in;
++        rec.index = index;
++        rec.size = size;
++        rec.phase = 1;
++        cyder_qdo_ring_push( &rec );
++    }
+ 
+     if (!(entries = malloc( size ))) return STATUS_NO_MEMORY;
+ 
+@@ -2101,6 +2196,22 @@
+     if (status && status != STATUS_MORE_ENTRIES)
+     {
+         free( entries );
++        if (ring)
++        {
++            struct cyder_qdo_rec rec;
++            memset( &rec, 0, sizeof(rec) );
++            rec.seq = (ULONG)cyder_qdo_ring_seq + 1;
++            rec.handle_lo = (ULONG)(ULONG_PTR)handle;
++            rec.single = single_entry;
++            rec.restart = restart;
++            rec.ctx_in = ctx_in;
++            rec.index = index;
++            rec.status = status;
++            rec.ctx_out = context ? *context : ~0u;
++            rec.size = size;
++            rec.phase = 3;
++            cyder_qdo_ring_push( &rec );
++        }
+         return status;
+     }
+ 
+@@ -2156,17 +2267,68 @@
+     if (!count && !status)
+     {
+         if (ret_size) *ret_size = sizeof(*buffer);
++        if (ring)
++        {
++            struct cyder_qdo_rec rec;
++            memset( &rec, 0, sizeof(rec) );
++            rec.seq = (ULONG)cyder_qdo_ring_seq + 1;
++            rec.handle_lo = (ULONG)(ULONG_PTR)handle;
++            rec.single = single_entry;
++            rec.restart = restart;
++            rec.ctx_in = ctx_in;
++            rec.index = index;
++            rec.status = STATUS_NO_MORE_ENTRIES;
++            rec.ctx_out = context ? *context : ~0u;
++            rec.used = 0;
++            rec.size = size;
++            rec.phase = 2;
++            cyder_qdo_ring_push( &rec );
++        }
+         return STATUS_NO_MORE_ENTRIES;
+     }
+ 
+     if (single_entry && !used_count)
+     {
+         if (ret_size) *ret_size = 2 * sizeof(*buffer) + 2 * sizeof(WCHAR) + total_len;
++        if (ring)
++        {
++            struct cyder_qdo_rec rec;
++            memset( &rec, 0, sizeof(rec) );
++            rec.seq = (ULONG)cyder_qdo_ring_seq + 1;
++            rec.handle_lo = (ULONG)(ULONG_PTR)handle;
++            rec.single = single_entry;
++            rec.restart = restart;
++            rec.ctx_in = ctx_in;
++            rec.index = index;
++            rec.status = STATUS_BUFFER_TOO_SMALL;
++            rec.ctx_out = context ? *context : ~0u;
++            rec.used = 0;
++            rec.size = size;
++            rec.phase = 2;
++            cyder_qdo_ring_push( &rec );
++        }
+         return STATUS_BUFFER_TOO_SMALL;
+     }
+ 
+     *context = index + used_count;
+     if (ret_size) *ret_size = strpool_head;
++    if (ring)
++    {
++        struct cyder_qdo_rec rec;
++        memset( &rec, 0, sizeof(rec) );
++        rec.seq = (ULONG)cyder_qdo_ring_seq + 1;
++        rec.handle_lo = (ULONG)(ULONG_PTR)handle;
++        rec.single = single_entry;
++        rec.restart = restart;
++        rec.ctx_in = ctx_in;
++        rec.index = index;
++        rec.status = status;
++        rec.ctx_out = *context;
++        rec.used = used_count;
++        rec.size = size;
++        rec.phase = 2;
++        cyder_qdo_ring_push( &rec );
++    }
+     return status;
+ }
+ 

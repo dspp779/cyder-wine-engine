@@ -1,0 +1,12 @@
+--- a/dlls/ntdll/unix/sync.c.vanilla-qdo-bisect	2026-08-07 22:38:23
++++ b/dlls/ntdll/unix/sync.c	2026-08-07 23:10:22
+@@ -2084,6 +2084,9 @@
+     ULONG index = restart ? 0 : *context;
+     struct directory_entry *entries;
+ 
++    /* Timing probe A: if this cleans residual, prefer race/timing over semantic. */
++    usleep( 100 );
++
+     if (!(entries = malloc( size ))) return STATUS_NO_MEMORY;
+ 
+     SERVER_START_REQ( get_directory_entries )

@@ -1,0 +1,71 @@
+--- a/server/directory.c.pre-gde	2026-08-07 23:23:26
++++ b/server/directory.c	2026-08-07 23:23:29
+@@ -555,6 +555,38 @@
+                                  &directory_ops, &name, req->attributes );
+ }
+ 
++
++/* Opt-in residual capture: CYDER_GDE_TRACE=1. Logs first 64 then every 10000th.
++ * Marker: cyder GDE
++ */
++static int cyder_gde_should_trace( void )
++{
++    static int enabled = -1;
++    static unsigned long seq;
++    unsigned long n;
++
++    if (enabled < 0)
++        enabled = getenv( "CYDER_GDE_TRACE" ) != NULL;
++    if (!enabled) return 0;
++    n = ++seq;
++    return n <= 64 || (n % 10000) == 0;
++}
++
++static void cyder_gde_log_name( const WCHAR *name, data_size_t len )
++{
++    data_size_t i, n = len / sizeof(WCHAR);
++    char buf[128];
++    size_t o = 0;
++
++    for (i = 0; i < n && o + 1 < sizeof(buf); i++)
++    {
++        WCHAR c = name[i];
++        buf[o++] = (c >= 0x20 && c < 0x7f) ? (char)c : '?';
++    }
++    buf[o] = 0;
++    wineserver_diag_printf( "%s", buf );
++}
++
+ /* get directory entries */
+ DECL_HANDLER(get_directory_entries)
+ {
+@@ -594,6 +626,29 @@
+         }
+         reply->count = i;
+ 
++        if (cyder_gde_should_trace())
++        {
++            unsigned int j;
++            wineserver_diag_printf(
++                "cyder GDE h=%p index=%u max=%u count=%u total_len=%u err=%08x\n",
++                req->handle, req->index, req->max_count, reply->count,
++                reply->total_len, get_error() );
++            for (j = 0; j < reply->count && j < 8; j++)
++            {
++                data_size_t name_len;
++                const WCHAR *name;
++                struct object *o2 = find_object_index( dir->entries, req->index + j );
++                if (!o2) break;
++                name = get_object_name( o2, &name_len );
++                wineserver_diag_printf( "cyder GDE   [%u] type=", req->index + j );
++                cyder_gde_log_name( o2->ops->type->name.str, o2->ops->type->name.len );
++                wineserver_diag_printf( " name=" );
++                cyder_gde_log_name( name, name_len );
++                wineserver_diag_printf( "\n" );
++                release_object( o2 );
++            }
++        }
++
+         if (!(buffer = set_reply_data_size( size )))
+         {
+             release_object( dir );

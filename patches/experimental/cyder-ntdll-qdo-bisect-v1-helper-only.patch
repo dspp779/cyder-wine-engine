@@ -1,0 +1,39 @@
+--- a/dlls/ntdll/unix/sync.c.vanilla-qdo-bisect	2026-08-07 22:26:18
++++ b/dlls/ntdll/unix/sync.c	2026-08-07 22:26:18
+@@ -2071,8 +2071,25 @@
+     SERVER_END_REQ;
+     return ret;
+ }
++
++
+ 
++
++/* Bisect v1: QDO helper only (no fprintf). Marker string kept via getenv name. */
++static int cyder_qdo_should_trace( LONG *seq_out )
++{
++    static int enabled = -1;
++    static LONG seq;
++    LONG n;
+ 
++    if (enabled < 0)
++        enabled = getenv( "CYDER_QDO_TRACE" ) != NULL;
++    if (!enabled) return 0;
++    n = ++seq;
++    if (seq_out) *seq_out = n;
++    return n <= 64 || (n % 10000) == 0;
++}
++
+ /**************************************************************************
+  *           NtQueryDirectoryObject   (NTDLL.@)
+  */
+@@ -2083,6 +2100,10 @@
+     unsigned int status, i, count, total_len, pos, used_size, used_count, strpool_head;
+     ULONG index = restart ? 0 : *context;
+     struct directory_entry *entries;
++    LONG diag_n = 0;
++
++    /* Side effect only: getenv once when TRACE unset; always false after. */
++    (void)cyder_qdo_should_trace( &diag_n );
+ 
+     if (!(entries = malloc( size ))) return STATUS_NO_MEMORY;
+ 

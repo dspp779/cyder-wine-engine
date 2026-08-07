@@ -1,0 +1,73 @@
+--- a/dlls/ntdll/unix/sync.c.vanilla-qdo-bisect	2026-08-07 22:38:23
++++ b/dlls/ntdll/unix/sync.c	2026-08-07 22:47:22
+@@ -2073,6 +2073,23 @@
+ }
+ 
+ 
++
++
++/* Bisect v7: minimal if(diag) fprintf(stderr, "x\n") — no rich formats. */
++static int cyder_qdo_should_trace( LONG *seq_out )
++{
++    static int enabled = -1;
++    static LONG seq;
++    LONG n;
++
++    if (enabled < 0)
++        enabled = getenv( "CYDER_QDO_TRACE" ) != NULL;
++    if (!enabled) return 0;
++    n = ++seq;
++    if (seq_out) *seq_out = n;
++    return n <= 64 || (n % 10000) == 0;
++}
++
+ /**************************************************************************
+  *           NtQueryDirectoryObject   (NTDLL.@)
+  */
+@@ -2083,7 +2100,13 @@
+     unsigned int status, i, count, total_len, pos, used_size, used_count, strpool_head;
+     ULONG index = restart ? 0 : *context;
+     struct directory_entry *entries;
++    LONG diag_n = 0;
++    int diag = cyder_qdo_should_trace( &diag_n );
+ 
++    (void)diag_n;
++    if (diag)
++        fprintf( stderr, "x\n" );
++
+     if (!(entries = malloc( size ))) return STATUS_NO_MEMORY;
+ 
+     SERVER_START_REQ( get_directory_entries )
+@@ -2101,6 +2124,8 @@
+     if (status && status != STATUS_MORE_ENTRIES)
+     {
+         free( entries );
++        if (diag)
++            fprintf( stderr, "x\n" );
+         return status;
+     }
+ 
+@@ -2156,17 +2181,23 @@
+     if (!count && !status)
+     {
+         if (ret_size) *ret_size = sizeof(*buffer);
++        if (diag)
++            fprintf( stderr, "x\n" );
+         return STATUS_NO_MORE_ENTRIES;
+     }
+ 
+     if (single_entry && !used_count)
+     {
+         if (ret_size) *ret_size = 2 * sizeof(*buffer) + 2 * sizeof(WCHAR) + total_len;
++        if (diag)
++            fprintf( stderr, "x\n" );
+         return STATUS_BUFFER_TOO_SMALL;
+     }
+ 
+     *context = index + used_count;
+     if (ret_size) *ret_size = strpool_head;
++    if (diag)
++        fprintf( stderr, "x\n" );
+     return status;
+ }
+ 

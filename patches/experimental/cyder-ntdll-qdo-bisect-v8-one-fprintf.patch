@@ -1,0 +1,45 @@
+--- a/dlls/ntdll/unix/sync.c.vanilla-qdo-bisect	2026-08-07 22:38:23
++++ b/dlls/ntdll/unix/sync.c	2026-08-07 22:51:46
+@@ -2071,7 +2071,24 @@
+     SERVER_END_REQ;
+     return ret;
+ }
++
++
++
+ 
++/* Bisect v8: single full-arity diag log call at NtQueryDirectoryObject entry. */
++static int cyder_qdo_should_trace( LONG *seq_out )
++{
++    static int enabled = -1;
++    static LONG seq;
++    LONG n;
++
++    if (enabled < 0)
++        enabled = getenv( "CYDER_QDO_TRACE" ) != NULL;
++    if (!enabled) return 0;
++    n = ++seq;
++    if (seq_out) *seq_out = n;
++    return n <= 64 || (n % 10000) == 0;
++}
+ 
+ /**************************************************************************
+  *           NtQueryDirectoryObject   (NTDLL.@)
+@@ -2081,8 +2098,17 @@
+                                         ULONG *context, ULONG *ret_size )
+ {
+     unsigned int status, i, count, total_len, pos, used_size, used_count, strpool_head;
++    ULONG ctx_in = context ? *context : ~0u;
+     ULONG index = restart ? 0 : *context;
+     struct directory_entry *entries;
++    LONG diag_n = 0;
++    int diag = cyder_qdo_should_trace( &diag_n );
++
++    if (diag)
++        fprintf( stderr,
++                 "cyder QDO enter h=%p single=%u restart=%u ctx_in=%lu size=%lu n=%ld\n",
++                 handle, single_entry, restart, (unsigned long)ctx_in, (unsigned long)size,
++                 (long)diag_n );
+ 
+     if (!(entries = malloc( size ))) return STATUS_NO_MEMORY;
+ 
