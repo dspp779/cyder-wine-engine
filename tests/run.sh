@@ -26,6 +26,7 @@ tests=(
   test-ntdll-query-directory-object-trace.sh
   test-moltenvk-timeline-wait-poll.sh
   test-pack-engine-dxmt-gate.sh
+  test-pack-minos-scan.sh
 )
 
 for test_file in "${tests[@]}"; do

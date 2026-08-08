@@ -22,7 +22,12 @@ Then follow that guide. Do not invent ad-hoc `make` invocations that omit
 
 - Product host minOS floor is **10.15** (`.env` / default). Mach-O `minos` must
   not exceed 10.15 on shipped host binaries (`wine`, `wineserver`, `*.so`,
-  bundled dylibs).
+  bundled dylibs) — **except** bundled DXMT under `lib/dxmt/**`
+  (e.g. `lib/dxmt/x86_64-unix/winemetal.so`), which may declare minos up to
+  **15.0**. That exemption is intentional: it is pinned upstream DXMT v0.80,
+  which Cyder does not rebuild, and Cyder only offers DXMT as a selectable
+  graphics backend on **macOS 15+** in the first place, so the exemption
+  cannot regress the effective floor. See `scripts/pack-minos-scan.py`.
 - Prefer `scripts/rebuild-wine-host-unix.sh` after a contaminated incremental
   host build.
 - Frame-walk and wineserver patches are **CX26-only**.

@@ -146,6 +146,8 @@ unset _dxvk_dll
 for _dxmt_file in \
   lib/dxmt/x86_64-windows/d3d11.dll \
   lib/dxmt/x86_64-windows/dxgi.dll \
+  lib/dxmt/i386-windows/d3d11.dll \
+  lib/dxmt/i386-windows/dxgi.dll \
   lib/dxmt/x86_64-unix/winemetal.so; do
   if [[ ! -f "$ENGINE_TREE/$_dxmt_file" ]]; then
     echo "Refusing to pack engine without $_dxmt_file (run ogom scripts/fetch-dxmt.sh)" >&2
@@ -187,44 +189,10 @@ if [[ "$ENGINE_VERSION_LABEL" == *Cyder008* || "$ENGINE_VERSION_LABEL" == *Cyder
 fi
 bash "$SCRIPT_DIR/sign-wine.sh" --root "$ENGINE_TREE" --entitlements "$ENTITLEMENTS_PLIST"
 
-# Fail closed: every host Mach-O must stay at/below the product minOS floor.
-python3 - "$ENGINE_TREE" "${MACOSX_DEPLOYMENT_TARGET:-10.15}" <<'PY'
-import re, subprocess, sys
-from pathlib import Path
-
-root = Path(sys.argv[1])
-floor_s = sys.argv[2]
-
-def parse(v: str):
-    parts = [int(x) for x in v.split(".")]
-    while len(parts) < 3:
-        parts.append(0)
-    return tuple(parts[:3])
-
-floor = parse(floor_s)
-high = []
-for p in root.rglob("*"):
-    if not p.is_file() or p.is_symlink():
-        continue
-    try:
-        f = subprocess.check_output(["file", "-b", str(p)], text=True, stderr=subprocess.DEVNULL)
-    except Exception:
-        continue
-    if "Mach-O" not in f:
-        continue
-    out = subprocess.check_output(["otool", "-l", str(p)], text=True, stderr=subprocess.DEVNULL)
-    m = re.search(r"\bminos\s+(\d+(?:\.\d+)*)", out)
-    if not m:
-        continue
-    if parse(m.group(1)) > floor:
-        high.append((m.group(1), str(p.relative_to(root))))
-if high:
-    print(f"Refusing to pack: Mach-O minos exceeds product floor {floor_s}:", file=sys.stderr)
-    for ver, rel in sorted(high):
-        print(f"  {ver}  {rel}", file=sys.stderr)
-    sys.exit(1)
-print(f"OK: staged engine Mach-O minos ≤ {floor_s}")
-PY
+# Fail closed: every host Mach-O must stay at/below the product minOS floor,
+# except bundled DXMT (lib/dxmt/**), which is exempt up to 15.0 — see
+# scripts/pack-minos-scan.py and AGENTS.md Non-negotiables.
+python3 "$SCRIPT_DIR/pack-minos-scan.py" "$ENGINE_TREE" "${MACOSX_DEPLOYMENT_TARGET:-10.15}"
 NTDLL="$ENGINE_TREE/lib/wine/x86_64-windows/ntdll.dll"
 [[ -f "$NTDLL" ]] || {
   echo "Missing packaged NTDLL: $NTDLL" >&2
