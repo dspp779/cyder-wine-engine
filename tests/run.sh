@@ -25,6 +25,7 @@ tests=(
   test-wineserver-add-completion-guard.sh
   test-ntdll-query-directory-object-trace.sh
   test-moltenvk-timeline-wait-poll.sh
+  test-pack-graphics-payloads.sh
   test-pack-engine-dxmt-gate.sh
   test-pack-minos-scan.sh
 )
