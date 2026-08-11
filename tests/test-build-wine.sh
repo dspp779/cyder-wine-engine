@@ -29,10 +29,14 @@ assert_contains "$output" "PKG_CONFIG_PATH=" "dry-run configure must set PKG_CON
 assert_contains "$output" "require pkg-config freetype2" "dry-run should check for x86_64 freetype2"
 assert_contains "$output" "ensure" "dry-run should ensure bzip2.pc exists"
 assert_contains "$output" "build/cx26/sources/wine" "dry-run should use CX26 source tree"
-assert_contains "$output" "remove obsolete patch if applied: $ROOT/patches/cyder-steam-webhelper-compat.patch" \
-  "build should remove the earlier executable-specific Steam patch"
-assert_contains "$output" "$ROOT/patches/cyder-compatdb-runtime.patch" \
-  "build should apply the generic CompatDB runtime patch"
+if [[ "$output" == *"cyder-compatdb-runtime.patch"* ]]; then
+  echo "ASSERT failed: build must leave the original CrossOver ntdll unchanged for CompatDB" >&2
+  exit 1
+fi
+if [[ "$output" == *"cyder-steam-webhelper-compat.patch"* ]]; then
+  echo "ASSERT failed: build must not carry the old executable-specific Steam patch" >&2
+  exit 1
+fi
 assert_contains "$output" "$ROOT/patches/obsolete/cyder-ntdll-frame-walk-guard.patch" \
   "build should migrate an existing combined frame-walk patch"
 assert_contains "$output" "superseded by: $ROOT/patches/cyder-ntdll-frame-walk-page-fault-guard.patch" \
@@ -75,6 +79,8 @@ assert_contains "$output" "--disable-tests" "runtime builds should skip Wine reg
 assert_contains "$output" "install/wine-cx26-x86_64" "dry-run should install to CX26 prefix"
 assert_contains "$output" "make -j" "dry-run should show the compile step"
 assert_contains "$output" "make install" "dry-run should show the install step"
+assert_contains "$output" "build-cyder-cxcompatdb.sh" \
+  "dry-run should build the standalone cxcompatdb after Wine install"
 assert_contains "$output" "bundle-wine-dylibs.sh" "dry-run should bundle relocatable dylibs after install"
 assert_contains "$output" "--without-vulkan" "default dry-run should disable Vulkan"
 assert_contains "$output" "mmacosx-version-min=" \

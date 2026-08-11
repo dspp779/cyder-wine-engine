@@ -397,8 +397,6 @@ remove_obsolete_cyder_patch() {
   fi
 }
 
-remove_obsolete_cyder_patch "$OGOM/patches/cyder-steam-webhelper-compat.patch"
-apply_cyder_patch "$OGOM/patches/cyder-compatdb-runtime.patch"
 if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/a6-final-same-view-backing-sync.patch"
   remove_obsolete_cyder_patch \
@@ -489,6 +487,12 @@ if [[ "$CONFIGURE_ONLY" -eq 0 ]]; then
     LIBRARY_PATH="${LIBRARY_PATH:-}" MACOSX_DEPLOYMENT_TARGET="$CYDER_MIN_OS_TARGET" \
     CFLAGS="$CYDER_HOST_CFLAGS" OBJCFLAGS="$CYDER_HOST_OBJCFLAGS" LDFLAGS="$CYDER_HOST_LDFLAGS" \
     make install
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "+ $SCRIPT_DIR/build-cyder-cxcompatdb.sh"
+  else
+    WINE_SRC="$WINE_SRC" WINE_INSTALL="$WINE_INSTALL" \
+      "$SCRIPT_DIR/build-cyder-cxcompatdb.sh"
+  fi
   if [[ "$DRY_RUN" -eq 1 ]]; then
     echo "+ GRAPHICS_INSTALL=${GRAPHICS_INSTALL:-} VULKAN_MODE=$VULKAN_MODE $SCRIPT_DIR/bundle-wine-dylibs.sh"
   else

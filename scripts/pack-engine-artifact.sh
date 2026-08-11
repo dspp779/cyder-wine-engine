@@ -72,6 +72,11 @@ esac
   echo "Missing Wine at $WINE_INSTALL — build it first." >&2
   exit 1
 }
+CXCOMPATDB="$WINE_INSTALL/lib/wine/x86_64-unix/cxcompatdb.so"
+[[ -f "$CXCOMPATDB" ]] || {
+  echo "Missing Cyder cxcompatdb at $CXCOMPATDB — run scripts/build-cyder-cxcompatdb.sh." >&2
+  exit 1
+}
 if [[ "$FORMAT" == "zst" ]]; then
   ZSTD_BIN="$(cyder_find_zstd 2>/dev/null || true)"
   [[ -x "$ZSTD_BIN" ]] || {
@@ -174,6 +179,16 @@ if [[ "$ENGINE_VERSION_LABEL" == *Cyder008* || "$ENGINE_VERSION_LABEL" == *Cyder
   echo "OK: MoltenVK wait-poll shim pair ($ENGINE_VERSION_LABEL)"
 fi
 bash "$SCRIPT_DIR/sign-wine.sh" --root "$ENGINE_TREE" --entitlements "$ENTITLEMENTS_PLIST"
+
+PACKED_CXCOMPATDB="$ENGINE_TREE/lib/wine/x86_64-unix/cxcompatdb.so"
+[[ -f "$PACKED_CXCOMPATDB" ]] || {
+  echo "Refusing to pack without Cyder cxcompatdb.so" >&2
+  exit 1
+}
+strings -a "$PACKED_CXCOMPATDB" | grep -Fq 'CYDER_GRAPHICS_BACKEND_PATH' || {
+  echo "Refusing to pack an incompatible cxcompatdb.so" >&2
+  exit 1
+}
 
 # Fail closed: every host Mach-O must stay at/below the product minOS floor.
 python3 "$SCRIPT_DIR/pack-minos-scan.py" "$ENGINE_TREE" "${MACOSX_DEPLOYMENT_TARGET:-10.15}"

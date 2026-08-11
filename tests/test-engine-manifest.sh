@@ -11,7 +11,7 @@ ntdll_sha="$(printf 'a%.0s' {1..64})"
 artifact_sha="$(printf 'b%.0s' {1..64})"
 bash "$ROOT/scripts/write-engine-manifest.sh" \
   --output "$TMP/engine-manifest.json" \
-  --version "CX26.3.0-W11-Cyder009" \
+  --version "CX26.3.0-W11-Cyder010-dxvk2" \
   --ntdll-sha256 "$ntdll_sha" \
   --artifact "engine-test.tar.xz" \
   --artifact-sha256 "$artifact_sha"
@@ -22,15 +22,17 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "\"ntdllSHA256\": \"$ntdll_
 assert_contains "$(cat "$TMP/engine-manifest.json")" "\"artifactSHA256\": \"$artifact_sha\"" \
   "sidecar manifest should pin the archive"
 assert_eq "$(plutil -extract engineId raw -o - "$TMP/engine-manifest.json")" \
-  "cx26.3-w11-cyder009" \
+  "cx26.3-w11-cyder010-dxvk2" \
   "manifest should use the canonical release engine ID"
 assert_eq "$(plutil -extract minimumCyderVersion raw -o - "$TMP/engine-manifest.json")" \
-  "0.9.0" \
+  "0.9.6" \
   "manifest should use the canonical minimum Cyder version"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "rtlwalkframechain-null-function" \
   "manifest should record the ordered frame-walk patch set"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "a6-final-same-view-backing-sync.patch" \
   "manifest should record the winemac backing-sync patch"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "runtime/cxcompatdb/cxcompatdb.c" \
+  "manifest should record the standalone CompatDB component"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-poll-slot-guard.patch" \
   "manifest should record the wineserver poll-slot patch set"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-exit-diagnostics.patch" \

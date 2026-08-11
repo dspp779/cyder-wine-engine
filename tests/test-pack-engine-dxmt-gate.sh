@@ -6,6 +6,8 @@ graphics_pack="$(cat "$ROOT/scripts/pack-graphics-payloads.sh")"
 engine_pack="$(cat "$ROOT/scripts/pack-engine-artifact.sh")"
 assert_contains "$graphics_pack" 'lib/dxmt' \
   "graphics pack must require the DXMT payload"
+assert_contains "$graphics_pack" 'lib/dxvk2' \
+  "graphics pack must require the DXVK2 payload"
 assert_contains "$engine_pack" "pack-graphics-payloads.sh" \
   "engine pack must create graphics payloads before stripping the engine"
 assert_contains "$engine_pack" "--exclude 'lib/dxmt'" \
@@ -13,7 +15,7 @@ assert_contains "$engine_pack" "--exclude 'lib/dxmt'" \
 assert_contains "$engine_pack" "--exclude 'lib/dxvk'" \
   "engine archive must exclude DXVK"
 
-graphics_pack_line="$(rg -n -F 'bash "$SCRIPT_DIR/pack-graphics-payloads.sh" --engine "$WINE_INSTALL"' \
+graphics_pack_line="$(rg -n -F 'bash "$SCRIPT_DIR/pack-graphics-payloads.sh" "${graphics_pack_args[@]}"' \
   "$ROOT/scripts/pack-engine-artifact.sh" | cut -d: -f1)"
 archive_exit_line="$(rg -n -F 'if [[ -f "$ARCHIVE" && "$FORCE" -ne 1 ]]; then' \
   "$ROOT/scripts/pack-engine-artifact.sh" | cut -d: -f1)"
@@ -27,8 +29,10 @@ trap 'rm -rf "$tmp"' EXIT
 engine="$tmp/engine"
 artifacts="$tmp/artifacts"
 fake_zstd="$tmp/zstd"
-mkdir -p "$engine/bin" "$engine/lib/dxvk" "$engine/lib/dxmt" "$artifacts"
+mkdir -p "$engine/bin" "$engine/lib/dxvk" "$engine/lib/dxvk2" "$engine/lib/dxmt" \
+  "$engine/lib/wine/x86_64-unix" "$artifacts"
 touch "$engine/bin/wine" "$artifacts/engine-wine-x86_64-test.tar.xz"
+printf 'CYDER_GRAPHICS_BACKEND_PATH\n' >"$engine/lib/wine/x86_64-unix/cxcompatdb.so"
 chmod +x "$engine/bin/wine"
 
 python3 - "$engine/lib/dxvk/d3d11.dll" <<'PY'
@@ -41,6 +45,7 @@ struct.pack_into("<I", contents, 60, 96)
 contents[96:100] = b"PE\0\0"
 open(sys.argv[1], "wb").write(contents)
 PY
+cp "$engine/lib/dxvk/d3d11.dll" "$engine/lib/dxvk2/d3d11.dll"
 printf 'dxmt\n' >"$engine/lib/dxmt/payload"
 cat >"$fake_zstd" <<'EOF'
 #!/usr/bin/env bash
@@ -60,6 +65,7 @@ CYDER_ENGINE_ARTIFACTS_DIR="$artifacts" CYDER_ENGINE_VERSION_LABEL="test" \
   bash "$ROOT/scripts/pack-engine-artifact.sh"
 assert test -f "$artifacts/graphics/dxvk-unknown.tar.zst"
 assert test -f "$artifacts/graphics/dxmt-unknown.tar.zst"
+assert test -f "$artifacts/graphics/dxvk2-unknown.tar.zst"
 assert test -f "$artifacts/graphics/dxvk-version.txt"
 assert test -f "$artifacts/graphics/dxmt-version.txt"
 assert test -f "$artifacts/graphics/dxvk-artifact-sha256.txt"

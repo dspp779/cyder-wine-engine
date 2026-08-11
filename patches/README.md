@@ -1,21 +1,26 @@
 # Engine patch set
 
-Patch order for the CX26.3 / Wine 11.0 Cyder009 engine:
+Patch order for the CX26.3 / Wine 11.0 Cyder engine:
 
-1. `cyder-compatdb-runtime.patch`
-2. `a6-final-same-view-backing-sync.patch`
-3. `wine-11.1-rtlwalkframechain-null-function.patch`
-4. `cyder-ntdll-frame-walk-page-fault-guard.patch`
-5. `cyder-wineserver-sock-reselect-pseudo-fd.patch`
-6. `cyder-wineserver-poll-slot-guard.patch`
-7. `cyder-wineserver-exit-diagnostics.patch`
-8. `cyder-wineserver-fd-reselect-async-null-ops.patch`
-9. `cyder-wineserver-sock-rebind-async-fd.patch`
-10. `cyder-wineserver-async-terminate-null-fd.patch`
-11. `cyder-wineserver-free-async-queue-null-fd.patch`
-12. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
-13. `cyder-wineserver-add-completion-guard.patch`
-14. `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch`
+1. `a6-final-same-view-backing-sync.patch`
+2. `wine-11.1-rtlwalkframechain-null-function.patch`
+3. `cyder-ntdll-frame-walk-page-fault-guard.patch`
+4. `cyder-wineserver-sock-reselect-pseudo-fd.patch`
+5. `cyder-wineserver-poll-slot-guard.patch`
+6. `cyder-wineserver-exit-diagnostics.patch`
+7. `cyder-wineserver-fd-reselect-async-null-ops.patch`
+8. `cyder-wineserver-sock-rebind-async-fd.patch`
+9. `cyder-wineserver-async-terminate-null-fd.patch`
+10. `cyder-wineserver-free-async-queue-null-fd.patch`
+11. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
+12. `cyder-wineserver-add-completion-guard.patch`
+13. `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch`
+
+CompatDB policy is no longer compiled into ntdll. `runtime/cxcompatdb/cxcompatdb.c`
+builds as the open `cxcompatdb.so` loaded through CrossOver's existing loader
+hook. The obsolete ntdll and executable-specific Steam patches have been removed;
+incremental trees carrying them must be restored from a clean CrossOver source
+archive before rebuilding.
 
 `a6-final-same-view-backing-sync.patch` finalizes Retina/backing-size changes
 on the same `NSView` before OpenGL presents again. It prevents the resize,
@@ -152,10 +157,6 @@ matching detection branch. Operational steps:
 incremental Cyder006 source tree. It is removed before the two replacement
 patches are applied.
 
-`cyder-steam-webhelper-compat.patch` is likewise retained only so the build can
-remove the obsolete executable-specific patch before applying the generic
-CompatDB runtime.
-
 The frame-walk and wineserver patches are intentionally CX26-only. CX25 uses a
 Wine 10 base and must not receive them without a separate source and ABI review.
 
@@ -188,4 +189,3 @@ Undo with `--undo --install-runtime`. Once Xcode can rebuild
 
 The former App-side RC overlay is retained only as historical documentation:
 [`docs/moltenvk-timeline-wait-poll-app-overlay.md`](../docs/moltenvk-timeline-wait-poll-app-overlay.md).
-

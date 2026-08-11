@@ -13,7 +13,6 @@
   ],
   "minimumCyderVersion": "0.9.6",
   "patches": [
-    "cyder-compatdb-runtime.patch",
     "a6-final-same-view-backing-sync.patch",
     "wine-11.1-rtlwalkframechain-null-function.patch",
     "cyder-ntdll-frame-walk-page-fault-guard.patch",
@@ -28,5 +27,8 @@
     "cyder-wineserver-add-completion-guard.patch",
     "cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch"
   ],
-  "notes": "Cyder010-dxvk2 is Cyder009-dxmt plus CompatDB ntdll that accepts graphics_backend dxvk2 (MoltenVK path shared with dxvk). Same teardown / frame-walk / A6 / MoltenVK wait-poll shim / QDO optnone bandage / shipped lib/dxmt as Cyder009-dxmt. DXMT host winemetal.so may declare minos up to 15.0 (pack gate exemption); Cyder only offers DXMT on macOS 15+. Graphics payloads (lib/dxvk, lib/dxvk2, lib/dxmt) are excluded from the engine tarball and shipped separately."
+  "components": [
+    "runtime/cxcompatdb/cxcompatdb.c"
+  ],
+  "notes": "Cyder uses an open cxcompatdb.so loaded by the original CrossOver ntdll hook. It owns current-process CompatDB arguments, DLL overrides, graphics backend validation and runtime prepend; Cyder no longer patches ntdll for CompatDB. Graphics payloads are shipped separately."
 }

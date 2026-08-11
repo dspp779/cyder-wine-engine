@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 tests=(
   test-build-wine.sh
+  test-cyder-cxcompatdb.sh
   test-cyder-minos-env.sh
   test-ntdll-frame-walk-patches.sh
   test-strip-wine-install.sh
