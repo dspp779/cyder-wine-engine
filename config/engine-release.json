@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "engineId": "cx26.3-w11-cyder009-dxmt",
-  "versionLabel": "CX26.3.0-W11-Cyder009-dxmt",
+  "engineId": "cx26.3-w11-cyder010-dxvk2",
+  "versionLabel": "CX26.3.0-W11-Cyder010-dxvk2",
   "base": {
     "crossover": "26.3.0",
     "wine": "11.0"
@@ -28,5 +28,5 @@
     "cyder-wineserver-add-completion-guard.patch",
     "cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch"
   ],
-  "notes": "Cyder009-dxmt is Cyder009 plus shipped lib/dxmt (upstream DXMT v0.80 MIT) for Cyder 0.9.6 selectable DXMT graphics. Same teardown / frame-walk / A6 / MoltenVK wait-poll shim / QDO optnone bandage as Cyder009. DXMT host winemetal.so may declare minos up to 15.0 (pack gate exemption); Cyder only offers DXMT on macOS 15+."
+  "notes": "Cyder010-dxvk2 is Cyder009-dxmt plus CompatDB ntdll that accepts graphics_backend dxvk2 (MoltenVK path shared with dxvk). Same teardown / frame-walk / A6 / MoltenVK wait-poll shim / QDO optnone bandage / shipped lib/dxmt as Cyder009-dxmt. DXMT host winemetal.so may declare minos up to 15.0 (pack gate exemption); Cyder only offers DXMT on macOS 15+. Graphics payloads (lib/dxvk, lib/dxvk2, lib/dxmt) are excluded from the engine tarball and shipped separately."
 }
