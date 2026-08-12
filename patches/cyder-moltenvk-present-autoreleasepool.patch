@@ -1,6 +1,6 @@
 --- a/MoltenVK/MoltenVK/GPUObjects/MVKImage.mm
 +++ b/MoltenVK/MoltenVK/GPUObjects/MVKImage.mm
-@@ -1555,18 +1555,23 @@
+@@ -1613,18 +1613,23 @@
  	id<CAMetalDrawable> mtlDrwbl = getCAMetalDrawable();
  	MVKSwapchainSignaler signaler = getPresentationSignaler();
  	[mtlCmdBuff addScheduledHandler: ^(id<MTLCommandBuffer> mcb) {
@@ -13,20 +13,15 @@
 +		@autoreleasepool {
 +			addPresentedHandler(mtlDrwbl, presentInfo, signaler);
  
--		// Try to do any present mode transitions as late as possible in an attempt
--		// to avoid visual disruptions on any presents already on the queue.
--		if (presentInfo.presentMode != VK_PRESENT_MODE_MAX_ENUM_KHR) {
--			mtlDrwbl.layer.displaySyncEnabledMVK = (presentInfo.presentMode != VK_PRESENT_MODE_IMMEDIATE_KHR);
--		}
+ 		// Try to do any present mode transitions as late as possible in an attempt
+ 		// to avoid visual disruptions on any presents already on the queue.
+ 		if (presentInfo.presentMode != VK_PRESENT_MODE_MAX_ENUM_KHR) {
+ 			mtlDrwbl.layer.displaySyncEnabledMVK = (presentInfo.presentMode != VK_PRESENT_MODE_IMMEDIATE_KHR);
+ 		}
 -		if (presentInfo.desiredPresentTime) {
 -			[mtlDrwbl presentAtTime: (double)presentInfo.desiredPresentTime * 1.0e-9];
 -		} else {
 -			[mtlDrwbl present];
-+			// Try to do any present mode transitions as late as possible in an attempt
-+			// to avoid visual disruptions on any presents already on the queue.
-+			if (presentInfo.presentMode != VK_PRESENT_MODE_MAX_ENUM_KHR) {
-+				mtlDrwbl.layer.displaySyncEnabledMVK = (presentInfo.presentMode != VK_PRESENT_MODE_IMMEDIATE_KHR);
-+			}
 +			if (presentInfo.desiredPresentTime) {
 +				[mtlDrwbl presentAtTime: (double)presentInfo.desiredPresentTime * 1.0e-9];
 +			} else {
@@ -35,7 +30,7 @@
  		}
  	}];
  
-@@ -1580,10 +1585,12 @@
+@@ -1639,11 +1644,13 @@
  	auto* fence = presentInfo.fence;
  	if (fence) { fence->retain(); }
  	[mtlCmdBuff addCompletedHandler: ^(id<MTLCommandBuffer> mcb) {
@@ -43,17 +38,19 @@
 -		if (fence) { fence->release(); }
 -		[mtlDrwbl release];
 -		release();
+-		if (_swapchain) { _swapchain->notifyPresentComplete(presentInfo); }
 +		@autoreleasepool {
 +			signal(fence);
 +			if (fence) { fence->release(); }
 +			[mtlDrwbl release];
 +			release();
++			if (_swapchain) { _swapchain->notifyPresentComplete(presentInfo); }
 +		}
  	}];
  
  	signal(signaler.semaphore, signaler.semaphoreSignalToken, mtlCmdBuff);
-@@ -1622,7 +1629,11 @@
- #if !MVK_OS_SIMULATOR && defined(__MAC_10_15_4)
+@@ -1682,7 +1689,11 @@
+ #if !MVK_OS_SIMULATOR
  	if ([mtlDrawable respondsToSelector: @selector(addPresentedHandler:)]) {
  		[mtlDrawable addPresentedHandler: ^(id<MTLDrawable> mtlDrwbl) {
 -			endPresentation(presentInfo, signaler, mtlDrwbl.presentedTime * 1.0e9);

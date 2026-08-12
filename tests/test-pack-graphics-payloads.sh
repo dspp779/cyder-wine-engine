@@ -61,4 +61,15 @@ assert test -f "$output_dir/dxvk-artifact-sha256.txt"
 assert test -f "$output_dir/dxvk2-artifact-sha256.txt"
 assert test -f "$output_dir/dxmt-artifact-sha256.txt"
 
+# --force must replace existing archives instead of leaving zstd to fail on
+# its protected output path.
+(
+  cd "$tmp"
+  CYDER_ZSTD="$fake_zstd" bash "$ROOT/scripts/pack-graphics-payloads.sh" \
+    --engine "$engine" --output-dir "$(basename "$output_dir")" --force
+)
+assert test -f "$output_dir/dxvk-unknown.tar.zst"
+assert test -f "$output_dir/dxvk2-unknown.tar.zst"
+assert test -f "$output_dir/dxmt-unknown.tar.zst"
+
 echo "PASS test-pack-graphics-payloads"

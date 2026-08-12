@@ -1,0 +1,18 @@
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm
+@@ -2986,6 +2986,15 @@
+     _features.robustBufferAccess = true;  // XXX Required by Vulkan spec
+     _features.fullDrawIndexUint32 = true;
+     _features.independentBlend = true;
++    // Cyder/CrossOver compatibility: DXVK's D3D10/11 feature-level probe
++    // requires these capabilities to reach feature level 10_x/11_1 on
++    // Apple/Metal devices. This intentionally mirrors CrossOver's narrow
++    // capability advertisement; it does not add geometry-shader execution
++    // support to MoltenVK. Applications that submit geometry shader stages
++    // must still be tested separately.
++    _features.geometryShader = true;
++    _features.pipelineStatisticsQuery = true;
++    _features.shaderCullDistance = true;
+     _features.sampleRateShading = true;
+ 	_features.logicOp = getMVKConfig().useMetalPrivateAPI;
+     _features.depthBiasClamp = true;

@@ -69,6 +69,10 @@ pack_payload() {
     echo "Graphics artifact present: $archive"
   else
     rm -rf "$staged"
+    # zstd reads the staged tar stream from stdin and refuses to overwrite an
+    # existing output path.  --force must therefore remove the exact payload
+    # archive before starting the replacement.
+    rm -f "$archive"
     cp -R "$source" "$staged"
     if [[ "$name" == dxvk || "$name" == dxvk2 ]]; then
       python3 "$SCRIPT_DIR/stamp-wine-builtin-pe.py" "$staged"

@@ -321,7 +321,11 @@ apply_cyder_patch() {
   if patch --forward --batch --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
     patch --forward --batch -s -d "$WINE_SRC" -p1 < "$patch_file"
     echo "Applied $(basename "$patch_file")"
-  elif patch --reverse --batch --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
+  # `patch --reverse --batch` may auto-detect a reversed patch and silently
+  # apply it forward.  That turns a clean source tree into an obsolete-patch
+  # tree while merely probing idempotence.  --forward disables that fallback
+  # so the reverse probe is a true "already applied" check.
+  elif patch --reverse --forward --batch --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
     echo "Already applied: $(basename "$patch_file")"
   elif [[ "$(basename "$patch_file")" == "wine-11.1-rtlwalkframechain-null-function.patch" ]] &&
        grep -Fq 'if (!func) break;' "$WINE_SRC/dlls/ntdll/signal_x86_64.c" 2>/dev/null; then
@@ -380,14 +384,14 @@ remove_obsolete_cyder_patch() {
     done
     return 0
   fi
-  if patch --reverse --batch --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
-    patch --reverse --batch -s -d "$WINE_SRC" -p1 < "$patch_file"
+  if patch --reverse --forward --batch --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
+    patch --reverse --forward --batch -s -d "$WINE_SRC" -p1 < "$patch_file"
     echo "Removed obsolete $(basename "$patch_file")"
   elif patch --forward --batch --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
     return 0
   else
     for superseding_patch in "$@"; do
-      if patch --reverse --batch --dry-run -s -d "$WINE_SRC" -p1 < "$superseding_patch"; then
+      if patch --reverse --forward --batch --dry-run -s -d "$WINE_SRC" -p1 < "$superseding_patch"; then
         echo "Obsolete patch already superseded: $(basename "$patch_file")"
         return 0
       fi

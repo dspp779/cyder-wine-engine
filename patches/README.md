@@ -167,8 +167,32 @@ Applied under `$MOLTENVK_SRC` via
 
 | Patch | Intent |
 |-------|--------|
+| `cyder-moltenvk-crossover-capability-hacks.patch` | Port the three CrossOver DXVK compatibility advertisements (`geometryShader`, `pipelineStatisticsQuery`, `shaderCullDistance`) required for the D3D10/11 feature-level probe to reach 10_x/11_1. It deliberately does not fake `VK_EXT_transform_feedback` or the AMD bitwise-not compiler workaround. |
 | `cyder-moltenvk-timeline-wait-poll.patch` | Host `vkWaitSemaphores` polls timeline counters instead of `MTLSharedEvent notifyListener`, which leaks Mach receive rights on finite-timeout waits (DXVK + MapleStory Classic). |
 | `cyder-moltenvk-present-autoreleasepool.patch` | Drain `@autoreleasepool` on Metal present / presented-handler threads. |
+
+The default graphics build is pinned to upstream MoltenVK **1.4.0** by
+`scripts/ensure-moltenvk-source.sh` (SHA-256 is checked before extraction), with
+the minimum host floor remaining macOS 10.15. Set `MOLTENVK_SOURCE=crossover-foss`
+only for an explicit legacy comparison; `custom` requires an explicit
+`MOLTENVK_SRC`.
+
+CrossOver's other capability changes were reviewed but are not silently copied
+into the 1.4.0 tree:
+
+- The AMD `bitwiseNotCausesICE` flag is coupled to a CrossOver-only
+  SPIRV-Cross `bitwise_not_causes_ice` option. Upstream MoltenVK 1.4.0 and its
+  pinned SPIRV-Cross revision do not define that option, so porting only the
+  flag would not change generated MSL. It needs a separate SPIRV-Cross patch
+  and AMD shader regression tests.
+- CrossOver's `VK_EXT_transform_feedback` advertisement and no-op/stub entry
+  points are not ported. They would advertise incomplete behavior and are not
+  part of DXVK 2.7.1's required feature set.
+- The ANGLE engine ID/synchronization path, texel-alignment emulation, and
+  macOS 26 AMD concurrent-compilation guard are separate CrossOver behavior;
+  they are not needed to solve the DXVK feature-level failure. The latter is
+  already present in upstream MoltenVK 1.4.0, and the AMD counter-sampling
+  guard is also upstream.
 
 Markers: `Cyder: each -[MTLSharedEvent notifyListener` (`MVKSync.mm`),
 `Cyder: Metal scheduled-handler threads` (`MVKImage.mm`).

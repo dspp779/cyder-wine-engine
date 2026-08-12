@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Rebuild MoltenVK with Cyder patches (timeline wait poll + present autoreleasepool).
+# Rebuild MoltenVK with Cyder patches (CrossOver capability compatibility,
+# timeline wait poll, and present autoreleasepool).
 # Does not pack a release artifact. Installs into GRAPHICS_INSTALL + WINE_INSTALL.
 set -euo pipefail
 
@@ -33,10 +34,18 @@ EOF
   esac
 done
 
+if [[ "$MOLTENVK_SOURCE" == "upstream" ]]; then
+  bash "$SCRIPT_DIR/ensure-moltenvk-source.sh"
+fi
 [[ -f "$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKSync.mm" ]] || {
   echo "Missing MoltenVK sources at $MOLTENVK_SRC" >&2
   exit 1
 }
+
+source_version="$MOLTENVK_VERSION"
+if [[ "$MOLTENVK_SOURCE" != "upstream" ]]; then
+  source_version="$(python3 "$SCRIPT_DIR/pin-moltenvk-git-rev.py" "$MOLTENVK_SRC")"
+fi
 
 apply_one() {
   local patch="$1"
@@ -48,7 +57,14 @@ apply_one() {
   fi
   if (( APPLY_PATCHES )); then
     echo "Applying $(basename "$patch")..."
-    patch --forward --batch -p1 -d "$MOLTENVK_SRC" < "$patch"
+    if patch --forward --batch -p1 -d "$MOLTENVK_SRC" < "$patch"; then
+      :
+    elif grep -Fq "$marker" "$file"; then
+      echo "Applied compatible hunks of $(basename "$patch") (source variant)"
+    else
+      echo "Failed to apply $(basename "$patch")" >&2
+      return 1
+    fi
   else
     echo "Source lacks marker for $(basename "$patch")." >&2
     echo "  marker: $marker" >&2
@@ -57,6 +73,11 @@ apply_one() {
     exit 1
   fi
 }
+
+apply_one \
+  "$ROOT/patches/cyder-moltenvk-crossover-capability-hacks.patch" \
+  '_features.pipelineStatisticsQuery = true;' \
+  "$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm"
 
 apply_one \
   "$ROOT/patches/cyder-moltenvk-timeline-wait-poll.patch" \
@@ -109,10 +130,11 @@ mkdir -p "$GRAPHICS_INSTALL/lib"
 cp -p "$dylib_out" "$GRAPHICS_INSTALL/lib/libMoltenVK.dylib"
 chmod 755 "$GRAPHICS_INSTALL/lib/libMoltenVK.dylib"
 cat >"$GRAPHICS_INSTALL/version" <<EOF
-graphics crossover-foss+cyder-moltenvk-patches
-moltenvk cyder-timeline-wait-poll+present-autoreleasepool
+graphics moltenvk-cyder
+moltenvk ${source_version}+cyder-crossover-capability+timeline-wait-poll+present-autoreleasepool
 arch x86_64
-source crossover-foss
+source ${MOLTENVK_SOURCE}
+capability-patch cyder-moltenvk-crossover-capability-hacks
 minos ${minos:-unknown}
 patch cyder-moltenvk-timeline-wait-poll
 patch cyder-moltenvk-present-autoreleasepool

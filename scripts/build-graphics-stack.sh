@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build MoltenVK (and optionally VKD3D) from CrossOver FOSS sources for x86_64 Wine.
+# Build MoltenVK (and optionally VKD3D) for x86_64 Wine.
 #
 # Phase 1 (default): MoltenVK only — enough for Wine configure / winevulkan / runtime dlopen.
 # Phase 2 (--with-vkd3d): VKD3D PE build — not wired yet; see docs in this script's --help.
@@ -29,12 +29,13 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [options]
 
-Build graphics dependencies from CrossOver FOSS sources (MoltenVK; VKD3D optional).
+Build graphics dependencies from pinned upstream MoltenVK sources (VKD3D optional).
 
 Installs into \$GRAPHICS_INSTALL (default: install/graphics-cx<ver>-x86_64/lib).
 
 Options:
   --cx 25|26           CrossOver release (default: 26)
+  --moltenvk-source S  upstream (default), crossover-foss, or custom
   --install-deps       Install MoltenVK build tools via .brew-x86 (cmake, python3)
   --with-vkd3d         Also build VKD3D from CX sources (not implemented yet)
   --archs ARCH         macOS arch for MoltenVK dylib (default: x86_64 for Rosetta Wine)
@@ -51,6 +52,8 @@ Then build Wine with CrossOver Vulkan:
   bash scripts/build-wine.sh --cx 26 --with-vulkan --vulkan-source crossover
 
 Notes:
+  - MoltenVK 1.4.0 is fetched and SHA-256 verified by ensure-moltenvk-source.sh.
+    Set MOLTENVK_SOURCE=crossover-foss only for an explicit legacy comparison.
   - MoltenVK fetchDependencies may download upstream deps (network required).
   - Requires Xcode (xcodebuild). On Apple Silicon, MoltenVK is built under Rosetta
     as x86_64 to match the x86_64 Wine prefix.
@@ -63,6 +66,11 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=1 ;;
     --install-deps) INSTALL_DEPS=1 ;;
     --with-vkd3d) WITH_VKD3D=1 ;;
+    --moltenvk-source)
+      [[ $# -ge 2 ]] || { echo "Missing value for --moltenvk-source" >&2; exit 1; }
+      MOLTENVK_SOURCE="$2"
+      shift
+      ;;
     --cx)
       CX_VERSION="$2"
       shift
@@ -93,6 +101,7 @@ case "$CX_VERSION" in
 esac
 
 export CX_VERSION
+export MOLTENVK_SOURCE="${MOLTENVK_SOURCE:-upstream}"
 source "$SCRIPT_DIR/env-x86_64.sh"
 
 PREPARE_ARGS=(--cx "$CX_VERSION")
@@ -123,45 +132,94 @@ moltenvk_dylib_path() {
   printf '%s/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib\n' "$MOLTENVK_SRC"
 }
 
-build_moltenvk_crossover() {
+ensure_moltenvk_source() {
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    bash "$SCRIPT_DIR/ensure-moltenvk-source.sh" --dry-run
+  else
+    bash "$SCRIPT_DIR/ensure-moltenvk-source.sh"
+  fi
+}
+
+apply_capability_patch() {
+  local patch_file="$SCRIPT_DIR/../patches/cyder-moltenvk-crossover-capability-hacks.patch"
+  local marker_file="$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm"
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "+ patch -p1 -d $MOLTENVK_SRC < $patch_file"
+  elif grep -Fq '_features.pipelineStatisticsQuery = true;' "$marker_file"; then
+    echo "Already applied: $(basename "$patch_file")"
+  else
+    patch --forward --batch -p1 -d "$MOLTENVK_SRC" < "$patch_file"
+    echo "Applied $(basename "$patch_file")"
+  fi
+}
+
+apply_source_patch() {
+  local patch_file="$1" marker="$2" source_file="$3"
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "+ patch -p1 -d $MOLTENVK_SRC < $SCRIPT_DIR/../patches/$patch_file"
+  elif grep -Fq "$marker" "$source_file"; then
+    echo "Already applied: $patch_file"
+  else
+    if patch --forward --batch -p1 -d "$MOLTENVK_SRC" < "$SCRIPT_DIR/../patches/$patch_file"; then
+      echo "Applied $patch_file"
+    elif grep -Fq "$marker" "$source_file"; then
+      echo "Applied compatible hunks of $patch_file (source variant)"
+    else
+      echo "Failed to apply $patch_file" >&2
+      return 1
+    fi
+  fi
+}
+
+build_moltenvk() {
   local dylib marker
   dylib="$(moltenvk_dylib_path)"
   marker="$GRAPHICS_INSTALL/lib/libMoltenVK.dylib"
 
   if [[ -f "$marker" && -f "$GRAPHICS_INSTALL/version" \
-      && "$(grep -F 'source crossover-foss' "$GRAPHICS_INSTALL/version" 2>/dev/null || true)" == "source crossover-foss" \
+      && "$(grep -F "source $MOLTENVK_SOURCE" "$GRAPHICS_INSTALL/version" 2>/dev/null || true)" == "source $MOLTENVK_SOURCE" \
+      && ("$MOLTENVK_SOURCE" != "upstream" || "$(grep -F "moltenvk $MOLTENVK_VERSION" "$GRAPHICS_INSTALL/version" 2>/dev/null || true)" == "moltenvk $MOLTENVK_VERSION") \
       && "$DRY_RUN" -eq 0 ]]; then
     echo "MoltenVK already installed at $marker"
     return 0
   fi
 
   if [[ -f "$marker" && "$DRY_RUN" -eq 0 ]]; then
-    echo "Ignoring unverified MoltenVK at $marker (missing crossover-foss manifest)." >&2
+    echo "Ignoring unverified MoltenVK at $marker (missing $MOLTENVK_SOURCE/$MOLTENVK_VERSION manifest)." >&2
   fi
 
-  [[ -d "$MOLTENVK_SRC" ]] || {
-    echo "Missing $MOLTENVK_SRC; run prepare-build-deps first" >&2
-    exit 1
-  }
+  ensure_moltenvk_source
+  apply_capability_patch
+  apply_source_patch \
+    cyder-moltenvk-timeline-wait-poll.patch \
+    'Cyder: each -[MTLSharedEvent notifyListener' \
+    "$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKSync.mm"
+  apply_source_patch \
+    cyder-moltenvk-present-autoreleasepool.patch \
+    'Cyder: Metal scheduled-handler threads' \
+    "$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKImage.mm"
 
   require_xcode
 
-  # fetchDependencies derives SPIRV-Cross's git URL from the nearest git
-  # remote. Inside this monorepo that becomes origin/.../SPIRV-Cross.git and
-  # fails. CrossOver FOSS tarballs already vendor External/SPIRV-Cross (often
-  # without .git). Copy it out before fetchDependencies runs — it does
-  # `rm -rf SPIRV-Cross` then symlinks SPIRV_CROSS_ROOT.
+  # Release archives do not vendor External/SPIRV-Cross; CrossOver FOSS
+  # archives sometimes do. Cache either copy before fetchDependencies runs —
+  # it does `rm -rf SPIRV-Cross` then symlinks SPIRV_CROSS_ROOT.
   local spirv_cross_vendored="$MOLTENVK_SRC/External/SPIRV-Cross"
   local spirv_cross_rev spirv_cross_cache
-  spirv_cross_rev="$(
-    tr -d '[:space:]' <"$MOLTENVK_SRC/ExternalRevisions/SPIRV-Cross_repo_revision"
-  )"
+  if [[ "$DRY_RUN" -eq 1 && ! -f "$MOLTENVK_SRC/ExternalRevisions/SPIRV-Cross_repo_revision" ]]; then
+    spirv_cross_rev="<pinned-revision>"
+    echo "+ read ExternalRevisions/SPIRV-Cross_repo_revision"
+  else
+    spirv_cross_rev="$(
+      tr -d '[:space:]' <"$MOLTENVK_SRC/ExternalRevisions/SPIRV-Cross_repo_revision"
+    )"
+  fi
   spirv_cross_cache="$BUILD_DIR/moltenvk-deps/SPIRV-Cross-$spirv_cross_rev"
   if [[ ! -f "$spirv_cross_cache/spirv_cross.hpp" && ! -f "$spirv_cross_cache/spirv_cross_c.cpp" \
       && ! -d "$spirv_cross_cache/include" ]]; then
     if [[ -f "$spirv_cross_vendored/spirv_cross.hpp" || -f "$spirv_cross_vendored/spirv_cross_c.cpp" \
         || -d "$spirv_cross_vendored/include" ]]; then
-      echo "Caching CX-vendored SPIRV-Cross -> $spirv_cross_cache"
+      echo "Caching vendored SPIRV-Cross -> $spirv_cross_cache"
       run rm -rf "$spirv_cross_cache"
       run mkdir -p "$(dirname "$spirv_cross_cache")"
       run cp -a "$spirv_cross_vendored" "$spirv_cross_cache"
@@ -179,8 +237,9 @@ build_moltenvk_crossover() {
   echo "Fetching MoltenVK external dependencies (may need network)..."
   run bash -c "cd '$MOLTENVK_SRC' && ./fetchDependencies --macos --spirv-cross-root '$spirv_cross_cache'"
 
-  # CX tarball has no moltenvk .git; gen_moltenvk_rev_hdr.sh would otherwise
-  # bake the parent Cyder/engine commit into mvkRevString.
+  # Release archives and CX tarballs have no moltenvk .git;
+  # gen_moltenvk_rev_hdr.sh would otherwise bake the parent Cyder/engine
+  # commit into mvkRevString.
   local pinned_mvk=""
   if [[ "$DRY_RUN" -eq 1 ]]; then
     echo "+ python3 $SCRIPT_DIR/pin-moltenvk-git-rev.py $MOLTENVK_SRC"
@@ -189,7 +248,7 @@ build_moltenvk_crossover() {
     echo "MoltenVK rev string pinned to $pinned_mvk (not parent git HEAD)"
   fi
 
-  echo "Building MoltenVK (arch=$ARCHS) from CrossOver snapshot..."
+  echo "Building MoltenVK $MOLTENVK_VERSION (arch=$ARCHS, source=$MOLTENVK_SOURCE)..."
   run arch -x86_64 env \
     DEVELOPER_DIR="$(xcode-select -p 2>/dev/null || true)" \
     xcodebuild build \
@@ -215,10 +274,13 @@ build_moltenvk_crossover() {
   run chmod 755 "$marker"
 
   cat > "$GRAPHICS_INSTALL/version" <<EOF
-graphics crossover cx${CX_VERSION}
-moltenvk ${pinned_mvk:-crossover-snapshot}
+graphics moltenvk-cyder
+moltenvk ${pinned_mvk:-$MOLTENVK_VERSION}
 arch ${ARCHS}
-source crossover-foss
+source ${MOLTENVK_SOURCE}
+capability-patch cyder-moltenvk-crossover-capability-hacks
+patch cyder-moltenvk-timeline-wait-poll
+patch cyder-moltenvk-present-autoreleasepool
 EOF
   echo "Installed MoltenVK -> $marker"
 }
@@ -230,7 +292,7 @@ build_vkd3d_crossover() {
   exit 1
 }
 
-build_moltenvk_crossover
+build_moltenvk
 
 if [[ "$WITH_VKD3D" -eq 1 ]]; then
   build_vkd3d_crossover
