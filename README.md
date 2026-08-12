@@ -41,9 +41,12 @@ publish the CrossOver source archive.
 
 ```sh
 bash scripts/build-wine.sh --cx 26 --prepare-only
-bash scripts/build-wine.sh --cx 26 --install-deps --without-vulkan
-bash scripts/build-wine.sh --cx 26 --without-vulkan
+bash scripts/build-wine.sh --cx 26 --bootstrap-brew --install-deps \
+  --configure-only --without-vulkan
 ```
+
+上面是只準備 source、Homebrew 與基礎依賴的最小流程；完整 engine 請依照上方的
+從零建置文件接續執行。
 
 For the Cyder MoltenVK path (upstream 1.4.0 with Cyder patches):
 
