@@ -9,6 +9,7 @@ VERSION_LABEL=""
 NTDLL_SHA256=""
 ARTIFACT=""
 ARTIFACT_SHA256=""
+RELEASE_CONFIG="${CYDER_ENGINE_RELEASE_CONFIG:-$ROOT/config/engine-release.json}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -17,6 +18,7 @@ while [[ $# -gt 0 ]]; do
     --ntdll-sha256) NTDLL_SHA256="$2"; shift 2 ;;
     --artifact) ARTIFACT="$2"; shift 2 ;;
     --artifact-sha256) ARTIFACT_SHA256="$2"; shift 2 ;;
+    --config) RELEASE_CONFIG="$2"; shift 2 ;;
     *)
       echo "Unknown argument: $1" >&2
       exit 1
@@ -25,7 +27,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$OUTPUT" && -n "$VERSION_LABEL" && -n "$NTDLL_SHA256" ]] || {
-  echo "Usage: $(basename "$0") --output FILE --version LABEL --ntdll-sha256 HEX [--artifact NAME --artifact-sha256 HEX]" >&2
+  echo "Usage: $(basename "$0") --output FILE --version LABEL --ntdll-sha256 HEX [--config FILE] [--artifact NAME --artifact-sha256 HEX]" >&2
   exit 1
 }
 [[ "$VERSION_LABEL" =~ ^[A-Za-z0-9._()[:space:]-]+$ ]] || {
@@ -42,7 +44,6 @@ if [[ -n "$ARTIFACT_SHA256" && ! "$ARTIFACT_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
 fi
 
 mkdir -p "$(dirname "$OUTPUT")"
-RELEASE_CONFIG="$ROOT/config/engine-release.json"
 [[ -f "$RELEASE_CONFIG" ]] || {
   echo "Missing engine release metadata: $RELEASE_CONFIG" >&2
   exit 1

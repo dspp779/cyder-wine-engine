@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "engineId": "cx25.0.1.38865-oem25-cyder010",
+  "versionLabel": "CX25.0.1.38865-OEM25-Cyder010",
+  "base": {
+    "crossover": "25.0.1.38865",
+    "wine": "MapleStory OEM25 source snapshot"
+  },
+  "hostArchitecture": "x86_64",
+  "windowsArchitectures": [
+    "i386",
+    "x86_64"
+  ],
+  "minimumCyderVersion": "0.10.0",
+  "patches": [
+    "cyder-moltenvk-crossover-capability-hacks.patch",
+    "cyder-moltenvk-timeline-wait-poll.patch",
+    "cyder-moltenvk-present-autoreleasepool.patch"
+  ],
+  "components": [
+    "runtime/cxcompatdb/cxcompatdb.c",
+    "MoltenVK 1.4.0"
+  ],
+  "notes": "MapleStory OEM25 engine repack. Keeps the original OEM ntdll, replaces the CrossOver cxcompatdb and MoltenVK with Cyder runtime components, and leaves DXVK/DXMT in external graphics payloads."
+}
