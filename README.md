@@ -9,11 +9,12 @@ engine artifact during the first extraction phase.
 
 ## Current release target
 
-- Engine: `CX26.3.0-W11-Cyder007`
+- Engine: `CX26.3.0-W11-Cyder010`
 - Base: CrossOver 26.3.0 / Wine 11.0
 - Host: macOS x86_64 under Rosetta 2
 - Product deployment floor: macOS 10.15 (`.env` / `MACOSX_DEPLOYMENT_TARGET`, default 10.15)
 - Architectures: x86_64 host with i386 and x86_64 Windows PE support
+- Graphics: MoltenVK 1.4.0, DXVK 1.10.3, DXVK2 2.7.1, DXMT 0.80
 
 The ordered patch set is recorded in
 [`config/engine-release.json`](config/engine-release.json). Built artifacts also
@@ -35,16 +36,20 @@ publish the CrossOver source archive.
 
 ## Build
 
+完整的首次建置流程（包括 Xcode、MoltenVK、Wine、graphics payload、測試及封裝）請看
+[`docs/build-engine-from-scratch.zh-TW.md`](docs/build-engine-from-scratch.zh-TW.md)。
+
 ```sh
 bash scripts/build-wine.sh --cx 26 --prepare-only
 bash scripts/build-wine.sh --cx 26 --install-deps --without-vulkan
 bash scripts/build-wine.sh --cx 26 --without-vulkan
 ```
 
-For the CrossOver MoltenVK path:
+For the Cyder MoltenVK path (upstream 1.4.0 with Cyder patches):
 
 ```sh
-bash scripts/install-crossover-app-moltenvk.sh
+bash scripts/build-graphics-stack.sh --cx 26 --install-deps --moltenvk-source upstream
+bash scripts/build-graphics-stack.sh --cx 26 --moltenvk-source upstream
 bash scripts/build-wine.sh --cx 26 --with-vulkan --vulkan-source crossover
 ```
 
@@ -54,8 +59,8 @@ for env/minOS rules, patch markers, cheatsheets, and pack gates. Agents
 (Codex, Cursor, Claude, Antigravity): start from [`AGENTS.md`](AGENTS.md) and
 [`docs/ai-agent-setup.md`](docs/ai-agent-setup.md).
 
-The patch application is idempotent and migrates a Cyder006 combined frame-walk
-patch into the split Cyder007 patch set.
+The patch application is idempotent and can migrate a Cyder006 combined
+frame-walk patch into the current split patch set.
 
 Large ignored trees live in this repo (not CyderBits/ogom):
 
@@ -93,7 +98,7 @@ FRAME_WALK_WINE_RUNTIME=/path/to/wine-x86_64 \
 ## Package
 
 ```sh
-CYDER_ENGINE_VERSION_LABEL='CX26.3.0-W11-Cyder007' \
+CYDER_ENGINE_VERSION_LABEL='CX26.3.0-W11-Cyder010' \
 SIGN_IDENTITY='Developer ID Application: …' \
   bash scripts/pack-engine-artifact.sh --xz --force
 ```
