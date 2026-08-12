@@ -413,11 +413,11 @@ static const char *current_machine_directory( uint16_t *machine )
 }
 
 static int validate_backend_directory( const char *path, const char *directory,
-                                       uint16_t machine )
+                                       uint16_t machine, int require_winemetal )
 {
     unsigned int j;
     int found = 0;
-    int have_d3d11 = 0, have_dxgi = 0;
+    int have_d3d11 = 0, have_dxgi = 0, have_winemetal = 0;
     for (j = 0; j < ARRAY_SIZE(graphics_modules); ++j)
     {
         char file[PATH_MAX];
@@ -432,10 +432,12 @@ static int validate_backend_directory( const char *path, const char *directory,
         }
         if (!strcmp( graphics_modules[j], "d3d11" )) have_d3d11 = 1;
         if (!strcmp( graphics_modules[j], "dxgi" )) have_dxgi = 1;
+        if (!strcmp( graphics_modules[j], "winemetal" )) have_winemetal = 1;
         found = 1;
     }
-    if (!have_d3d11 || !have_dxgi)
-        log_message( "error", "backend lacks d3d11.dll or dxgi.dll for %s: %s", directory, path );
+    if (!have_d3d11 || !have_dxgi || (require_winemetal && !have_winemetal))
+        log_message( "error", "backend lacks d3d11.dll, dxgi.dll%s for %s: %s",
+                     require_winemetal ? " or winemetal.dll" : "", directory, path );
     else return found;
     return 0;
 }
@@ -485,7 +487,8 @@ static int activate_backend( const struct slice *selection )
         }
     }
     machine_dir = current_machine_directory( &machine );
-    if (!validate_backend_directory( path, machine_dir, machine )) goto unavailable;
+    if (!validate_backend_directory( path, machine_dir, machine, !strcmp( backend, "dxmt" )))
+        goto unavailable;
     if (!strcmp( backend, "dxvk" ) || !strcmp( backend, "dxvk2" ))
     {
         if (!root ||

@@ -14,6 +14,8 @@ assert_contains "$source_text" 'Wine builtin DLL' \
   "cxcompatdb should validate the Wine builtin PE signature"
 assert_contains "$source_text" 'get_u16( header + pe + 4 ) == expected' \
   "cxcompatdb should validate the PE machine"
+assert_contains "$source_text" 'require_winemetal' \
+  "cxcompatdb should require DXMT's winemetal builtin PE"
 assert_contains "$source_text" 'graphics backend=%s machine=%s path=%s' \
   "cxcompatdb should log the activated backend path"
 assert_contains "$source_text" 'appended current-process argument' \
