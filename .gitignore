@@ -16,6 +16,8 @@ CLAUDE.local.md
 
 # OS/editor noise
 .DS_Store
+__pycache__/
+*.py[cod]
 
 *.tar.gz
 *.tar.xz
