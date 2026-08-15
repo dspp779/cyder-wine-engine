@@ -29,29 +29,31 @@ flowchart LR
 
 | 功能群 | 包含內容 | 重用性／來源 | 重要性 | 對其他應用程式的影響 | 採用建議 |
 |---|---|---|---|---|---|
-| 媒體與 WineD3D core | `maplestory-cx26-core.patch`：raw audio parser、user-memory texture pin、format-conversion staging | 可重用於需要 raw audio 或 CPU／GPU texture staging 的 Win32 遊戲；核心做法來自 CX25 OEM／CrossOver 相容性差異，但不是 MapleStory 專屬 API | 高 | 中；會影響 `winegstreamer` 與 `wined3d` 中使用相同 texture／audio 路徑的程式，可能改變記憶體與效能 | 正式納入 MapleStory profile；若要升級為全域行為，需補上 WineD3D／GStreamer regression 與效能測試 |
-| 暫存模組載入與 DWARF | `maplestory-cx26-tmp-module-name.patch`、`maplestory-cx26-dbghelp-dwarf-guard.patch` | `.tmp`／`.msf` 載入可重用於會複製或重新命名 PE payload 的 anti-cheat／更新器；DWARF guard 可泛化為 debugger robustness | 高；對 BlackCipher 啟動是必要條件 | 低至中；loader／dbghelp 是共用路徑，但修補已限制在無效或不完整 symbol metadata，不改正常模組解析 | MapleStory profile 建議採用；DWARF guard 可另行提出 upstream 化，`.tmp` 命名修補不建議直接全域套用 |
-| D3D11 shared resource 與 texture clear | `maplestory-cx26-d3d11-shared-texture-test.patch`、`maplestory-cx26-d3d11-full-clear.patch`、`maplestory-cx26-dxgi-shared-handle.patch`、`maplestory-cx26-texture-user-memory-reload.patch` | 可重用於使用 shared texture、`ClearView`／UAV clear、producer／consumer handle 或 user-memory texture 的 D3D11 應用程式；CX25 bisect 顯示它們是同一個資源生命週期契約 | 關鍵；拆開會得到局部畫面或再次黑畫面 | 中至高；會影響 D3D11 resource ownership、clear 語義與同步，可能改變其他遊戲的畫面正確性或效能 | MapleStory profile 正式採用，四個 patch 視為不可拆功能群；不建議直接作為所有 D3D11 應用程式的預設，應先做 shared-resource regression |
-| D3DMetal view／surface 交接 | `maplestory-cx26-d3dmetal-legacy-surface.patch`、`maplestory-cx26-plain-metal-layer.patch` | 可重用於 D3DMetal 應用程式需要沿用可見 client view、Metal layer 或 helper process surface 的情況；概念是 CX25 OEM 的 view ownership | 高；決定 D3DMetal 是否能持續 present | 中；修改 `winemac.drv` 的 view／layer 交接，可能影響多視窗、overlay、retina 或 helper window | MapleStory D3DMetal profile 建議採用；不建議移除 app scope 後全域套用，需另做多視窗與 overlay 測試 |
-| 視窗、焦點與反作弊 helper | `maplestory-cx26-window-resizable-flag.patch`、`maplestory-cx26-blackxchg-foreground.patch`、`maplestory-cx26-fullscreen-restore.patch` | 可重用於有 anti-cheat／overlay helper、fullscreen restore 或 resize handoff 的遊戲；`BlackXchg` 本身是 MapleStory 專屬流程 | 高；避免 helper 啟動或 resize 後失去前景／畫面交接 | 中；會改變 macOS foreground、resize 與 fullscreen 行為，可能影響其他遊戲的 focus、Alt+Enter 或 overlay | MapleStory profile 正式採用；`BlackXchg` 判斷應維持 app-specific，其他兩項可在獨立遊戲 regression 後再考慮泛化 |
-| `win32u` message-wait handoff | `maplestory-cx26-message-wait-handoff.patch`：保留 upstream queue retry；queue 已就緒時不把無效 handle 清單送入等待 | 控制流可重用，且保留 upstream 的 retry 語義；觸發原因是 MapleStory 提供的 malformed handle list，不能解讀成「忽略所有無效 handle」 | 關鍵；已由實機確認可越過 CX26 黑畫面 gate 到登入畫面 | 中；`win32u` 是全域共用路徑，其他應用程式可能看到不同的 queue／wait 時序；修補沒有全域吞掉 `STATUS_INVALID_HANDLE`，風險較低但仍需 regression | 正式納入 MapleStory profile；暫不作所有應用程式預設，待 Wine message／wait regression 與其他 malformed-list case 驗證後，再評估 upstream 化 |
-| CX25 OEM scheduler 對齊 | `maplestory-cx26-no-sched-yield.patch`：在特定同步路徑避免 host scheduler yield | 只可重用「需要與 CX25 OEM 同步時序」的經驗；不是一般 Win32 語義修正 | 中；是 MapleStory 啟動／反作弊時序的一部分，但不是 renderer 本身 | 高；會影響所有使用該 ntdll sync 路徑的程式之 latency、CPU 使用與公平性 | 只在 MapleStory profile 採用；不建議全域預設，需用多執行緒／CPU／能耗 benchmark 證明沒有回歸 |
-| 非 Vulkan 的建置 fallback | `w1-win32u-vulkan-soname.patch` 與 `--without-vulkan` D3DMetal build contract | 可重用於 Wine 在停用 Vulkan 時仍編譯 `win32u/vulkan.c` 的 build environment；與 MapleStory runtime graphics 無關 | 低；只解除編譯／連結阻塞 | 僅影響 build，不影響 D3DMetal runtime，也不會載入 MoltenVK | 可保留為 CX26 build fallback；不應被當成 MapleStory runtime compatibility patch，也不應讓 MoltenVK 成為 D3DMetal 依賴 |
+| 媒體與 WineD3D core | `maplestory-cx26-core.patch`：raw audio parser、user-memory texture pin、format-conversion staging | 可重用於需要 raw audio 或 CPU／GPU texture staging 的 Win32 遊戲；核心做法來自 CX25 OEM／CrossOver 相容性差異，但不是 MapleStory 專屬 API | 高 | 中；會影響 `winegstreamer` 與 `wined3d` 中使用相同 texture／audio 路徑的程式，可能改變記憶體與效能 | 採用；先在 CX26 MapleStory stack 啟用，之後可依 regression 結果推廣 |
+| 暫存模組載入與 DWARF | `maplestory-cx26-tmp-module-name.patch`、`maplestory-cx26-dbghelp-dwarf-guard.patch` | `.tmp`／`.msf` 載入可重用於會複製或重新命名 PE payload 的 anti-cheat／更新器；DWARF guard 可泛化為 debugger robustness | 高 | 低至中；loader／dbghelp 是共用路徑，但修補已限制在無效或不完整 symbol metadata，不改正常模組解析 | 採用；`.tmp` 命名仍以有效 payload／module-name 條件限制，DWARF guard 可廣泛重用 |
+| D3D11 shared resource 與 texture clear | `maplestory-cx26-d3d11-shared-texture-test.patch`、`maplestory-cx26-d3d11-full-clear.patch`、`maplestory-cx26-dxgi-shared-handle.patch`、`maplestory-cx26-texture-user-memory-reload.patch` | 可重用於使用 shared texture、`ClearView`／UAV clear、producer／consumer handle 或 user-memory texture 的 D3D11 應用程式；CX25 bisect 顯示它們是同一個資源生命週期契約 | 關鍵；拆開會得到局部畫面或再次黑畫面 | 中至高；會影響 D3D11 resource ownership、clear 語義與同步，可能改變其他遊戲的畫面正確性或效能 | 採用；四個 patch 視為不可拆功能群，並以 D3D11 shared-resource regression 維持品質 |
+| D3DMetal view／surface 交接 | `maplestory-cx26-d3dmetal-legacy-surface.patch`、`maplestory-cx26-plain-metal-layer.patch` | 可重用於 D3DMetal 應用程式需要沿用可見 client view、Metal layer 或 helper process surface 的情況；概念是 CX25 OEM 的 view ownership | 高；決定 D3DMetal 是否能持續 present | 中；修改 `winemac.drv` 的 view／layer 交接，可能影響多視窗、overlay、retina 或 helper window | 採用；保留 view／helper 條件判斷，並以多視窗、overlay 與 retina regression 驗證 |
+| 視窗、焦點與反作弊 helper | `maplestory-cx26-window-resizable-flag.patch`、`maplestory-cx26-blackxchg-foreground.patch`、`maplestory-cx26-fullscreen-restore.patch` | 可重用於有 anti-cheat／overlay helper、fullscreen restore 或 resize handoff 的遊戲；`BlackXchg` 判斷本身維持 MapleStory 專屬 | 高；避免 helper 啟動或 resize 後失去前景／畫面交接 | 中；會改變 macOS foreground、resize 與 fullscreen 行為，可能影響其他遊戲的 focus、Alt+Enter 或 overlay | 採用；BlackXchg 維持 app-specific，其他 window／fullscreen 修正保留精確條件 |
+| `win32u` message-wait handoff | `maplestory-cx26-message-wait-handoff.patch`：保留 upstream queue retry；queue 已就緒時不把無效 handle 清單送入等待 | 控制流可廣泛重用，保留 upstream retry 語義；在 queue 已就緒時避免驗證尚未可用的 app handle list，不改真正 invalid-handle 的錯誤語義 | 關鍵；已由實機確認可越過 CX26 黑畫面 gate 到登入畫面 | 低；對其他遊戲只改變 queue 已經 ready 時的 handoff 時序，不吞掉 `STATUS_INVALID_HANDLE`，不改正常 handle wait | 廣泛採用於 CX26；不再限制在 MapleStory profile，並保留 message／wait regression |
+| CX25 OEM scheduler 對齊 | `maplestory-cx26-no-sched-yield.patch`：只在 `MapleStory.exe` process image 停止 host scheduler yield | 重用範圍限於 MapleStory.exe 的啟動／反作弊時序；其他 process image 維持 Wine 原本的 `sched_yield()` 行為 | 高；是 MapleStory 啟動／反作弊時序的一部分，但不是 renderer 本身 | 無；guard 以 process image basename 精確限制，其他遊戲不受此修改影響 | 採用，但只在 `MapleStory.exe` 啟用；不得改成全域停用 scheduler yield |
+| 非 Vulkan 的建置 fallback | `w1-win32u-vulkan-soname.patch` 與 `--vulkan-soname-fallback` | 只適用於特定 CX26 source／configure 狀態的 build workaround；與 MapleStory runtime graphics 無關 | 低；只解除特殊編譯／連結阻塞 | 預設 build 無影響；顯式啟用時只影響 build，不影響 D3DMetal runtime，也不載入 MoltenVK | 不採用於預設或 release manifest；僅特殊 source tree／建置故障時明確指定使用 |
 
 shared texture 與 full-clear 必須視為同一功能群，不能拆成只保留「有一點畫面」的
 半成品配置。所有 patch 都放在 engine repo，release manifest 也會記錄順序。
 
 ### 採用範圍結論
 
-目前建議的邊界是：將上述功能群保留在 `--maplestory` 的 CX26 compatibility
-profile，由單一 CX26 engine 共用實作；不要把 MapleStory 專屬行為散落成全域環境變數，
-也不要為了 D3DMetal 路徑引入 MoltenVK。可泛化的部分仍分兩級處理：
+目前建議的邊界是：由單一 CX26 engine 共用可泛化的修正，將 MapleStory 專屬行為保留
+在 `--maplestory` compatibility profile；不要為了 D3DMetal 路徑引入 MoltenVK。採用
+範圍如下：
 
-1. `win32u` queue handoff、DWARF guard、shared-resource ownership 等架構性修正，
-   先以其他應用程式 regression 驗證，再考慮送回較廣泛的 Wine patch。
-2. `.tmp` module name、BlackXchg foreground、CX25 no-sched-yield 與 malformed
-   handle handoff 的觸發條件，維持 MapleStory profile；這些修正的重用價值在於
-   方法與邊界，不代表可以把應用程式特例直接套到所有程式。
+1. `win32u` queue handoff 與其他已驗證的架構性修正採用於 CX26 共用路徑；
+   `win32u` 修正保留正常 invalid-handle 錯誤語義。
+2. 其他 MapleStory renderer、loader、window 與 anti-cheat 功能群採用於正式
+   `--maplestory` profile；其中 BlackXchg 與 `MapleStory.exe` scheduler guard
+   保留精確 app 條件。
+3. `w1-win32u-vulkan-soname.patch` 不進預設 patch stack 或 release manifest，只有
+   特殊 build 故障時明確使用 `--vulkan-soname-fallback`。
 
 這份影響評估是依目前 patch 觸及的 Wine subsystem 與 A/B 結果推導；目前已驗證的是
 CX26 + D3DMetal 到登入畫面，尚未完成其他遊戲的全面 regression 或實際 OTP 登入後

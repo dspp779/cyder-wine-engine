@@ -1371,6 +1371,45 @@ process 啟動。
 - 結論：此窄化修正保留 upstream wait/retry 架構，同時通過目前 CX26 的 MapleStory
   handoff gate；可作為 CX26 正式 engine 的登入畫面候選。
 
+### 2026-08-15：功能群採用範圍調整
+
+- `w1-win32u-vulkan-soname.patch` 改列為不採用的特殊 build fallback：移出預設
+  CX26 patch order 與 release manifest，只有明確指定
+  `--vulkan-soname-fallback` 才套用；D3DMetal 正式路徑不依賴它，也不依賴 MoltenVK。
+- `maplestory-cx26-no-sched-yield.patch` 改為在 `NtYieldExecution()` 內檢查目前
+  process image basename，只有 `MapleStory.exe` 返回 `STATUS_NO_YIELD_PERFORMED`；
+  其他 Wine 應用程式保留原本的 `sched_yield()` 行為。
+- `maplestory-cx26-message-wait-handoff.patch` 提升為所有 CX26 build 都套用的
+  `win32u` 共用修正。它只在 queue 已就緒時保留 driver-event 結果，仍保留 upstream
+  retry 與真正 invalid handle 的錯誤語義，不對其他遊戲吞掉 invalid handle。
+- 其餘已驗證的 media／WineD3D、loader／DWARF、D3D11 shared resource、D3DMetal
+  view、window／fullscreen／helper 功能群維持正式採用；BlackXchg 與 scheduler
+  行為仍保留精確的 MapleStory 條件。
+- 驗證：patch stack、`test-build-wine`、engine manifest、D3DMetal launcher 與
+  shell／diff checks 均通過；installed ntdll 的 process guard 仍待增量建置後做
+  smoke test。
+
+### 2026-08-15：CX26 scheduler guard 增量建置與最終畫面驗證
+
+- 建置：將生成中的 `dlls/ntdll/unix/sync.c` 以 x86_64 toolchain 增量編譯，
+  只更新 CX26 installed runtime 的
+  `install/wine-cx26-x86_64/lib/wine/x86_64-unix/ntdll.so`；舊檔另存於
+  `/private/tmp/ntdll-cx26-before-maplestory-guard.so`。編譯結果確認為 Mach-O
+  x86_64，避免把 Apple Silicon arm64 物件誤裝入 CX26。
+- 啟動前：確認 formal prefix 沒有既有 MapleStory、BlackCipher、DwarfAxe 或
+  wineserver，並由 launcher 先執行同 prefix wineserver cleanup。
+- 測試：使用 CX26 D3DMetal、GPTK、CompatDB、正式遊戲目錄與
+  `CYDER_MSYNC=0`／`CYDER_ESYNC=0`／`--no-otp`；完整 log 為
+  `/private/tmp/cx26-policy-20260815-logs/maplestory-cx26-d3dmetal-20260815-145055-79544.log`。
+- 效果：log 依序確認 `MapleStory.exe`、`BlackXchg.aes`、`BlackCipher64.aes`、
+  `DwarfAxe.exe`、`HybridCore64.dll`、`jypc.dll` 載入；主視窗建立為
+  `1374x827`，共記錄 `6,319` 次 `macdrv_client_surface_present`，沒有
+  `c0000008`、`STATUS_INVALID_HANDLE` 或 `invalid handle`。使用者確認實際畫面
+  已進入 MapleStory 登入畫面。
+- 結論：scheduler 對齊在 installed CX26 已生效，但只對 `MapleStory.exe`
+  basename 返回 `STATUS_NO_YIELD_PERFORMED`；其他 process image 仍走原本的
+  `sched_yield()`。本輪四項採用範圍調整完成驗收。
+
 ## 下一步與驗收
 
 1. 保留目前已驗證可建置的 CX26 formal stack，包含新的 message-wait handoff patch；
