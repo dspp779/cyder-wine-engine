@@ -13,6 +13,7 @@ assert_contains "$build_script" "D3DMetal-neutral" \
 
 patches=(
   a6-final-same-view-backing-sync.patch
+  maplestory-cx26-message-wait-handoff.patch
   maplestory-cx26-core.patch
   maplestory-cx26-window-resizable-flag.patch
   maplestory-cx26-tmp-module-name.patch
@@ -44,6 +45,11 @@ assert_contains "$dry_run" "maplestory-cx26-d3d11-full-clear.patch" \
   "MapleStory build should apply the full ClearView stack"
 assert_contains "$dry_run" "--without-vulkan" \
   "D3DMetal-first MapleStory build should work without Vulkan"
+no_sched_patch="$(<"$ROOT/patches/maplestory-cx26-no-sched-yield.patch")"
+assert_contains "$no_sched_patch" "is_maplestory_process" \
+  "the scheduler compatibility patch should guard on MapleStory.exe"
+assert_contains "$no_sched_patch" "STATUS_NO_YIELD_PERFORMED" \
+  "the scheduler compatibility patch should keep the MapleStory no-yield result"
 if [[ "$dry_run" == *"libMoltenVK.dylib"* ]]; then
   echo "ASSERT failed: D3DMetal-first MapleStory build must not require MoltenVK" >&2
   exit 1

@@ -14,6 +14,7 @@ VULKAN_MODE=without
 VULKAN_SOURCE=homebrew
 BUILD_TESTS=0
 MAPLESTORY=0
+VULKAN_SONAME_FALLBACK=0
 
 run() {
   if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -36,6 +37,7 @@ while [[ $# -gt 0 ]]; do
     --prepare-only) PREPARE_ONLY=1 ;;
     --with-tests) BUILD_TESTS=1 ;;
     --maplestory) MAPLESTORY=1 ;;
+    --vulkan-soname-fallback) VULKAN_SONAME_FALLBACK=1 ;;
     --cx)
       CX_VERSION="$2"
       shift
@@ -70,6 +72,8 @@ Options:
   --install-deps     Install build dependencies via .brew-x86
   --with-vulkan      Enable Vulkan (Wine configure autodetects MoltenVK)
   --without-vulkan   Disable Vulkan (Wine ./configure --without-vulkan)
+  --vulkan-soname-fallback
+                     Apply the optional CX26 no-Vulkan SONAME build fallback
   --vulkan-source SRC
                      With --with-vulkan: homebrew (default) or crossover
                      crossover: use install from build-graphics-stack.sh
@@ -109,6 +113,11 @@ if [[ "$MAPLESTORY" -eq 1 && "$CX_VERSION" != "26" ]]; then
   exit 1
 fi
 
+if [[ "$VULKAN_SONAME_FALLBACK" -eq 1 && "$CX_VERSION" != "26" ]]; then
+  echo "--vulkan-soname-fallback currently supports only --cx 26" >&2
+  exit 1
+fi
+
 case "$VULKAN_SOURCE" in
   homebrew | crossover) ;;
   *)
@@ -119,6 +128,11 @@ esac
 
 if [[ "$VULKAN_MODE" == "without" && "$VULKAN_SOURCE" != "homebrew" ]]; then
   echo "--vulkan-source is only valid with --with-vulkan" >&2
+  exit 1
+fi
+
+if [[ "$VULKAN_SONAME_FALLBACK" -eq 1 && "$VULKAN_MODE" != "without" ]]; then
+  echo "--vulkan-soname-fallback requires --without-vulkan" >&2
   exit 1
 fi
 
@@ -427,7 +441,9 @@ remove_obsolete_cyder_patch() {
 
 if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/a6-final-same-view-backing-sync.patch"
-  apply_cyder_patch "$OGOM/patches/w1-win32u-vulkan-soname.patch"
+  if [[ "$VULKAN_SONAME_FALLBACK" -eq 1 ]]; then
+    apply_cyder_patch "$OGOM/patches/w1-win32u-vulkan-soname.patch"
+  fi
   remove_obsolete_cyder_patch \
     "$OGOM/patches/obsolete/cyder-ntdll-frame-walk-guard.patch" \
     "$OGOM/patches/cyder-ntdll-frame-walk-page-fault-guard.patch" \
@@ -450,8 +466,7 @@ if [[ "$CX_VERSION" == "26" ]]; then
     "$OGOM/patches/cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch"
   apply_cyder_patch "$OGOM/patches/cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch"
 
-  if [[ "$MAPLESTORY" -eq 1 ]]; then
-    apply_maplestory_patch() {
+  apply_maplestory_patch() {
       local patch_name="$1"
       local marker_file="${2:-}"
       local marker="${3:-}"
@@ -476,7 +491,14 @@ if [[ "$CX_VERSION" == "26" ]]; then
         echo "Cannot apply required MapleStory patch: $patch_file" >&2
         exit 1
       fi
-    }
+  }
+
+  # This preserves the upstream queue retry semantics and is safe for the
+  # general CX26 message-wait path; it is not a MapleStory-only patch.
+  apply_maplestory_patch "maplestory-cx26-message-wait-handoff.patch" \
+    "dlls/win32u/message.c" "MapleStoryPort: preserve one driver wait result"
+
+  if [[ "$MAPLESTORY" -eq 1 ]]; then
 
     # Keep the D3D11 shared-resource group together: CX25 bisect showed that
     # ClearView, shared textures, and texture-state handling are one contract.
@@ -501,8 +523,6 @@ if [[ "$CX_VERSION" == "26" ]]; then
       "dlls/winemac.drv/cocoa_app.m" "BlackXchg.aes"
     apply_maplestory_patch "maplestory-cx26-fullscreen-restore.patch" \
       "dlls/win32u/ntuser_private.h" "MapleStory fullscreen restore guard"
-    apply_maplestory_patch "maplestory-cx26-message-wait-handoff.patch" \
-      "dlls/win32u/message.c" "MapleStoryPort: preserve one driver wait result"
     apply_maplestory_patch "maplestory-cx26-no-sched-yield.patch" \
       "dlls/ntdll/unix/sync.c" "MapleStoryPort: match OEM25"
   fi

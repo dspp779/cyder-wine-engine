@@ -39,8 +39,16 @@ if [[ "$output" == *"cyder-steam-webhelper-compat.patch"* ]]; then
 fi
 assert_contains "$output" "$ROOT/patches/obsolete/cyder-ntdll-frame-walk-guard.patch" \
   "build should migrate an existing combined frame-walk patch"
-assert_contains "$output" "$ROOT/patches/w1-win32u-vulkan-soname.patch" \
-  "CX26 builds should keep the no-Vulkan SONAME compile fallback"
+assert_contains "$output" "$ROOT/patches/maplestory-cx26-message-wait-handoff.patch" \
+  "all CX26 builds should apply the general message-wait handoff"
+if [[ "$output" == *"w1-win32u-vulkan-soname.patch"* ]]; then
+  echo "ASSERT failed: the SONAME fallback must not be part of the default CX26 build" >&2
+  exit 1
+fi
+output_soname_fallback="$(bash "$ROOT/scripts/build-wine.sh" --cx 26 --dry-run --without-vulkan \
+  --vulkan-soname-fallback 2>&1 || true)"
+assert_contains "$output_soname_fallback" "$ROOT/patches/w1-win32u-vulkan-soname.patch" \
+  "the SONAME fallback should be available only when explicitly requested"
 assert_contains "$output" "superseded by: $ROOT/patches/cyder-ntdll-frame-walk-page-fault-guard.patch" \
   "build should recognize the fully migrated two-patch source state"
 assert_contains "$output" "superseded by: $ROOT/patches/wine-11.1-rtlwalkframechain-null-function.patch" \

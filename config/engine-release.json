@@ -14,7 +14,6 @@
   "minimumCyderVersion": "0.9.6",
   "patches": [
     "a6-final-same-view-backing-sync.patch",
-    "w1-win32u-vulkan-soname.patch",
     "wine-11.1-rtlwalkframechain-null-function.patch",
     "cyder-ntdll-frame-walk-page-fault-guard.patch",
     "cyder-wineserver-sock-reselect-pseudo-fd.patch",
@@ -27,6 +26,7 @@
     "cyder-wineserver-pipe-end-disconnect-null-fd.patch",
     "cyder-wineserver-add-completion-guard.patch",
     "cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch",
+    "maplestory-cx26-message-wait-handoff.patch",
     "maplestory-cx26-core.patch",
     "maplestory-cx26-window-resizable-flag.patch",
     "maplestory-cx26-tmp-module-name.patch",
