@@ -525,6 +525,8 @@ if [[ "$CX_VERSION" == "26" ]]; then
       "dlls/win32u/ntuser_private.h" "MapleStory fullscreen restore guard"
     apply_maplestory_patch "maplestory-cx26-no-sched-yield.patch" \
       "dlls/ntdll/unix/sync.c" "MapleStoryPort: match OEM25"
+    apply_maplestory_patch "maplestory-cx26-file-cache-adaptive.patch" \
+      "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW"
   fi
 fi
 

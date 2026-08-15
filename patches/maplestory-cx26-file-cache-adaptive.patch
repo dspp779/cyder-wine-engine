@@ -1,0 +1,691 @@
+--- a/dlls/ntdll/unix/file.c
++++ b/dlls/ntdll/unix/file.c
+@@ -35,0 +36 @@
++#include <strings.h>
+@@ -126,0 +128 @@
++WINE_DECLARE_DEBUG_CHANNEL(cyderio);
+@@ -254,0 +257,574 @@
++
++/* Experimental MapleStory read-ahead.  This is deliberately opt-in and
++ * process-scoped: it is an A/B probe for the first-effect hitch, not a
++ * general replacement for the host filesystem cache. */
++#define CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW 8192
++#define CYDER_MAPLESTORY_FILE_CACHE_MAX_WINDOW 32768
++#define CYDER_MAPLESTORY_FILE_CACHE_MAX_REQUEST 4096
++#define CYDER_MAPLESTORY_FILE_CACHE_SLOTS 64
++#define CYDER_MAPLESTORY_PROFILE_WINDOWS 5
++
++static const unsigned int cyder_maplestory_profile_window_sizes[CYDER_MAPLESTORY_PROFILE_WINDOWS] =
++    { 8192, 32768, 65536, 131072, 262144 };
++
++struct cyder_maplestory_file_cache_entry
++{
++    HANDLE handle;
++    int fd;
++    off_t offset;
++    size_t size;
++    unsigned long age;
++    BOOL eligible;
++    BOOL cacheable;
++    BOOL trace;
++    char path[256];
++    char data[CYDER_MAPLESTORY_FILE_CACHE_MAX_WINDOW];
++    unsigned long long ntread_calls;
++    unsigned long long ntread_bytes;
++    unsigned long long host_read_calls;
++    unsigned long long host_read_bytes;
++    unsigned long long host_read_dur_us;
++    unsigned long long cache_hits;
++    unsigned long long cache_fills;
++    unsigned long long cache_fill_bytes;
++    unsigned long long cache_fill_dur_us;
++    unsigned long long cache_window_min_fills;
++    unsigned long long cache_window_max_fills;
++    unsigned long long cache_window_upgrades;
++    unsigned long long cache_bypass_reads;
++    size_t cache_window_size;
++    off_t cache_last_request_offset;
++    ULONG cache_last_request_length;
++    unsigned int cache_sequential_reads;
++    BOOL cache_have_last_request;
++    unsigned long long profile_tiny_reads;
++    unsigned long long profile_small_reads;
++    unsigned long long profile_large_reads;
++    unsigned long long profile_offset_samples;
++    unsigned long long profile_offset_unknown;
++    unsigned long long profile_block_new_estimate;
++    unsigned long long profile_block_reuse;
++    unsigned long long profile_sequential_reads;
++    unsigned long long profile_nearby_reads;
++    unsigned long long profile_forward_reads;
++    unsigned long long profile_backward_reads;
++    off_t profile_last_offset;
++    ULONG profile_last_length;
++    BOOL profile_have_last_offset;
++    uint64_t profile_block_bloom[16];
++    unsigned long long profile_sim_fills[CYDER_MAPLESTORY_PROFILE_WINDOWS];
++    unsigned long long profile_sim_hits[CYDER_MAPLESTORY_PROFILE_WINDOWS];
++    unsigned long long profile_sim_bypass[CYDER_MAPLESTORY_PROFILE_WINDOWS];
++    unsigned long long profile_sim_fill_bytes[CYDER_MAPLESTORY_PROFILE_WINDOWS];
++    off_t profile_sim_offsets[CYDER_MAPLESTORY_PROFILE_WINDOWS];
++    BOOL profile_sim_valid[CYDER_MAPLESTORY_PROFILE_WINDOWS];
++};
++
++static pthread_mutex_t cyder_maplestory_file_cache_mutex = PTHREAD_MUTEX_INITIALIZER;
++static struct cyder_maplestory_file_cache_entry
++    cyder_maplestory_file_cache[CYDER_MAPLESTORY_FILE_CACHE_SLOTS];
++static unsigned long cyder_maplestory_file_cache_age;
++
++static struct cyder_maplestory_file_cache_entry *cyder_maplestory_file_cache_find( HANDLE handle );
++
++static BOOL cyder_maplestory_file_cache_enabled(void)
++{
++    static int enabled = -1;
++    const char *value;
++
++    if (enabled == -1)
++    {
++        value = getenv( "CYDER_MAPLESTORY_FILE_CACHE" );
++        /* The launcher scopes this opt-in to the MapleStory test.  Keep the
++         * actual cache target limited to .wz paths below because Wine's
++         * helper-process image names are not stable enough for this check. */
++        enabled = value && (!strcmp( value, "1" ) || !strcmp( value, "true" ));
++    }
++    return enabled == 1;
++}
++
++BOOL cyder_maplestory_io_trace_enabled(void)
++{
++    static int enabled = -1;
++    const char *value;
++
++    if (enabled == -1)
++    {
++        value = getenv( "CYDER_MAPLESTORY_IO_TRACE" );
++        /* The trace is already narrowed to .wz paths below.  Do not apply
++         * the MapleStory image-name check here: Wine may service the game
++         * through helper processes whose image path is not MapleStory.exe. */
++        enabled = value && (!strcmp( value, "1" ) || !strcmp( value, "true" ));
++    }
++    return enabled == 1;
++}
++
++static BOOL cyder_maplestory_io_profile_enabled(void)
++{
++    static int enabled = -1;
++    const char *value;
++
++    if (enabled == -1)
++    {
++        value = getenv( "CYDER_MAPLESTORY_IO_PROFILE" );
++        enabled = value && (!strcmp( value, "1" ) || !strcmp( value, "true" ));
++    }
++    return enabled == 1;
++}
++
++static BOOL cyder_maplestory_io_profile_timing_enabled(void)
++{
++    static int enabled = -1;
++    const char *value;
++
++    if (enabled == -1)
++    {
++        value = getenv( "CYDER_MAPLESTORY_IO_PROFILE_TIMING" );
++        enabled = value && (!strcmp( value, "1" ) || !strcmp( value, "true" ));
++    }
++    return enabled == 1;
++}
++
++static BOOL cyder_maplestory_io_profile_full_offsets_enabled(void)
++{
++    static int enabled = -1;
++    const char *value;
++
++    if (enabled == -1)
++    {
++        value = getenv( "CYDER_MAPLESTORY_IO_PROFILE_FULL_OFFSETS" );
++        enabled = value && (!strcmp( value, "1" ) || !strcmp( value, "true" ));
++    }
++    return enabled == 1;
++}
++
++static BOOL cyder_maplestory_io_profile_simulate_enabled(void)
++{
++    static int enabled = -1;
++    const char *value;
++
++    if (enabled == -1)
++    {
++        value = getenv( "CYDER_MAPLESTORY_IO_PROFILE_SIMULATE" );
++        enabled = value && (!strcmp( value, "1" ) || !strcmp( value, "true" ));
++    }
++    return enabled == 1;
++}
++
++unsigned long long cyder_maplestory_io_timestamp_us(void)
++{
++    struct timespec ts;
++
++    if (clock_gettime( CLOCK_MONOTONIC, &ts )) return 0;
++    return (unsigned long long)ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
++}
++
++BOOL cyder_maplestory_io_trace_handle( HANDLE handle )
++{
++    struct cyder_maplestory_file_cache_entry *entry;
++    BOOL trace = FALSE;
++
++    if (!cyder_maplestory_io_trace_enabled()) return FALSE;
++    pthread_mutex_lock( &cyder_maplestory_file_cache_mutex );
++    entry = cyder_maplestory_file_cache_find( handle );
++    if (entry) trace = entry->trace;
++    pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++    return trace;
++}
++
++static void cyder_maplestory_file_cache_profile_simulate(
++    struct cyder_maplestory_file_cache_entry *entry, off_t offset, ULONG length )
++{
++    unsigned int i;
++
++    if (!cyder_maplestory_io_profile_simulate_enabled() || offset < 0) return;
++
++    for (i = 0; i < CYDER_MAPLESTORY_PROFILE_WINDOWS; i++)
++    {
++        unsigned int window_size = cyder_maplestory_profile_window_sizes[i];
++        off_t window_offset = offset & ~(off_t)(window_size - 1);
++        size_t window_pos = offset - window_offset;
++
++        if (length > window_size || window_pos > window_size - length)
++        {
++            entry->profile_sim_bypass[i]++;
++            continue;
++        }
++
++        if (entry->profile_sim_valid[i] && entry->profile_sim_offsets[i] == window_offset)
++            entry->profile_sim_hits[i]++;
++        else
++        {
++            entry->profile_sim_fills[i]++;
++            entry->profile_sim_fill_bytes[i] += window_size;
++            entry->profile_sim_offsets[i] = window_offset;
++            entry->profile_sim_valid[i] = TRUE;
++        }
++    }
++}
++
++static void cyder_maplestory_file_cache_report_profile_sim(
++    const struct cyder_maplestory_file_cache_entry *entry )
++{
++    if (!entry->trace || !cyder_maplestory_io_profile_simulate_enabled()) return;
++    TRACE_(cyderio)( "CYDER_IO sim h=%p path=%s "
++                     "w8_fills=%llu w8_hits=%llu w8_bypass=%llu w8_fillbytes=%llu "
++                     "w32_fills=%llu w32_hits=%llu w32_bypass=%llu w32_fillbytes=%llu "
++                     "w64_fills=%llu w64_hits=%llu w64_bypass=%llu w64_fillbytes=%llu "
++                     "w128_fills=%llu w128_hits=%llu w128_bypass=%llu w128_fillbytes=%llu "
++                     "w256_fills=%llu w256_hits=%llu w256_bypass=%llu w256_fillbytes=%llu\n",
++                     entry->handle, entry->path,
++                     entry->profile_sim_fills[0], entry->profile_sim_hits[0],
++                     entry->profile_sim_bypass[0], entry->profile_sim_fill_bytes[0],
++                     entry->profile_sim_fills[1], entry->profile_sim_hits[1],
++                     entry->profile_sim_bypass[1], entry->profile_sim_fill_bytes[1],
++                     entry->profile_sim_fills[2], entry->profile_sim_hits[2],
++                     entry->profile_sim_bypass[2], entry->profile_sim_fill_bytes[2],
++                     entry->profile_sim_fills[3], entry->profile_sim_hits[3],
++                     entry->profile_sim_bypass[3], entry->profile_sim_fill_bytes[3],
++                     entry->profile_sim_fills[4], entry->profile_sim_hits[4],
++                     entry->profile_sim_bypass[4], entry->profile_sim_fill_bytes[4] );
++}
++
++static void cyder_maplestory_file_cache_report( const struct cyder_maplestory_file_cache_entry *entry )
++{
++    if (!entry->trace) return;
++    TRACE_(cyderio)( "CYDER_IO summary h=%p path=%s ntread=%llu ntbytes=%llu host=%llu hostbytes=%llu "
++                     "hostdur_us=%llu cachehits=%llu cachefills=%llu cachebytes=%llu cachefilldur_us=%llu "
++                     "cache8fills=%llu cache32fills=%llu cacheupgrades=%llu cachebypass=%llu "
++                     "tiny=%llu small=%llu large=%llu offs=%llu unknown=%llu newblocks=%llu "
++                     "blockreuse=%llu seq=%llu nearby=%llu forward=%llu backward=%llu\n",
++                     entry->handle, entry->path, entry->ntread_calls, entry->ntread_bytes,
++                     entry->host_read_calls, entry->host_read_bytes, entry->host_read_dur_us,
++                     entry->cache_hits, entry->cache_fills, entry->cache_fill_bytes,
++                     entry->cache_fill_dur_us, entry->cache_window_min_fills,
++                     entry->cache_window_max_fills, entry->cache_window_upgrades,
++                     entry->cache_bypass_reads, entry->profile_tiny_reads,
++                     entry->profile_small_reads, entry->profile_large_reads,
++                     entry->profile_offset_samples, entry->profile_offset_unknown,
++                     entry->profile_block_new_estimate, entry->profile_block_reuse,
++                     entry->profile_sequential_reads, entry->profile_nearby_reads,
++                     entry->profile_forward_reads, entry->profile_backward_reads );
++    cyder_maplestory_file_cache_report_profile_sim( entry );
++}
++
++static void cyder_maplestory_file_cache_clear( struct cyder_maplestory_file_cache_entry *entry )
++{
++    memset( entry, 0, sizeof(*entry) );
++    entry->fd = -1;
++}
++
++static struct cyder_maplestory_file_cache_entry *cyder_maplestory_file_cache_find( HANDLE handle )
++{
++    unsigned int i;
++
++    for (i = 0; i < ARRAY_SIZE(cyder_maplestory_file_cache); i++)
++        if (cyder_maplestory_file_cache[i].eligible &&
++            cyder_maplestory_file_cache[i].handle == handle)
++            return &cyder_maplestory_file_cache[i];
++    return NULL;
++}
++
++static BOOL cyder_maplestory_file_cache_record_ntread( HANDLE handle, ULONG length,
++                                                       off_t profile_offset )
++{
++    struct cyder_maplestory_file_cache_entry *entry;
++    BOOL trace = FALSE;
++
++    if (!cyder_maplestory_io_trace_enabled()) return FALSE;
++
++    pthread_mutex_lock( &cyder_maplestory_file_cache_mutex );
++    entry = cyder_maplestory_file_cache_find( handle );
++    if (entry && entry->trace)
++    {
++        trace = TRUE;
++        entry->ntread_calls++;
++        entry->ntread_bytes += length;
++
++        if (cyder_maplestory_io_profile_enabled())
++        {
++            uint64_t block, hash;
++            unsigned int bit, word;
++            off_t delta;
++
++            if (length <= 4) entry->profile_tiny_reads++;
++            else if (length <= 256) entry->profile_small_reads++;
++            if (length >= 65536) entry->profile_large_reads++;
++
++            if (profile_offset < 0)
++                entry->profile_offset_unknown++;
++            else
++            {
++                entry->profile_offset_samples++;
++                block = (uint64_t)profile_offset >> 13;
++                hash = block;
++                hash ^= hash >> 33;
++                hash *= 0xff51afd7ed558ccdULL;
++                hash ^= hash >> 33;
++                bit = hash & 1023;
++                word = bit >> 6;
++                if (entry->profile_block_bloom[word] & (1ULL << (bit & 63)))
++                    entry->profile_block_reuse++;
++                else
++                {
++                    entry->profile_block_bloom[word] |= 1ULL << (bit & 63);
++                    entry->profile_block_new_estimate++;
++                }
++
++                if (entry->profile_have_last_offset)
++                {
++                    delta = profile_offset - entry->profile_last_offset;
++                    if (profile_offset == entry->profile_last_offset +
++                        (off_t)entry->profile_last_length)
++                        entry->profile_sequential_reads++;
++                    if (delta > 0) entry->profile_forward_reads++;
++                    else if (delta < 0) entry->profile_backward_reads++;
++                    if (delta >= -8192 && delta <= 8192)
++                        entry->profile_nearby_reads++;
++                }
++                entry->profile_last_offset = profile_offset;
++                entry->profile_last_length = length;
++                entry->profile_have_last_offset = TRUE;
++                cyder_maplestory_file_cache_profile_simulate( entry, profile_offset, length );
++            }
++        }
++    }
++    pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++    return trace;
++}
++
++static void cyder_maplestory_file_cache_record_host_read( HANDLE handle, ssize_t result,
++                                                          unsigned long long duration )
++{
++    struct cyder_maplestory_file_cache_entry *entry;
++
++    pthread_mutex_lock( &cyder_maplestory_file_cache_mutex );
++    entry = cyder_maplestory_file_cache_find( handle );
++    if (entry && entry->trace)
++    {
++        entry->host_read_calls++;
++        if (result > 0) entry->host_read_bytes += result;
++        entry->host_read_dur_us += duration;
++    }
++    pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++}
++
++static struct cyder_maplestory_file_cache_entry *cyder_maplestory_file_cache_slot(void)
++{
++    struct cyder_maplestory_file_cache_entry *oldest = NULL;
++    unsigned int i;
++
++    for (i = 0; i < ARRAY_SIZE(cyder_maplestory_file_cache); i++)
++    {
++        if (!cyder_maplestory_file_cache[i].eligible)
++            return &cyder_maplestory_file_cache[i];
++        if (!oldest || cyder_maplestory_file_cache[i].age < oldest->age)
++            oldest = &cyder_maplestory_file_cache[i];
++    }
++    return oldest;
++}
++
++static BOOL cyder_maplestory_wz_path( const char *unix_name )
++{
++    const char *extension;
++
++    if (!unix_name) return FALSE;
++    extension = strrchr( unix_name, '.' );
++    return extension && !strcasecmp( extension, ".wz" );
++}
++
++static BOOL cyder_maplestory_trace_resource_path( const char *unix_name )
++{
++    return cyder_maplestory_io_trace_enabled() && cyder_maplestory_wz_path( unix_name );
++}
++
++static void cyder_maplestory_file_cache_register( HANDLE handle, ACCESS_MASK access,
++                                                  const char *unix_name )
++{
++    struct cyder_maplestory_file_cache_entry *entry;
++    BOOL cacheable = cyder_maplestory_file_cache_enabled() && cyder_maplestory_wz_path( unix_name ) &&
++            !(access & (GENERIC_WRITE | FILE_WRITE_DATA | FILE_APPEND_DATA |
++                        DELETE | WRITE_DAC | WRITE_OWNER));
++    BOOL trace = cyder_maplestory_trace_resource_path( unix_name );
++
++    if (!cacheable && !trace) return;
++
++    pthread_mutex_lock( &cyder_maplestory_file_cache_mutex );
++    entry = cyder_maplestory_file_cache_find( handle );
++    if (!entry) entry = cyder_maplestory_file_cache_slot();
++    if (entry->eligible) cyder_maplestory_file_cache_report( entry );
++    cyder_maplestory_file_cache_clear( entry );
++    entry->handle = handle;
++    entry->eligible = TRUE;
++    entry->cacheable = cacheable;
++    entry->trace = trace;
++    if (trace) snprintf( entry->path, sizeof(entry->path), "%s", unix_name );
++    entry->age = ++cyder_maplestory_file_cache_age;
++    pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++
++    if (trace && !cyder_maplestory_io_profile_enabled())
++        TRACE_(cyderio)( "CYDER_IO open h=%p path=%s cache=%d\n", handle, unix_name, cacheable );
++}
++
++void cyder_maplestory_file_cache_remove( HANDLE handle )
++{
++    struct cyder_maplestory_file_cache_entry *entry;
++
++    if (!cyder_maplestory_file_cache_enabled() && !cyder_maplestory_io_trace_enabled()) return;
++    pthread_mutex_lock( &cyder_maplestory_file_cache_mutex );
++    entry = cyder_maplestory_file_cache_find( handle );
++    if (entry)
++    {
++        cyder_maplestory_file_cache_report( entry );
++        cyder_maplestory_file_cache_clear( entry );
++    }
++    pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++}
++
++static void cyder_maplestory_file_cache_invalidate( HANDLE handle )
++{
++    struct cyder_maplestory_file_cache_entry *entry;
++
++    if (!cyder_maplestory_file_cache_enabled()) return;
++    pthread_mutex_lock( &cyder_maplestory_file_cache_mutex );
++    entry = cyder_maplestory_file_cache_find( handle );
++    if (entry)
++    {
++        entry->size = 0;
++        entry->cache_window_size = 0;
++        entry->cache_sequential_reads = 0;
++        entry->cache_have_last_request = FALSE;
++        entry->age = ++cyder_maplestory_file_cache_age;
++    }
++    pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++}
++
++/* Return TRUE when a small request was served from, or filled, the adaptive
++ * read-ahead window.  Larger requests and requests crossing a window fall
++ * through to Wine's original read path so large payloads do not pollute the
++ * metadata cache. */
++static BOOL cyder_maplestory_file_cache_read( HANDLE handle, int fd, off_t offset,
++                                              void *buffer, ULONG length, ULONG *result )
++{
++    struct cyder_maplestory_file_cache_entry *entry;
++    off_t window_offset, cache_pos;
++    size_t window_size;
++    ssize_t read_size;
++    unsigned long long fill_start = 0, fill_duration = 0;
++    BOOL upgrade = FALSE;
++
++    if (!length) return FALSE;
++    if (length > CYDER_MAPLESTORY_FILE_CACHE_MAX_REQUEST)
++    {
++        if (cyder_maplestory_io_trace_enabled())
++        {
++            pthread_mutex_lock( &cyder_maplestory_file_cache_mutex );
++            entry = cyder_maplestory_file_cache_find( handle );
++            if (entry && entry->trace) entry->cache_bypass_reads++;
++            pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++        }
++        return FALSE;
++    }
++
++    pthread_mutex_lock( &cyder_maplestory_file_cache_mutex );
++    entry = cyder_maplestory_file_cache_find( handle );
++    if (!entry)
++    {
++        pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++        return FALSE;
++    }
++    if (!entry->cacheable)
++    {
++        pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++        return FALSE;
++    }
++
++    if (entry->cache_have_last_request &&
++        offset == entry->cache_last_request_offset + (off_t)entry->cache_last_request_length)
++    {
++        if (entry->cache_sequential_reads < 3) entry->cache_sequential_reads++;
++    }
++    else
++        entry->cache_sequential_reads = 0;
++    entry->cache_last_request_offset = offset;
++    entry->cache_last_request_length = length;
++    entry->cache_have_last_request = TRUE;
++
++    window_size = entry->cache_sequential_reads >= 2 ?
++        CYDER_MAPLESTORY_FILE_CACHE_MAX_WINDOW : CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW;
++
++    if (offset >= entry->offset)
++    {
++        cache_pos = offset - entry->offset;
++        if ((size_t)cache_pos <= entry->size && length <= entry->size - cache_pos)
++        {
++            memcpy( buffer, entry->data + cache_pos, length );
++            if (entry->trace) entry->cache_hits++;
++            *result = length;
++            pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++            return TRUE;
++        }
++    }
++
++    window_offset = offset & ~(off_t)(window_size - 1);
++    if (window_size == CYDER_MAPLESTORY_FILE_CACHE_MAX_WINDOW &&
++        entry->cache_window_size == CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW)
++        upgrade = TRUE;
++
++    if (offset - window_offset > window_size - length)
++    {
++        if (entry->trace) entry->cache_bypass_reads++;
++        pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++        return FALSE;
++    }
++
++    if (entry->trace && (!cyder_maplestory_io_profile_enabled() ||
++                         cyder_maplestory_io_profile_timing_enabled()))
++            fill_start = cyder_maplestory_io_timestamp_us();
++    do read_size = pread( fd, entry->data, window_size, window_offset );
++    while (read_size == -1 && errno == EINTR);
++    if (read_size <= 0)
++    {
++        entry->size = 0;
++        pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++        return FALSE;
++    }
++
++    entry->fd = fd;
++    entry->offset = window_offset;
++    entry->size = read_size;
++    entry->cache_window_size = window_size;
++    if (entry->trace)
++    {
++        fill_duration = (!cyder_maplestory_io_profile_enabled() ||
++                         cyder_maplestory_io_profile_timing_enabled()) ?
++            cyder_maplestory_io_timestamp_us() - fill_start : 0;
++        entry->cache_fills++;
++        entry->cache_fill_bytes += read_size;
++        entry->cache_fill_dur_us += fill_duration;
++        if (window_size == CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW)
++            entry->cache_window_min_fills++;
++        else
++            entry->cache_window_max_fills++;
++        if (upgrade) entry->cache_window_upgrades++;
++        if (!cyder_maplestory_io_profile_enabled() ||
++            cyder_maplestory_io_profile_timing_enabled())
++            TRACE_(cyderio)( "CYDER_IO cache_fill h=%p fd=%d off=%lld len=%zu ret=%zd t=%llu dur_us=%llu\n",
++                             handle, fd, (long long)window_offset, window_size,
++                             read_size, fill_start, fill_duration );
++    }
++
++    cache_pos = offset - window_offset;
++    if ((size_t)cache_pos > entry->size || length > entry->size - cache_pos)
++    {
++        pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++        return FALSE;
++    }
++
++    memcpy( buffer, entry->data + cache_pos, length );
++    if (entry->trace) entry->cache_hits++;
++    *result = length;
++    pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++    return TRUE;
++}
++
+@@ -4659,0 +5236 @@
++        cyder_maplestory_file_cache_register( *handle, access, unix_name );
+@@ -6027 +6604,2 @@
+-    BOOL send_completion = FALSE, async_read, timeout_init_done = FALSE;
++    BOOL send_completion = FALSE, async_read, timeout_init_done = FALSE, trace_io = FALSE;
++    off_t profile_offset = (off_t)-1;
+@@ -6045,0 +6624,9 @@
++        if (cyder_maplestory_io_profile_enabled() &&
++            offset && offset->QuadPart != FILE_USE_FILE_POINTER_POSITION &&
++            offset->QuadPart >= 0)
++            profile_offset = offset->QuadPart;
++        else if (cyder_maplestory_io_profile_enabled() &&
++                 cyder_maplestory_io_profile_full_offsets_enabled() && !async_read)
++            profile_offset = lseek( unix_handle, 0, SEEK_CUR );
++        trace_io = cyder_maplestory_file_cache_record_ntread( handle, length, profile_offset );
++
+@@ -6051,0 +6639,29 @@
++        if (!needs_close && cyder_maplestory_file_cache_enabled())
++        {
++            off_t cache_offset;
++            BOOL update_file_pointer = FALSE;
++
++            if (offset && offset->QuadPart != FILE_USE_FILE_POINTER_POSITION && offset->QuadPart >= 0)
++            {
++                cache_offset = offset->QuadPart;
++                update_file_pointer = !async_read;
++            }
++            else if (!async_read)
++            {
++                cache_offset = lseek( unix_handle, 0, SEEK_CUR );
++                update_file_pointer = cache_offset != (off_t)-1;
++            }
++            else
++                cache_offset = (off_t)-1;
++
++            if (cache_offset != (off_t)-1 &&
++                cyder_maplestory_file_cache_read( handle, unix_handle, cache_offset,
++                                                  buffer, length, &total ))
++            {
++                if (update_file_pointer)
++                    lseek( unix_handle, cache_offset + total, SEEK_SET );
++                status = STATUS_SUCCESS;
++                goto done;
++            }
++        }
++
+@@ -6053,0 +6670,2 @@
++            unsigned int read_attempt = 0;
++
+@@ -6055,2 +6673,24 @@
+-            while ((result = virtual_locked_pread( unix_handle, buffer, length, offset->QuadPart )) == -1)
+-            {
++            for (;;)
++            {
++                BOOL measure_io = trace_io && (!cyder_maplestory_io_profile_enabled() ||
++                                               cyder_maplestory_io_profile_timing_enabled());
++                unsigned long long io_start = measure_io ? cyder_maplestory_io_timestamp_us() : 0;
++                unsigned long long io_duration = 0;
++                int read_errno;
++
++                result = virtual_locked_pread( unix_handle, buffer, length, offset->QuadPart );
++                read_errno = errno;
++                if (measure_io)
++                {
++                    io_duration = cyder_maplestory_io_timestamp_us() - io_start;
++                    cyder_maplestory_file_cache_record_host_read( handle, result, io_duration );
++                }
++                if (!cyder_maplestory_io_profile_enabled() && trace_io &&
++                    (length >= 4096 || io_duration >= 1000))
++                    TRACE_(cyderio)( "CYDER_IO host_pread h=%p fd=%d len=%u off=%lld ret=%d errno=%d t=%llu dur_us=%llu attempt=%u\n",
++                                     handle, unix_handle, length, (long long)offset->QuadPart,
++                                     result, read_errno, io_start, io_duration, read_attempt );
++                errno = read_errno;
++                read_attempt++;
++                if (result != -1) break;
++
+@@ -6102,0 +6743,3 @@
++    {
++        unsigned int read_attempt = 0;
++
+@@ -6105 +6748,23 @@
+-        if ((result = virtual_locked_read( unix_handle, (char *)buffer + total, length - total )) >= 0)
++        BOOL measure_io = trace_io && (!cyder_maplestory_io_profile_enabled() ||
++                                       cyder_maplestory_io_profile_timing_enabled());
++        unsigned long long io_start = measure_io ? cyder_maplestory_io_timestamp_us() : 0;
++        unsigned long long io_duration = 0;
++        unsigned int read_length = length - total;
++        int read_errno;
++
++        result = virtual_locked_read( unix_handle, (char *)buffer + total, read_length );
++        read_errno = errno;
++        if (measure_io)
++        {
++            io_duration = cyder_maplestory_io_timestamp_us() - io_start;
++            cyder_maplestory_file_cache_record_host_read( handle, result, io_duration );
++        }
++        if (!cyder_maplestory_io_profile_enabled() && trace_io &&
++            (read_length >= 4096 || io_duration >= 1000))
++            TRACE_(cyderio)( "CYDER_IO host_read h=%p fd=%d len=%u ret=%d errno=%d t=%llu dur_us=%llu attempt=%u\n",
++                             handle, unix_handle, read_length, result, read_errno,
++                             io_start, io_duration, read_attempt );
++        errno = read_errno;
++        read_attempt++;
++
++        if (result >= 0)
+@@ -6191,0 +6857 @@
++    }
+@@ -6316,0 +6983,2 @@
++
++    cyder_maplestory_file_cache_invalidate( handle );

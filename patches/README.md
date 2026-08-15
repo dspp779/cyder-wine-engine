@@ -29,6 +29,7 @@ Patch order for the CX26.3 / Wine 11.0 Cyder engine:
 25. `maplestory-cx26-blackxchg-foreground.patch`
 26. `maplestory-cx26-fullscreen-restore.patch`
 27. `maplestory-cx26-no-sched-yield.patch`
+28. `maplestory-cx26-file-cache-adaptive.patch`
 
 `w1-win32u-vulkan-soname.patch` is not part of the default patch set. It is a
 special-case build-only fallback for CX26 source trees where `win32u/vulkan.c`
@@ -46,6 +47,16 @@ feature-level checks belong only to a separate DXVK validation run. The
 shared-texture and ClearView entries remain one functional group because the
 CX25 bisect showed that splitting them produces a partially rendered in-world
 state.
+
+`maplestory-cx26-file-cache-adaptive.patch` is an opt-in WZ read-ahead and I/O
+profiling probe for the first-use hitch observed under macOS translation. It
+only targets read-only `.wz` files, keeps requests larger than 4 KiB on Wine's
+normal path, and adapts between 8 KiB and 32 KiB aligned windows after observing
+sequential reads. Enable `CYDER_MAPLESTORY_FILE_CACHE=1` for the cache; the
+`CYDER_MAPLESTORY_IO_*` variables exposed by the MapleStory launcher enable
+low-overhead counters, timing, full-offset diagnosis, and shadow window
+simulation. The cache is intentionally disabled by default while the behavior
+is evaluated against more game content.
 
 CompatDB policy is no longer compiled into ntdll. `runtime/cxcompatdb/cxcompatdb.c`
 builds as the open `cxcompatdb.so` loaded through CrossOver's existing loader
