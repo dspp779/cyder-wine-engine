@@ -18,6 +18,14 @@ assert_contains "$script" 'MACOSX_DEPLOYMENT_TARGET' \
   "minos gate must honour the product-floor deployment target"
 assert_contains "$script" "remove orphan" \
   "bundler should drop leftover dylibs no longer in the seed graph"
+assert_contains "$script" 'media_plugin_dir' \
+  "bundler should discover GStreamer plugins from the media install"
+assert_contains "$script" 'gst-plugin-scanner' \
+  "bundler should include the GStreamer plugin scanner"
+assert_contains "$script" 'lib/wine/gstreamer-1.0' \
+  "bundler should keep plugins in the engine's internal GStreamer subtree"
+assert_contains "$script" '"libexec" / "gstreamer-1.0"' \
+  "bundler should keep the scanner in the engine's internal libexec subtree"
 
 crossover_block="$(sed -n '/"crossover": (/,/),/p' "$ROOT/scripts/bundle-wine-dylibs.sh")"
 first_candidate="$(printf '%s\n' "$crossover_block" | rg 'libMoltenVK\.dylib' | head -1)"

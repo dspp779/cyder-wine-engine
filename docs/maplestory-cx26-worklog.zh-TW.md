@@ -1440,6 +1440,28 @@ process 啟動。
   engine crash。這是啟動／媒體 runtime smoke，不等同於已在遊戲內觸發一段影片；
   實際影片播放仍需登入後以遊戲內容驗收。
 
+### 2026-08-15：將 full-video GStreamer 內嵌 Cyder011 engine artifact
+
+- 修改：`scripts/bundle-wine-dylibs.sh` 會把 media install 的全部 GStreamer
+  plugin dylib 及其遞迴依賴納入 engine；插件移至
+  `lib/wine/gstreamer-1.0/`，`gst-plugin-scanner` 移至
+  `libexec/gstreamer-1.0/`，並對跨目錄依賴改寫為可重定位的
+  `@loader_path/../x86_64-unix/…`。核心 GLib/GStreamer dylib 仍位於
+  `lib/wine/x86_64-unix/`。
+- 修改：`scripts/run-maplestory-cx26-d3dmetal.sh` 優先使用 engine 內建 media
+  stack；`--media-install`／`MEDIA_INSTALL` 仍可覆寫，方便 A/B 與故障診斷。啟動
+  log 現在記錄 `MEDIA_SOURCE`、plugin directory 與 scanner path。
+- 修改：`scripts/pack-engine-artifact.sh` 的預設 media profile 改為 `full-video`，
+  並在封裝前要求插件目錄與 x86_64 `gst-plugin-scanner`；`--media-profile minimal`
+  保留為明確的非影片 fallback。DXMT／DXVK 仍維持獨立 graphics payload。
+- 效果：Cyder011 engine artifact 不再依賴建置機的 `.brew-x86` 或外部
+  `install/media-*` 路徑；完整影音能力與 engine 一起發佈，符合「只維護一個版本」
+  的部署方向。
+- 測試：以 full-video 產物建立暫存 engine bundle，確認 22 個 plugin 為
+  `x86_64`、所有 plugin `ctypes` 載入結果 `22/22`，GStreamer
+  `gst_plugin_load_file` 結果 `22/22`，scanner 與核心 dylib 無 build-tree／
+  `.brew-x86` 絕對路徑，且所有 dylib minOS ≤ 10.15。
+
 ## 下一步與驗收
 
 1. 保留目前已驗證可建置的 CX26 formal stack，包含新的 message-wait handoff patch；

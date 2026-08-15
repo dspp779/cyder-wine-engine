@@ -37,6 +37,12 @@ brew = Path(sys.argv[2]).resolve()
 unix_lib = Path(sys.argv[3]).resolve()
 graphics_lib = Path(os.environ.get("GRAPHICS_LIB", "")).resolve() if os.environ.get("GRAPHICS_LIB") else None
 media_lib = Path(os.environ.get("MEDIA_LIB", "")).resolve() if os.environ.get("MEDIA_LIB") else None
+media_plugin_dir = (media_lib / "gstreamer-1.0") if media_lib else None
+media_scanner = (
+    media_lib.parent / "libexec" / "gstreamer-1.0" / "gst-plugin-scanner"
+    if media_lib else None
+)
+plugin_names = set()
 vulkan_mode = os.environ.get("VULKAN_MODE", "without")
 vulkan_source = os.environ.get("VULKAN_SOURCE", "existing")
 
@@ -135,6 +141,7 @@ if media_lib and media_lib.is_dir():
     for name in (
         "libglib-2.0.0.dylib",
         "libgobject-2.0.0.dylib",
+        "libgmodule-2.0.0.dylib",
         "libintl.8.dylib",
         "libgstreamer-1.0.0.dylib",
         "libgstbase-1.0.0.dylib",
@@ -145,6 +152,25 @@ if media_lib and media_lib.is_dir():
         candidate = media_lib / name
         if candidate.exists():
             seeds.append(candidate.resolve())
+
+    # Plugin dylibs are linked against the media stack but are not reachable
+    # from winegstreamer.so itself. Seed every installed plugin so its
+    # transitive dependencies are copied into the engine as well.
+    if media_plugin_dir and media_plugin_dir.is_dir():
+        for plugin in sorted(media_plugin_dir.glob("*.dylib")):
+            if plugin.is_file():
+                plugin_names.add(plugin.name)
+                seeds.append(plugin.resolve())
+
+    # gst-plugin-scanner is an executable rather than a dylib. Seed its
+    # dependencies without placing the scanner itself in x86_64-unix.
+    if media_scanner and media_scanner.is_file():
+        for dep in otool_deps(media_scanner):
+            if dep.startswith("/usr/lib/") or dep.startswith("/System/") or dep.startswith("@"):
+                continue
+            candidate = Path(dep)
+            if candidate.exists() and allowed_root(candidate):
+                seeds.append(candidate.resolve())
 
 # Follow existing dylibs and the dependencies of every Mach-O Unix module.
 # winegstreamer.so is the important non-dylib case: it introduces the bundled
@@ -332,9 +358,77 @@ for consumer in consumers:
         if ".brew-x86" in rpath or (media_lib and str(media_lib.resolve()) in rpath):
             subprocess.check_call(["install_name_tool", "-delete_rpath", rpath, str(consumer)])
 
+# Keep GStreamer plugins and the scanner in their conventional subtrees, but
+# make them self-contained relative to the engine. The dependency graph above
+# temporarily placed plugin dylibs beside the other bundled libraries so they
+# received the same absolute-path and install-name rewrite treatment.
+plugin_bundle_dir = wine_root / "lib" / "wine" / "gstreamer-1.0"
+scanner_bundle_dir = wine_root / "libexec" / "gstreamer-1.0"
+scanner_bundle = scanner_bundle_dir / "gst-plugin-scanner"
+if plugin_bundle_dir.exists():
+    for old in plugin_bundle_dir.glob("*.dylib"):
+        old.unlink()
+if scanner_bundle.exists() and not media_scanner:
+    scanner_bundle.unlink()
+
+if plugin_names:
+    plugin_bundle_dir.mkdir(parents=True, exist_ok=True)
+    for name in sorted(plugin_names):
+        source = unix_lib / name
+        if not source.is_file():
+            print(f"ERROR: seeded GStreamer plugin was not bundled: {name}", file=sys.stderr)
+            sys.exit(1)
+        destination = plugin_bundle_dir / name
+        source.rename(destination)
+        subprocess.check_call(["install_name_tool", "-id", f"@loader_path/{name}", str(destination)])
+        for dep in otool_deps(destination):
+            if dep.startswith("/usr/lib/") or dep.startswith("/System/"):
+                continue
+            dep_base = Path(dep).name
+            if dep_base not in bundled:
+                continue
+            if dep_base in plugin_names:
+                relocated = f"@loader_path/{dep_base}"
+            else:
+                relocated = f"@loader_path/../x86_64-unix/{dep_base}"
+            if dep != relocated:
+                subprocess.check_call(
+                    ["install_name_tool", "-change", dep, relocated, str(destination)]
+                )
+        bundled[name] = destination
+    print(f"Bundled {len(plugin_names)} GStreamer plugins into {plugin_bundle_dir}")
+
+if media_scanner and media_scanner.is_file():
+    scanner_bundle_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(media_scanner, scanner_bundle)
+    scanner_bundle.chmod(0o755)
+    subprocess.call(["chflags", "nouchg", str(scanner_bundle)], stderr=subprocess.DEVNULL)
+    subprocess.call(["xattr", "-c", str(scanner_bundle)], stderr=subprocess.DEVNULL)
+    for dep in otool_deps(scanner_bundle):
+        if dep.startswith("/usr/lib/") or dep.startswith("/System/"):
+            continue
+        dep_base = Path(dep).name
+        if dep_base not in bundled:
+            continue
+        if dep_base in plugin_names:
+            relocated = f"@loader_path/../../lib/wine/gstreamer-1.0/{dep_base}"
+        else:
+            relocated = f"@loader_path/../../lib/wine/x86_64-unix/{dep_base}"
+        if dep != relocated:
+            subprocess.check_call(
+                ["install_name_tool", "-change", dep, relocated, str(scanner_bundle)]
+            )
+    print(f"Bundled GStreamer plugin scanner into {scanner_bundle}")
+
 # Verify no remaining references into brew-x86
+verification_consumers = list(consumers)
+verification_consumers.extend(
+    p for p in plugin_bundle_dir.glob("*.dylib") if p.is_file()
+)
+if scanner_bundle.is_file():
+    verification_consumers.append(scanner_bundle)
 bad = []
-for dst in consumers:
+for dst in verification_consumers:
     for dep in otool_deps(dst):
         if ".brew-x86" in dep or str(brew) in dep or (media_lib and str(media_lib.resolve()) in dep):
             bad.append((dst.name, dep))
@@ -390,7 +484,11 @@ def macho_minos(path: Path):
 floor = os.environ.get("MACOSX_DEPLOYMENT_TARGET", "10.15")
 floor_v = parse_version(floor)
 high = []
-for p in sorted(unix_lib.glob("*.dylib")):
+macho_paths = list(sorted(unix_lib.glob("*.dylib")))
+macho_paths.extend(sorted(plugin_bundle_dir.glob("*.dylib")))
+if scanner_bundle.is_file():
+    macho_paths.append(scanner_bundle)
+for p in macho_paths:
     minos = macho_minos(p)
     if minos is None:
         print(f"WARNING: could not read minos for {p.name}", file=sys.stderr)

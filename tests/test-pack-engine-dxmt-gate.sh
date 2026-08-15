@@ -14,6 +14,12 @@ assert_contains "$engine_pack" "--exclude 'lib/dxmt'" \
   "engine archive must exclude DXMT"
 assert_contains "$engine_pack" "--exclude 'lib/dxvk'" \
   "engine archive must exclude DXVK"
+assert_contains "$engine_pack" 'MEDIA_PROFILE="${CYDER_ENGINE_MEDIA_PROFILE:-full-video}"' \
+  "release engine packing should default to the full-video media profile"
+assert_contains "$engine_pack" '--media-profile)' \
+  "engine packing should expose an explicit minimal media fallback"
+assert_contains "$engine_pack" 'gst-plugin-scanner' \
+  "full-video engine packing should require the GStreamer plugin scanner"
 
 graphics_pack_line="$(rg -n -F 'bash "$SCRIPT_DIR/pack-graphics-payloads.sh" "${graphics_pack_args[@]}"' \
   "$ROOT/scripts/pack-engine-artifact.sh" | cut -d: -f1)"

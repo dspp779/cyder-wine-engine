@@ -73,6 +73,20 @@ bash scripts/build-media-stack.sh --cx 26 --full-video
 The profile deliberately does not enable `gst-libav`; it is not part of the
 OEM25 plugin set and would require a separate FFmpeg dependency.
 
+Cyder011 release packaging embeds this profile inside the engine artifact. The
+packager defaults to `full-video`; `--media-profile minimal` is an explicit
+reduced fallback only:
+
+```sh
+CYDER_ENGINE_VERSION_LABEL='CX26.3.0-W11-Cyder011' \
+  bash scripts/pack-engine-artifact.sh --xz --force
+```
+
+The packaged engine stores GStreamer plugins under
+`lib/wine/gstreamer-1.0/`, the scanner under `libexec/gstreamer-1.0/`, and
+their relocatable runtime dylibs beside the Unix Wine modules. Graphics
+payloads remain separate as DXMT/DXVK artifacts.
+
 For the Cyder MoltenVK path (upstream 1.4.0 with Cyder patches):
 
 ```sh

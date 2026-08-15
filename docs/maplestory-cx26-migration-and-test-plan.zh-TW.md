@@ -81,6 +81,11 @@ GStreamer plugin scanner。
 路徑擴大；這裡的「完整」是指 OEM25 可用的影音插件集合，而不是任意抓取所有
 主機可選 codec。
 
+Cyder011 封裝時，`pack-engine-artifact.sh` 預設會將 full-video media stack 內嵌
+至 engine：插件位於 `lib/wine/gstreamer-1.0/`，scanner 位於
+`libexec/gstreamer-1.0/`，核心 dylib 由 bundler 一併改寫為可重定位的
+`@loader_path` 依賴。只有非影片的縮減版才使用 `--media-profile minimal`。
+
 `RAW_AUDIO_PARSE=1` 仍需要隔離的 x86_64 GLib/GStreamer runtime；這是媒體處理
 依賴，不是 Vulkan 依賴。若要驗證 DXVK，另建 `--with-vulkan` 並提供已測試的
 MoltenVK，不得把該依賴帶進 D3DMetal 的 gate。

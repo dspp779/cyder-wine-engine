@@ -195,6 +195,19 @@ Apple media、ASF、AVI、ISO MP4、playback、video filter、video parser 插�
 `gst-plugin-scanner`。`gst-libav` 維持關閉，因為它需要額外的 FFmpeg 依賴，且不在
 OEM25 的實際插件集合中。
 
+Cyder011 發佈時，打包器預設會把 full-video profile 內嵌進 engine artifact，並將
+插件放在 `lib/wine/gstreamer-1.0/`、scanner 放在
+`libexec/gstreamer-1.0/`；不再依賴安裝機器的 media path：
+
+```bash
+CYDER_ENGINE_VERSION_LABEL='CX26.3.0-W11-Cyder011' \
+  bash scripts/pack-engine-artifact.sh --xz --force
+```
+
+只有刻意製作非影片的縮減版時才使用
+`bash scripts/pack-engine-artifact.sh --media-profile minimal`。DXMT／DXVK 仍維持
+獨立 graphics payload，不與 GStreamer 混在同一個 payload。
+
 ## 5. 建立新版 MoltenVK
 
 ### 5.1 取得、驗證與套 patch
@@ -337,6 +350,9 @@ CYDER_ENGINE_VERSION_LABEL='CX26.3.0-W11-Cyder010' \
 SIGN_IDENTITY='-' \
   bash scripts/pack-engine-artifact.sh --xz --force
 ```
+
+打包器預設使用 `full-video` media profile；若只是測試最小影音 fallback，需明確
+指定 `--media-profile minimal`。
 
 正式發布時將 `SIGN_IDENTITY` 改為 Developer ID Application identity。打包器會
 依序執行：

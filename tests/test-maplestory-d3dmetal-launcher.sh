@@ -27,7 +27,8 @@ fi
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/cyder-maplestory-d3dmetal.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/wine/bin" "$tmp/wine/lib/wine/x86_64-unix" \
-  "$tmp/gptk/wine/x86_64-windows" "$tmp/gptk/external" "$tmp/media"
+  "$tmp/gptk/wine/x86_64-windows" "$tmp/gptk/external" \
+  "$tmp/media/lib/gstreamer-1.0" "$tmp/media/libexec/gstreamer-1.0"
 printf '#!/bin/sh\nexit 0\n' >"$tmp/wine/bin/wine"
 printf '#!/bin/sh\nexit 0\n' >"$tmp/wine/bin/wineserver"
 chmod +x "$tmp/wine/bin/wine"
@@ -49,9 +50,23 @@ assert_contains "$output" 'CYDER_GRAPHICS_BACKEND=d3dmetal' \
   "dry-run should show the forced D3DMetal backend"
 assert_contains "$output" 'GPTK_ROOT=' \
   "dry-run should show the GPTK root"
+assert_contains "$output" 'GST_PLUGIN_DIR=' \
+  "dry-run should show the selected GStreamer plugin directory"
 if [[ "$output" == *"MoltenVK"* || "$output" == *"moltenvk"* ]]; then
   echo "ASSERT failed: D3DMetal dry-run must not mention MoltenVK" >&2
   exit 1
 fi
+
+mkdir -p "$tmp/wine/lib/wine/gstreamer-1.0"
+bundled_output="$(bash "$LAUNCHER" \
+  --launch-exe "$tmp/MapleStory.exe" \
+  --wine-install "$tmp/wine" \
+  --gptk-root "$tmp/gptk" \
+  --compatdb "$tmp/compatdb.cdb" \
+  --no-otp --dry-run 2>&1)"
+assert_contains "$bundled_output" 'MEDIA_SOURCE=bundled' \
+  "launcher should prefer the engine-internal GStreamer stack"
+assert_contains "$bundled_output" "$tmp/wine/lib/wine/gstreamer-1.0" \
+  "launcher should select the internal plugin directory"
 
 echo "PASS test-maplestory-d3dmetal-launcher"

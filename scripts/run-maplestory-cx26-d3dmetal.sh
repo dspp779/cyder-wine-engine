@@ -14,7 +14,13 @@ WINEPREFIX_PATH="${MAPLESTORY_CX26_WINEPREFIX:-}"
 EXE_PATH="${MAPLESTORY_CX26_EXE:-}"
 GPTK_ROOT="${CYDER_GPTK_ROOT:-${MAPLESTORY_CX26_GPTK_ROOT:-}}"
 COMPATDB_PATH="${MAPLESTORY_CX26_COMPATDB_PATH:-${CYDER_COMPATDB_PATH:-}}"
-MEDIA_INSTALL="${MEDIA_INSTALL:-$ROOT/install/media-cx26-x86_64}"
+MEDIA_INSTALL="${MEDIA_INSTALL:-}"
+MEDIA_INSTALL_EXPLICIT=0
+[[ -n "$MEDIA_INSTALL" ]] && MEDIA_INSTALL_EXPLICIT=1
+MEDIA_SOURCE=""
+MEDIA_LIB=""
+GST_PLUGIN_DIR=""
+GST_SCANNER=""
 LOG_ROOT="${MAPLESTORY_CX26_LOG_ROOT:-$HOME/Library/Application Support/Cyder-MapleStory-CX26/Logs}"
 DEBUG_CHANNELS="${MAPLESTORY_CX26_WINEDEBUG:-+timestamp,+pid,+process,+loaddll,+seh,+winediag,+d3d11,+dxgi,+wined3d,+macdrv}"
 PREFIX_EXPLICIT=0
@@ -127,6 +133,7 @@ while [[ $# -gt 0 ]]; do
     --media-install)
       [[ $# -ge 2 ]] || die '--media-install requires PATH'
       MEDIA_INSTALL="$2"
+      MEDIA_INSTALL_EXPLICIT=1
       shift
       ;;
     --log-root)
@@ -146,6 +153,39 @@ done
 game_args=("$@")
 resolve_wine_install
 resolve_gptk_root
+
+resolve_media_runtime() {
+  if [[ "$MEDIA_INSTALL_EXPLICIT" -eq 1 ]]; then
+    MEDIA_SOURCE=external
+    MEDIA_LIB="$MEDIA_INSTALL/lib"
+    GST_PLUGIN_DIR="$MEDIA_INSTALL/lib/gstreamer-1.0"
+    GST_SCANNER="$MEDIA_INSTALL/libexec/gstreamer-1.0/gst-plugin-scanner"
+  elif [[ -d "$WINE_INSTALL/lib/wine/gstreamer-1.0" ]]; then
+    # Cyder011+ keeps the media stack inside the engine artifact. The core
+    # dylibs live beside the Unix Wine modules; plugins/scanner retain their
+    # GStreamer subtrees below the engine root.
+    MEDIA_SOURCE=bundled
+    MEDIA_INSTALL="$WINE_INSTALL"
+    MEDIA_LIB="$WINE_INSTALL/lib/wine/x86_64-unix"
+    GST_PLUGIN_DIR="$WINE_INSTALL/lib/wine/gstreamer-1.0"
+    GST_SCANNER="$WINE_INSTALL/libexec/gstreamer-1.0/gst-plugin-scanner"
+  else
+    MEDIA_SOURCE=external
+    if [[ -d "$ROOT/install/media-cx26-full-video-x86_64/lib/gstreamer-1.0" ]]; then
+      MEDIA_INSTALL="$ROOT/install/media-cx26-full-video-x86_64"
+    else
+      MEDIA_INSTALL="$ROOT/install/media-cx26-x86_64"
+    fi
+    MEDIA_LIB="$MEDIA_INSTALL/lib"
+    GST_PLUGIN_DIR="$MEDIA_INSTALL/lib/gstreamer-1.0"
+    GST_SCANNER="$MEDIA_INSTALL/libexec/gstreamer-1.0/gst-plugin-scanner"
+  fi
+
+  [[ -d "$MEDIA_LIB" ]] || die "GStreamer library directory missing: $MEDIA_LIB"
+  [[ -d "$GST_PLUGIN_DIR" ]] || die "GStreamer plugin directory missing: $GST_PLUGIN_DIR"
+}
+
+resolve_media_runtime
 
 [[ -n "$EXE_PATH" ]] || die '--launch-exe PATH is required'
 [[ -x "$WINE_INSTALL/bin/wine" ]] || die "wine missing: $WINE_INSTALL/bin/wine"
@@ -206,9 +246,16 @@ export CYDER_ESYNC="${CYDER_ESYNC:-0}"
 export CYDER_WINE_DIAGNOSTICS="${CYDER_WINE_DIAGNOSTICS:-quiet}"
 export MTL_HUD_ENABLED="${MTL_HUD_ENABLED:-1}"
 export WINEDEBUG="$DEBUG_CHANNELS"
-export DYLD_FALLBACK_LIBRARY_PATH="$WINE_INSTALL/lib:$WINE_INSTALL/lib/wine/x86_64-unix:$MEDIA_INSTALL/lib:$GPTK_ROOT/external${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
-export GST_PLUGIN_SYSTEM_PATH_1_0="$MEDIA_INSTALL/lib/gstreamer-1.0"
-export GST_PLUGIN_PATH_1_0="$MEDIA_INSTALL/lib/gstreamer-1.0"
+export DYLD_FALLBACK_LIBRARY_PATH="$WINE_INSTALL/lib:$WINE_INSTALL/lib/wine/x86_64-unix:$MEDIA_LIB:$GPTK_ROOT/external${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
+export GST_PLUGIN_SYSTEM_PATH_1_0="$GST_PLUGIN_DIR"
+export GST_PLUGIN_PATH_1_0="$GST_PLUGIN_DIR"
+gst_env=(
+  "GST_PLUGIN_SYSTEM_PATH_1_0=$GST_PLUGIN_SYSTEM_PATH_1_0"
+  "GST_PLUGIN_PATH_1_0=$GST_PLUGIN_PATH_1_0"
+)
+if [[ -f "$GST_SCANNER" ]]; then
+  gst_env+=("GST_PLUGIN_SCANNER=$GST_SCANNER")
+fi
 
 {
   echo "CX26 MapleStory D3DMetal launch"
@@ -218,7 +265,11 @@ export GST_PLUGIN_PATH_1_0="$MEDIA_INSTALL/lib/gstreamer-1.0"
   echo "  EXE=$EXE_PATH"
   echo "  GPTK_ROOT=$GPTK_ROOT"
   echo "  COMPATDB_PATH=$COMPATDB_PATH"
+  echo "  MEDIA_SOURCE=$MEDIA_SOURCE"
   echo "  MEDIA_INSTALL=$MEDIA_INSTALL"
+  echo "  MEDIA_LIB=$MEDIA_LIB"
+  echo "  GST_PLUGIN_DIR=$GST_PLUGIN_DIR"
+  echo "  GST_PLUGIN_SCANNER=$GST_SCANNER"
   echo "  CYDER_GRAPHICS_BACKEND=d3dmetal"
   echo "  CYDER_MSYNC=$CYDER_MSYNC"
   echo "  CYDER_ESYNC=$CYDER_ESYNC"
@@ -252,8 +303,7 @@ if [[ "$NO_OTP" -eq 1 ]]; then
     CYDER_MSYNC="$CYDER_MSYNC" CYDER_ESYNC="$CYDER_ESYNC" \
     CYDER_WINE_DIAGNOSTICS="$CYDER_WINE_DIAGNOSTICS" MTL_HUD_ENABLED="$MTL_HUD_ENABLED" \
     DYLD_FALLBACK_LIBRARY_PATH="$DYLD_FALLBACK_LIBRARY_PATH" \
-    GST_PLUGIN_SYSTEM_PATH_1_0="$GST_PLUGIN_SYSTEM_PATH_1_0" \
-    GST_PLUGIN_PATH_1_0="$GST_PLUGIN_PATH_1_0" \
+    "${gst_env[@]}" \
     LANG=zh_TW.UTF-8 LC_ALL=zh_TW.UTF-8 LC_CTYPE=zh_TW.UTF-8 \
     "$wine_bin" "$EXE_PATH" 2>&1 | tee -a "$log_file"
 else
@@ -265,8 +315,7 @@ else
     CYDER_MSYNC="$CYDER_MSYNC" CYDER_ESYNC="$CYDER_ESYNC" \
     CYDER_WINE_DIAGNOSTICS="$CYDER_WINE_DIAGNOSTICS" MTL_HUD_ENABLED="$MTL_HUD_ENABLED" \
     DYLD_FALLBACK_LIBRARY_PATH="$DYLD_FALLBACK_LIBRARY_PATH" \
-    GST_PLUGIN_SYSTEM_PATH_1_0="$GST_PLUGIN_SYSTEM_PATH_1_0" \
-    GST_PLUGIN_PATH_1_0="$GST_PLUGIN_PATH_1_0" \
+    "${gst_env[@]}" \
     LANG=zh_TW.UTF-8 LC_ALL=zh_TW.UTF-8 LC_CTYPE=zh_TW.UTF-8 \
     "$wine_bin" "$EXE_PATH" "${game_args[@]}" 2>&1 | tee -a "$log_file"
 fi
