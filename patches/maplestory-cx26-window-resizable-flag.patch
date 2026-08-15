@@ -1,0 +1,37 @@
+diff -ruN a/dlls/win32u/window.c b/dlls/win32u/window.c
+--- a/dlls/win32u/window.c
++++ b/dlls/win32u/window.c
+@@ -55,6 +55,23 @@
+ static volatile unsigned int startup_info_flags;
+ static unsigned int startup_show_window;
+ 
++/* MapleStoryPort: keep the main window's backend state non-resizable too. */
++static BOOL is_maplestory_main_window(HWND hwnd)
++{
++    static const WCHAR maplestory_classW[] =
++        {'M','a','p','l','e','S','t','o','r','y','C','l','a','s','s',0};
++    static const WCHAR maplestory_titleW[] =
++        {'M','a','p','l','e','S','t','o','r','y',0};
++    WCHAR class[32], title[32];
++    UNICODE_STRING name = { .Buffer = class, .MaximumLength = sizeof(class) };
++
++    if (NtUserGetClassName(hwnd, FALSE, &name) && !wcscmp(class, maplestory_classW))
++        return TRUE;
++
++    return NtUserInternalGetWindowText(hwnd, title, sizeof(title) / sizeof(title[0])) &&
++           !wcscmp(title, maplestory_titleW);
++}
++
+ static unsigned int set_startup_info_flags( unsigned int mask, unsigned int flags )
+ {
+     unsigned int prev, new;
+@@ -2370,7 +2387,8 @@
+             win->has_icons = need_icons = TRUE;
+         }
+ 
+-        if (win->dwStyle & WS_THICKFRAME) swp_flags |= WINE_SWP_RESIZABLE;
++        if ((win->dwStyle & WS_THICKFRAME) && !is_maplestory_main_window(hwnd))
++            swp_flags |= WINE_SWP_RESIZABLE;
+         if (is_child) monitor_rects = map_dpi_window_rects( *new_rects, dpi, raw_dpi );
+         else if (!IsRectEmpty( &win->present_rect ))
+         {

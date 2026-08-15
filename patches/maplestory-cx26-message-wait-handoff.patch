@@ -1,0 +1,30 @@
+diff --git a/dlls/win32u/message.c b/dlls/win32u/message.c
+--- a/dlls/win32u/message.c
++++ b/dlls/win32u/message.c
+@@ -3404,6 +3404,7 @@ static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, D
+     void *ret_ptr;
+     ULONG ret_len;
+     HANDLE event;
++    BOOL driver_events;
+     DWORD ret;
+ 
+     if ((abs = get_nt_timeout( &time, timeout )))
+@@ -3420,10 +3420,15 @@ static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, D
+         params.restore = TRUE;
+     }
+ 
+-    process_driver_events( QS_ALLINPUT, wake_mask, changed_mask );
++    /* MapleStoryPort: preserve one driver wait result for the message handoff. */
++    driver_events = process_driver_events( QS_ALLINPUT, wake_mask, changed_mask );
+     if (!(changed_mask & QS_SMRESULT) && (event = get_user_thread_info()->idle_event)) NtSetEvent( event, NULL );
+ 
+-    do ret = NtWaitForMultipleObjects( count, handles, type, !!(flags & MWMO_ALERTABLE), abs );
+-    while (ret == count - 1 && !process_driver_events( QS_ALLINPUT, wake_mask, changed_mask ));
++    if (driver_events) ret = count - 1;
++    else
++    {
++        do ret = NtWaitForMultipleObjects( count, handles, type, !!(flags & MWMO_ALERTABLE), abs );
++        while (ret == count - 1 && !process_driver_events( QS_ALLINPUT, wake_mask, changed_mask ));
++    }
+ 
+     if (HIWORD(ret)) /* is it an error code? */

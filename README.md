@@ -48,6 +48,19 @@ bash scripts/build-wine.sh --cx 26 --bootstrap-brew --install-deps \
 上面是只準備 source、Homebrew 與基礎依賴的最小流程；完整 engine 請依照上方的
 從零建置文件接續執行。
 
+For the MapleStory production candidate, enable the compatibility stack on the
+single CX26 engine build:
+
+```sh
+bash scripts/build-media-stack.sh --cx 26 --install-deps
+bash scripts/build-media-stack.sh --cx 26
+bash scripts/build-wine.sh --cx 26 --maplestory --without-vulkan
+```
+
+This is the D3DMetal-first path and does not require MoltenVK. A separate
+`--with-vulkan` build may be used for DXVK validation; MoltenVK feature-level
+checks apply only to that DXVK path.
+
 For the Cyder MoltenVK path (upstream 1.4.0 with Cyder patches):
 
 ```sh

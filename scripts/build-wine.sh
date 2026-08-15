@@ -13,6 +13,7 @@ JOBS="$(sysctl -n hw.ncpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null |
 VULKAN_MODE=without
 VULKAN_SOURCE=homebrew
 BUILD_TESTS=0
+MAPLESTORY=0
 
 run() {
   if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -34,6 +35,7 @@ while [[ $# -gt 0 ]]; do
     --configure-only) CONFIGURE_ONLY=1 ;;
     --prepare-only) PREPARE_ONLY=1 ;;
     --with-tests) BUILD_TESTS=1 ;;
+    --maplestory) MAPLESTORY=1 ;;
     --cx)
       CX_VERSION="$2"
       shift
@@ -62,6 +64,8 @@ Options:
   --cx 25|26         CrossOver release (default: 26)
   --prepare-only     Extract archives from tools/archives/ and exit
   --with-tests       Build Wine regression-test executables (off for runtime builds)
+  --maplestory        Apply the production MapleStory compatibility stack (CX26 only;
+                      D3DMetal-neutral; MoltenVK is only needed for DXVK runs)
   --bootstrap-brew   Install project-local x86_64 Homebrew
   --install-deps     Install build dependencies via .brew-x86
   --with-vulkan      Enable Vulkan (Wine configure autodetects MoltenVK)
@@ -99,6 +103,11 @@ case "$CX_VERSION" in
     exit 1
     ;;
 esac
+
+if [[ "$MAPLESTORY" -eq 1 && "$CX_VERSION" != "26" ]]; then
+  echo "--maplestory currently supports only --cx 26" >&2
+  exit 1
+fi
 
 case "$VULKAN_SOURCE" in
   homebrew | crossover) ;;
@@ -156,6 +165,10 @@ if [[ "$INSTALL_DEPS" -eq 1 ]]; then
   BUILD_TOOL_DEPS=(autoconf bison flex pkgconf)
   # Runtime libs are copied into lib/wine/x86_64-unix and must be ≤ product floor.
   RUNTIME_DEPS=(zlib bzip2 libpng freetype gettext libffi gnutls)
+  if [[ "$MAPLESTORY" -eq 1 ]]; then
+    BUILD_TOOL_DEPS+=(meson ninja)
+    RUNTIME_DEPS+=(pcre2)
+  fi
   if [[ "$VULKAN_MODE" == "with" ]]; then
     case "$VULKAN_SOURCE" in
       homebrew)
@@ -274,6 +287,17 @@ require_x86_dep() {
 
 ensure_bzip2_pc
 require_x86_dep freetype2
+if [[ "$MAPLESTORY" -eq 1 ]]; then
+  # RAW_AUDIO_PARSE is part of the MapleStory compatibility contract, but it
+  # must remain backend-neutral. D3DMetal builds use no MoltenVK; they still
+  # need the isolated GStreamer stack for winegstreamer.
+  PKG_PC_PATH="$MEDIA_INSTALL/lib/pkgconfig:$PKG_PC_PATH"
+  export LIBRARY_PATH="$MEDIA_INSTALL/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
+  for _gst_pc in gstreamer-1.0 gstreamer-base-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0; do
+    require_x86_dep "$_gst_pc"
+  done
+  unset _gst_pc
+fi
 CONFIGURE_VULKAN_FLAG=()
 if [[ "$VULKAN_MODE" == "without" ]]; then
   CONFIGURE_VULKAN_FLAG=(--without-vulkan)
@@ -403,6 +427,7 @@ remove_obsolete_cyder_patch() {
 
 if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/a6-final-same-view-backing-sync.patch"
+  apply_cyder_patch "$OGOM/patches/w1-win32u-vulkan-soname.patch"
   remove_obsolete_cyder_patch \
     "$OGOM/patches/obsolete/cyder-ntdll-frame-walk-guard.patch" \
     "$OGOM/patches/cyder-ntdll-frame-walk-page-fault-guard.patch" \
@@ -424,6 +449,63 @@ if [[ "$CX_VERSION" == "26" ]]; then
     "$OGOM/patches/cyder-ntdll-query-directory-object-trace.patch" \
     "$OGOM/patches/cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch"
   apply_cyder_patch "$OGOM/patches/cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch"
+
+  if [[ "$MAPLESTORY" -eq 1 ]]; then
+    apply_maplestory_patch() {
+      local patch_name="$1"
+      local marker_file="${2:-}"
+      local marker="${3:-}"
+      local patch_file="$OGOM/patches/$patch_name"
+      [[ -f "$patch_file" ]] || {
+        echo "Missing MapleStory patch: $patch_file" >&2
+        exit 1
+      }
+      if [[ "$DRY_RUN" -eq 1 ]]; then
+        echo "+ patch -d $WINE_SRC -p1 < $patch_file"
+        return 0
+      fi
+      if patch --forward --batch --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
+        patch --forward --batch -s -d "$WINE_SRC" -p1 < "$patch_file"
+        echo "Applied $patch_name"
+      elif patch --reverse --forward --batch --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
+        echo "Already applied: $patch_name"
+      elif [[ -n "$marker_file" && -n "$marker" && -f "$WINE_SRC/$marker_file" ]] &&
+           grep -Fq "$marker" "$WINE_SRC/$marker_file"; then
+        echo "Already applied: $patch_name (marker detected)"
+      else
+        echo "Cannot apply required MapleStory patch: $patch_file" >&2
+        exit 1
+      fi
+    }
+
+    # Keep the D3D11 shared-resource group together: CX25 bisect showed that
+    # ClearView, shared textures, and texture-state handling are one contract.
+    apply_maplestory_patch "maplestory-cx26-core.patch" \
+      "dlls/wined3d/texture.c" "MapleStoryPort hack 23278"
+    apply_maplestory_patch "maplestory-cx26-window-resizable-flag.patch" \
+      "dlls/win32u/window.c" "MapleStoryPort: keep the main window's backend state non-resizable"
+    apply_maplestory_patch "maplestory-cx26-tmp-module-name.patch" \
+      "dlls/kernelbase/loader.c" "MapleStoryPort: recover the source DLL name"
+    apply_maplestory_patch "maplestory-cx26-dbghelp-dwarf-guard.patch"
+    apply_maplestory_patch "maplestory-cx26-d3d11-shared-texture-test.patch" \
+      "dlls/d3d11/device.c" "Imported shared texture"
+    apply_maplestory_patch "maplestory-cx26-d3dmetal-legacy-surface.patch" \
+      "dlls/winemac.drv/d3dmetal.c" "CYDER_MAPLESTORY_LEGACY_D3DMETAL_SURFACE"
+    apply_maplestory_patch "maplestory-cx26-plain-metal-layer.patch" \
+      "dlls/winemac.drv/cocoa_window.m" "CYDER_MAPLESTORY_PLAIN_METAL_LAYER"
+    apply_maplestory_patch "maplestory-cx26-d3d11-full-clear.patch"
+    apply_maplestory_patch "maplestory-cx26-dxgi-shared-handle.patch" \
+      "dlls/dxgi/dxgi_private.h" "DXGI producer side for winekmt_"
+    apply_maplestory_patch "maplestory-cx26-texture-user-memory-reload.patch"
+    apply_maplestory_patch "maplestory-cx26-blackxchg-foreground.patch" \
+      "dlls/winemac.drv/cocoa_app.m" "BlackXchg.aes"
+    apply_maplestory_patch "maplestory-cx26-fullscreen-restore.patch" \
+      "dlls/win32u/ntuser_private.h" "MapleStory fullscreen restore guard"
+    apply_maplestory_patch "maplestory-cx26-message-wait-handoff.patch" \
+      "dlls/win32u/message.c" "MapleStoryPort: preserve one driver wait result"
+    apply_maplestory_patch "maplestory-cx26-no-sched-yield.patch" \
+      "dlls/ntdll/unix/sync.c" "MapleStoryPort: match OEM25"
+  fi
 fi
 
 # CrossOver tarball is not a git checkout; make_makefiles requires `git ls-files`.

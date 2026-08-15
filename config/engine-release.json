@@ -14,6 +14,7 @@
   "minimumCyderVersion": "0.9.6",
   "patches": [
     "a6-final-same-view-backing-sync.patch",
+    "w1-win32u-vulkan-soname.patch",
     "wine-11.1-rtlwalkframechain-null-function.patch",
     "cyder-ntdll-frame-walk-page-fault-guard.patch",
     "cyder-wineserver-sock-reselect-pseudo-fd.patch",
@@ -25,10 +26,23 @@
     "cyder-wineserver-free-async-queue-null-fd.patch",
     "cyder-wineserver-pipe-end-disconnect-null-fd.patch",
     "cyder-wineserver-add-completion-guard.patch",
-    "cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch"
+    "cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch",
+    "maplestory-cx26-core.patch",
+    "maplestory-cx26-window-resizable-flag.patch",
+    "maplestory-cx26-tmp-module-name.patch",
+    "maplestory-cx26-dbghelp-dwarf-guard.patch",
+    "maplestory-cx26-d3d11-shared-texture-test.patch",
+    "maplestory-cx26-d3dmetal-legacy-surface.patch",
+    "maplestory-cx26-plain-metal-layer.patch",
+    "maplestory-cx26-d3d11-full-clear.patch",
+    "maplestory-cx26-dxgi-shared-handle.patch",
+    "maplestory-cx26-texture-user-memory-reload.patch",
+    "maplestory-cx26-blackxchg-foreground.patch",
+    "maplestory-cx26-fullscreen-restore.patch",
+    "maplestory-cx26-no-sched-yield.patch"
   ],
   "components": [
     "runtime/cxcompatdb/cxcompatdb.c"
   ],
-  "notes": "Cyder uses an open cxcompatdb.so loaded by the original CrossOver ntdll hook. It owns current-process CompatDB arguments, DLL overrides, graphics backend validation and runtime prepend; Cyder no longer patches ntdll for CompatDB. Graphics payloads are shipped separately. The graphics build is pinned to upstream MoltenVK 1.4.0 with the Cyder CrossOver capability patch plus timeline-wait and present autoreleasepool patches."
+  "notes": "Cyder uses an open cxcompatdb.so loaded by the original CrossOver ntdll hook. It owns current-process CompatDB arguments, DLL overrides, graphics backend validation and runtime prepend; Cyder no longer patches ntdll for CompatDB. The MapleStory stack is D3DMetal-neutral; MoltenVK feature-level validation applies only to the optional DXVK path. Graphics payloads are shipped separately. The graphics build is pinned to upstream MoltenVK 1.4.0 with the Cyder CrossOver capability patch plus timeline-wait and present autoreleasepool patches."
 }

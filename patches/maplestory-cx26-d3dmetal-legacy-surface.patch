@@ -1,0 +1,17 @@
+--- a/dlls/winemac.drv/d3dmetal.c
++++ b/dlls/winemac.drv/d3dmetal.c
+@@ -122,1 +122,6 @@
+-    macdrv_set_view_d3dmetal_client_surface(client_surface->cocoa_view, &client_surface->client);
++    /* MapleStoryPort A/B: the CX25 OEM path uses the visible client view
++     * directly and does not use the nextDrawable event bridge. Keep the
++     * surface alive for D3DMetal, but allow that bridge to be disabled while
++     * comparing the two handoff models. */
++    if (!getenv("CYDER_MAPLESTORY_LEGACY_D3DMETAL_SURFACE"))
++        macdrv_set_view_d3dmetal_client_surface(client_surface->cocoa_view, &client_surface->client);
+--- a/dlls/winemac.drv/d3dmetal_objc.m
++++ b/dlls/winemac.drv/d3dmetal_objc.m
+@@ -50,1 +50,1 @@
+-        if ([self.delegate isKindOfClass:NSClassFromString(@"WineMetalView")])
++        if (!getenv("CYDER_MAPLESTORY_LEGACY_D3DMETAL_SURFACE") && [self.delegate isKindOfClass:NSClassFromString(@"WineMetalView")])
+         {
+             NSView* view = (NSView *)self.delegate;

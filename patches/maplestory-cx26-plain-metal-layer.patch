@@ -1,0 +1,12 @@
+--- a/dlls/winemac.drv/cocoa_window.m
++++ b/dlls/winemac.drv/cocoa_window.m
+@@ -1020,4 +1021,8 @@
+     - (CALayer*) makeBackingLayer
+     {
+-        CAMetalLayer *layer = [WineMetalLayer layer];   /* CW HACK 22435 */
++        CAMetalLayer *layer;
++        if (getenv("CYDER_MAPLESTORY_PLAIN_METAL_LAYER"))
++            layer = [CAMetalLayer layer];
++        else
++            layer = [WineMetalLayer layer];   /* CW HACK 22435 */
+         layer.device = _device;

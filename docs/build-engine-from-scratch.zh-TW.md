@@ -18,6 +18,7 @@ Engine repo 不會把 CrossOver source archive 或第三方 binary source 放進
 | Engine label | `CX26.3.0-W11-Cyder010` |
 | Host | macOS x86_64，Apple Silicon 以 Rosetta 2 執行 |
 | Host minOS | 10.15（所有 engine host Mach-O；DXMT 是明確例外） |
+| MapleStory | CX26 MapleStory compatibility stack；D3DMetal / Apple GPTK 為主要路徑 |
 | MoltenVK | 上游 1.4.0 + 3 個 Cyder source patch |
 | DXVK | 1.10.3，獨立 `lib/dxvk` payload |
 | DXVK2 | 上游 2.7.1，獨立 `lib/dxvk2` payload |
@@ -27,6 +28,8 @@ MoltenVK 的 `--vulkan-source crossover` 參數名稱是 Wine 的 CrossOver Vulk
 整合路徑；在目前流程中，它讀取 `install/graphics-cx26-x86_64` 內由上游
 MoltenVK 1.4.0 建出的 dylib，**不是**從 CrossOver.app 複製 MoltenVK。只有明確
 設定 `MOLTENVK_SOURCE=crossover-foss` 才是 legacy source comparison。
+新楓之谷的正式 D3DMetal 路徑不需要 MoltenVK；MoltenVK 只在另建 DXVK 驗證路徑時
+啟用。
 
 ## 架構總覽
 
@@ -47,7 +50,7 @@ flowchart LR
         MP[build-media-stack.sh<br/>GLib/GStreamer]
         MVB[build-graphics-stack.sh<br/>MoltenVK + 3 patches]
         CDB[build-cyder-cxcompatdb.sh<br/>cxcompatdb.so]
-        EI[install/wine-cx26-x86_64<br/>Wine + cxcompatdb + MoltenVK]
+        EI[install/wine-cx26-x86_64<br/>Wine + cxcompatdb<br/>+ optional MoltenVK]
         GP[pack-graphics-payloads.sh]
         EP[pack-engine-artifact.sh<br/>strip → bundle → sign → minOS → archive]
         EA[engine-wine-x86_64-*.tar.xz]
@@ -81,9 +84,10 @@ flowchart LR
     LAUNCH -->|CYDER_GRAPHICS_BACKEND| GAME[Wine game process]
 ```
 
-重點是：engine archive 保留 Wine、`cxcompatdb.so` 與新版 MoltenVK，但排除
+重點是：engine archive 保留 Wine、`cxcompatdb.so` 與（若是 DXVK release profile）新版 MoltenVK，但排除
 `lib/dxvk`、`lib/dxvk2`、`lib/dxmt`；三種 graphics payload 由獨立 archive
-安裝，啟動時才由 CompatDB 依環境變數 prepend。
+安裝，啟動時才由 CompatDB 依環境變數 prepend。MapleStory 的 D3DMetal profile
+不因為 MoltenVK 缺席而失效。
 
 ## 1. 準備主機
 
@@ -227,6 +231,18 @@ Cyder010 不應再使用 `libMoltenVK.real.dylib` shim pair，也不應透過
 
 ## 6. 編譯並安裝 Wine engine
 
+若目標是新楓之谷 D3DMetal candidate，先建隔離的 media stack，再使用下列單一
+CX26 engine profile：
+
+```bash
+bash scripts/build-media-stack.sh --cx 26 --install-deps
+bash scripts/build-media-stack.sh --cx 26
+bash scripts/build-wine.sh --cx 26 --maplestory --without-vulkan
+```
+
+這條路徑仍會編譯 `cxcompatdb.so`，但不要求 MoltenVK。以下 `--with-vulkan` 命令
+只用於同一 CX26 engine 的 DXVK / MoltenVK capability validation。
+
 ```bash
 bash scripts/build-wine.sh \
   --cx 26 \
@@ -241,7 +257,8 @@ bash scripts/build-wine.sh \
 2. 以 `--enable-win64` 及 i386/x86_64 PE 建立 Wine。
 3. 將 Wine 安裝到 `install/wine-cx26-x86_64/`。
 4. 編譯 `runtime/cxcompatdb/cxcompatdb.c` 成 `cxcompatdb.so`。
-5. 以新版 `GRAPHICS_INSTALL` 綁定 MoltenVK，並重寫 dylib install name。
+5. 若使用 `--with-vulkan`，以新版 `GRAPHICS_INSTALL` 綁定 MoltenVK，並重寫 dylib
+   install name；`--without-vulkan` 的 MapleStory D3DMetal build 不執行這個依賴。
 
 確認：
 
@@ -292,6 +309,8 @@ prefix，這是 runtime payload 的一部分，不是 MoltenVK。
 ```bash
 cd /path/to/cyder-wine-engine
 bash tests/test-moltenvk-1-4-source-and-capabilities.sh
+bash tests/test-maplestory-patch-stack.sh
+bash tests/test-maplestory-d3dmetal-launcher.sh
 bash tests/test-pack-graphics-payloads.sh
 bash tests/test-engine-manifest.sh
 bash tests/run.sh
@@ -353,9 +372,9 @@ import／release 流程；不要手動解壓覆蓋使用者 runtime。Cyder 應�
 - graphics payload 的 version／SHA sidecar 齊全；
 - runtime 建立 `current-dxvk`、`current-dxvk2`、`current-dxmt` 後，再建立 engine
   `lib/dxvk*`／`lib/dxmt` 的接線；
-- 啟動 log 明確記錄使用的 MoltenVK、graphics backend 與 payload 路徑。
+- 啟動 log 明確記錄 graphics backend 與 payload 路徑；只有 DXVK 路徑額外記錄 MoltenVK。
 
-最後至少以 `wined3d`、DXVK 1.x、DXVK2 各啟動一次；若測 DXMT，確認 macOS
+最後至少以 D3DMetal、`wined3d`、DXVK 1.x、DXVK2 各啟動一次；若測 DXMT，確認 macOS
 版本符合 DXMT 要求，並確認 prefix 內有 `winemetal.dll`。
 
 ## 常見問題

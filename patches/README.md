@@ -3,18 +3,45 @@
 Patch order for the CX26.3 / Wine 11.0 Cyder engine:
 
 1. `a6-final-same-view-backing-sync.patch`
-2. `wine-11.1-rtlwalkframechain-null-function.patch`
-3. `cyder-ntdll-frame-walk-page-fault-guard.patch`
-4. `cyder-wineserver-sock-reselect-pseudo-fd.patch`
-5. `cyder-wineserver-poll-slot-guard.patch`
-6. `cyder-wineserver-exit-diagnostics.patch`
-7. `cyder-wineserver-fd-reselect-async-null-ops.patch`
-8. `cyder-wineserver-sock-rebind-async-fd.patch`
-9. `cyder-wineserver-async-terminate-null-fd.patch`
-10. `cyder-wineserver-free-async-queue-null-fd.patch`
-11. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
-12. `cyder-wineserver-add-completion-guard.patch`
-13. `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch`
+2. `w1-win32u-vulkan-soname.patch`
+3. `wine-11.1-rtlwalkframechain-null-function.patch`
+4. `cyder-ntdll-frame-walk-page-fault-guard.patch`
+5. `cyder-wineserver-sock-reselect-pseudo-fd.patch`
+6. `cyder-wineserver-poll-slot-guard.patch`
+7. `cyder-wineserver-exit-diagnostics.patch`
+8. `cyder-wineserver-fd-reselect-async-null-ops.patch`
+9. `cyder-wineserver-sock-rebind-async-fd.patch`
+10. `cyder-wineserver-async-terminate-null-fd.patch`
+11. `cyder-wineserver-free-async-queue-null-fd.patch`
+12. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
+13. `cyder-wineserver-add-completion-guard.patch`
+14. `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch`
+15. `maplestory-cx26-core.patch`
+16. `maplestory-cx26-window-resizable-flag.patch`
+17. `maplestory-cx26-tmp-module-name.patch`
+18. `maplestory-cx26-dbghelp-dwarf-guard.patch`
+19. `maplestory-cx26-d3d11-shared-texture-test.patch`
+20. `maplestory-cx26-d3dmetal-legacy-surface.patch`
+21. `maplestory-cx26-plain-metal-layer.patch`
+22. `maplestory-cx26-d3d11-full-clear.patch`
+23. `maplestory-cx26-dxgi-shared-handle.patch`
+24. `maplestory-cx26-texture-user-memory-reload.patch`
+25. `maplestory-cx26-blackxchg-foreground.patch`
+26. `maplestory-cx26-fullscreen-restore.patch`
+27. `maplestory-cx26-message-wait-handoff.patch`
+28. `maplestory-cx26-no-sched-yield.patch`
+
+`w1-win32u-vulkan-soname.patch` is a build-only fallback. CX26 still compiles
+`win32u/vulkan.c` when Vulkan is disabled, but `SONAME_LIBVULKAN` is absent from
+`config.h`; the fallback does not make D3DMetal load Vulkan at runtime.
+
+The MapleStory entries are enabled by `scripts/build-wine.sh --maplestory`.
+They are compatibility changes in the Wine/D3D11/macOS paths and do not select
+a graphics backend. The primary target is D3DMetal, matching the CX25 OEM
+runtime; MoltenVK capability/feature-level checks belong only to a separate
+DXVK validation run. The shared-texture and ClearView entries remain one
+functional group because the CX25 bisect showed that splitting them produces a
+partially rendered in-world state.
 
 CompatDB policy is no longer compiled into ntdll. `runtime/cxcompatdb/cxcompatdb.c`
 builds as the open `cxcompatdb.so` loaded through CrossOver's existing loader
@@ -148,6 +175,7 @@ strings as “already applied”:
 | `cyder-wineserver-add-completion-guard.patch` | `add_completion: invalid completion` (`completion.c`) |
 | `cyder-ntdll-query-directory-object-trace.patch` | `cyder QDO` (`dlls/ntdll/unix/sync.c`) — optional / not default |
 | `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch` | `cyder QDO optnone` (`dlls/ntdll/unix/sync.c`) |
+| `maplestory-cx26-message-wait-handoff.patch` | `MapleStoryPort: preserve one driver wait result` (`dlls/win32u/message.c`) |
 
 New patches that may be amended in place should include a unique marker and a
 matching detection branch. Operational steps:
