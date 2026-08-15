@@ -184,6 +184,17 @@ bash scripts/build-media-stack.sh --cx 26 --install-deps
 這一步會輸出到 `install/media-cx26-x86_64/`，最後由 bundler 複製需要的 dylib
 到 engine tree。若不需要音訊／影片功能，可以跳過，但應在測試報告中註明。
 
+若要支援 OEM25 已具備的遊戲內影片，另外建置完整影音 profile：
+
+```bash
+bash scripts/build-media-stack.sh --cx 26 --full-video
+```
+
+這會輸出到 `install/media-cx26-full-video-x86_64/`，不覆蓋最小 profile，並納入
+Apple media、ASF、AVI、ISO MP4、playback、video filter、video parser 插件與
+`gst-plugin-scanner`。`gst-libav` 維持關閉，因為它需要額外的 FFmpeg 依賴，且不在
+OEM25 的實際插件集合中。
+
 ## 5. 建立新版 MoltenVK
 
 ### 5.1 取得、驗證與套 patch

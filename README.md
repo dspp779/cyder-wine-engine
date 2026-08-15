@@ -61,6 +61,18 @@ This is the D3DMetal-first path and does not require MoltenVK. A separate
 `--with-vulkan` build may be used for DXVK validation; MoltenVK feature-level
 checks apply only to that DXVK path.
 
+For MapleStory video playback, build the OEM25-equivalent media profile. It is
+installed beside the minimal profile and includes the Apple media, ASF, AVI,
+ISO MP4, playback, video-parser plugins, and GStreamer plugin scanner used by
+the OEM runtime:
+
+```sh
+bash scripts/build-media-stack.sh --cx 26 --full-video
+```
+
+The profile deliberately does not enable `gst-libav`; it is not part of the
+OEM25 plugin set and would require a separate FFmpeg dependency.
+
 For the Cyder MoltenVK path (upstream 1.4.0 with Cyder patches):
 
 ```sh

@@ -67,6 +67,20 @@ bash scripts/build-media-stack.sh --cx 26
 bash scripts/build-wine.sh --cx 26 --maplestory --without-vulkan
 ```
 
+若要驗證遊戲內影片，使用獨立的 OEM25-equivalent profile，不覆蓋現有最小影音
+runtime：
+
+```sh
+bash scripts/build-media-stack.sh --cx 26 --full-video
+```
+
+此 profile 會建立 base/good/ugly/bad 中與 OEM25 對應的插件：Apple media、ASF、
+AVI、ISO MP4、audio parser、playback、video filter、video parser、WAV parser 與
+GStreamer plugin scanner。
+它不打開 `gst-libav`，所以不會因為 FFmpeg 或額外 GPL codec 將 D3DMetal engine
+路徑擴大；這裡的「完整」是指 OEM25 可用的影音插件集合，而不是任意抓取所有
+主機可選 codec。
+
 `RAW_AUDIO_PARSE=1` 仍需要隔離的 x86_64 GLib/GStreamer runtime；這是媒體處理
 依賴，不是 Vulkan 依賴。若要驗證 DXVK，另建 `--with-vulkan` 並提供已測試的
 MoltenVK，不得把該依賴帶進 D3DMetal 的 gate。

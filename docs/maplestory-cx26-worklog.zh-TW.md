@@ -1410,6 +1410,36 @@ process 啟動。
   basename 返回 `STATUS_NO_YIELD_PERFORMED`；其他 process image 仍走原本的
   `sched_yield()`。本輪四項採用範圍調整完成驗收。
 
+### 2026-08-15：補齊 CX26 OEM25-equivalent GStreamer media stack
+
+- 修改：`scripts/build-media-stack.sh` 新增 `minimal`／`full-video` profile、
+  `--full-video` shortcut 與 `--media-install` 隔離安裝選項；建置目錄也依 profile
+  分開，避免 full-video 的 Meson configure 覆蓋原本可用的最小影音 build。
+- full-video 具體啟用 GStreamer base/good/ugly/bad 的 OEM25 對應插件：
+  `applemedia`、`asfdemux`、`audioparsers`、`avi`、`deinterlace`、`id3demux`、
+  `isomp4`、`playback`、`videoconvertscale`、`videofilter`、`videoparsers`、
+  `wavparse`，以及 audio convert/resample、typefind、OpenGL integration。
+  `gst-plugin-scanner` 也以 x86_64 helper 安裝，讓 GStreamer registry discovery
+  路徑完整；`gst-libav` 維持關閉，避免引入尚未準備的 FFmpeg 依賴。這個 profile
+  的完整性定義為與 OEM25 實際可用插件集合對齊。
+- 預期效果：CX26 `winegstreamer` 不再只有 `libgstcoreelements.dylib`，可在
+  engine 層發現 OEM25 使用的影片 demux/parser、Apple media 與 playback plugin；
+  原本的最小 profile 仍可作為音訊與啟動 regression baseline。
+- 測試紀錄：新增 `tests/test-build-media-stack.sh`，檢查 profile 介面、Meson
+  feature flags、FFmpeg 隔離、plugin scanner 及 full-video 安裝驗證清單。
+  full-video build 已完成，輸出為
+  `install/media-cx26-full-video-x86_64/`（GLib 2.78.0／GStreamer 1.24.4，22 個
+  plugin，x86_64）；用 x86_64 GStreamer API 逐一載入 22 個 plugin，結果為
+  `22 loaded, 0 failed`。
+- MapleStory lifecycle smoke 使用全新 prefix
+  `/private/tmp/cx26-full-video-prefix-20260815/`，log 為
+  `/private/tmp/cx26-full-video-logs-20260815/maplestory-cx26-d3dmetal-20260815-154900-2143.log`。
+  full-video media path 下 `winegstreamer.dll` 載入，MapleStory、BlackXchg、
+  BlackCipher64、HybridCore64、jypc 依序出現，建立 `1374x827` 視窗並產生
+  `1,553` 次 surface presents；未見 `c0000008`、`STATUS_INVALID_HANDLE` 或
+  engine crash。這是啟動／媒體 runtime smoke，不等同於已在遊戲內觸發一段影片；
+  實際影片播放仍需登入後以遊戲內容驗收。
+
 ## 下一步與驗收
 
 1. 保留目前已驗證可建置的 CX26 formal stack，包含新的 message-wait handoff patch；
