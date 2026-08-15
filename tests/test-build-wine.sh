@@ -39,6 +39,8 @@ if [[ "$output" == *"cyder-steam-webhelper-compat.patch"* ]]; then
 fi
 assert_contains "$output" "$ROOT/patches/obsolete/cyder-ntdll-frame-walk-guard.patch" \
   "build should migrate an existing combined frame-walk patch"
+assert_contains "$output" "$ROOT/patches/w1-win32u-vulkan-soname.patch" \
+  "CX26 builds should keep the no-Vulkan SONAME compile fallback"
 assert_contains "$output" "superseded by: $ROOT/patches/cyder-ntdll-frame-walk-page-fault-guard.patch" \
   "build should recognize the fully migrated two-patch source state"
 assert_contains "$output" "superseded by: $ROOT/patches/wine-11.1-rtlwalkframechain-null-function.patch" \

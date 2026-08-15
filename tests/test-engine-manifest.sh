@@ -31,6 +31,8 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "rtlwalkframechain-null-fun
   "manifest should record the ordered frame-walk patch set"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "a6-final-same-view-backing-sync.patch" \
   "manifest should record the winemac backing-sync patch"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "w1-win32u-vulkan-soname.patch" \
+  "manifest should record the no-Vulkan SONAME compile fallback"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "runtime/cxcompatdb/cxcompatdb.c" \
   "manifest should record the standalone CompatDB component"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-poll-slot-guard.patch" \
