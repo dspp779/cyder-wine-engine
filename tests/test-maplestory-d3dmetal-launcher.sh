@@ -17,6 +17,18 @@ assert_contains "$source_text" 'RAW_AUDIO_PARSE=1' \
   "MapleStory launcher must preserve the raw audio contract"
 assert_contains "$source_text" 'clean_prefix_session' \
   "MapleStory launcher must clean the exact prefix before launch"
+assert_contains "$source_text" 'CYDER_MAPLESTORY_IO_RING_ARM_FILE' \
+  "MapleStory launcher must pass the scoped I/O ring control file"
+assert_contains "$source_text" 'CYDER_MAPLESTORY_IO_SUMMARY' \
+  "MapleStory launcher must pass the compact I/O summary mode"
+assert_contains "$source_text" 'CYDER_MAPLESTORY_IO_TIMELINE' \
+  "MapleStory launcher must pass the I/O timeline mode"
+assert_contains "$source_text" 'CYDER_MAPLESTORY_IO_CACHE_STATS' \
+  "MapleStory launcher must pass the arm-scoped cache statistics mode"
+assert_contains "$source_text" 'CYDER_MAPLESTORY_IO_SECTION_MAP' \
+  "MapleStory launcher must pass the section-map diagnostic mode"
+assert_contains "$source_text" 'CYDER_MAPLESTORY_FILE_CACHE_MMAP' \
+  "MapleStory launcher must pass the experimental mmap cache mode"
 assert_contains "$source_text" 'wineserver" -k' \
   "MapleStory launcher must stop stale Wine processes before launch"
 if [[ "$source_text" == *"copy-oem-moltenvk.sh"* || "$source_text" == *"libMoltenVK.dylib"* ]]; then

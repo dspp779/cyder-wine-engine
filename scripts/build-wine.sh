@@ -479,14 +479,17 @@ if [[ "$CX_VERSION" == "26" ]]; then
         echo "+ patch -d $WINE_SRC -p1 < $patch_file"
         return 0
       fi
-      if patch --forward --batch --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
+      # Check a stable marker before asking patch to apply.  `patch --forward`
+      # can return success while merely ignoring an already-applied hunk; that
+      # is unsafe for patches which insert helpers near identical context.
+      if [[ -n "$marker_file" && -n "$marker" && -f "$WINE_SRC/$marker_file" ]] &&
+         grep -Fq "$marker" "$WINE_SRC/$marker_file"; then
+        echo "Already applied: $patch_name (marker detected)"
+      elif patch --forward --batch --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
         patch --forward --batch -s -d "$WINE_SRC" -p1 < "$patch_file"
         echo "Applied $patch_name"
       elif patch --reverse --forward --batch --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
         echo "Already applied: $patch_name"
-      elif [[ -n "$marker_file" && -n "$marker" && -f "$WINE_SRC/$marker_file" ]] &&
-           grep -Fq "$marker" "$WINE_SRC/$marker_file"; then
-        echo "Already applied: $patch_name (marker detected)"
       else
         echo "Cannot apply required MapleStory patch: $patch_file" >&2
         exit 1
@@ -524,9 +527,21 @@ if [[ "$CX_VERSION" == "26" ]]; then
     apply_maplestory_patch "maplestory-cx26-fullscreen-restore.patch" \
       "dlls/win32u/ntuser_private.h" "MapleStory fullscreen restore guard"
     apply_maplestory_patch "maplestory-cx26-no-sched-yield.patch" \
-      "dlls/ntdll/unix/sync.c" "MapleStoryPort: match OEM25"
+      "dlls/ntdll/unix/sync.c" "if (is_maplestory_process()) return STATUS_NO_YIELD_PERFORMED;"
     apply_maplestory_patch "maplestory-cx26-file-cache-adaptive.patch" \
       "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW"
+    apply_maplestory_patch "maplestory-cx26-io-ring.patch" \
+      "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_IO_RING_EVENTS"
+    apply_maplestory_patch "maplestory-cx26-io-ring-arm.patch" \
+      "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_IO_RING_ARM_FILE"
+    apply_maplestory_patch "maplestory-cx26-io-summary.patch" \
+      "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_IO_SUMMARY_SLOTS"
+    apply_maplestory_patch "maplestory-cx26-io-timeline.patch" \
+      "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_IO_TIMELINE_BUCKETS"
+    apply_maplestory_patch "maplestory-cx26-io-cache-stats.patch" \
+      "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_IO_CACHE_STATS"
+    apply_maplestory_patch "maplestory-cx26-section-map-summary.patch" \
+      "dlls/ntdll/unix/virtual.c" "CYDER_MAPLESTORY_SECTION_MAP_PATH"
   fi
 fi
 
@@ -607,5 +622,10 @@ if [[ "$CONFIGURE_ONLY" -eq 0 ]]; then
     GRAPHICS_INSTALL="$GRAPHICS_INSTALL" MEDIA_INSTALL="$MEDIA_INSTALL" \
       VULKAN_MODE="$VULKAN_MODE" VULKAN_SOURCE="$VULKAN_SOURCE" \
       "$SCRIPT_DIR/bundle-wine-dylibs.sh" "$WINE_INSTALL"
+  fi
+  ENGINE_VERSION_LABEL="$(head -n 1 "$SCRIPT_DIR/../config/engine-version.txt" 2>/dev/null || true)"
+  if [[ -n "$ENGINE_VERSION_LABEL" ]]; then
+    printf '%s\n' "$ENGINE_VERSION_LABEL" >"$WINE_INSTALL/version"
+    echo "Wrote engine version: $WINE_INSTALL/version"
   fi
 fi

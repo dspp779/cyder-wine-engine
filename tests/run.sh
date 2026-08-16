@@ -4,9 +4,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 tests=(
+  test-engine-development-workflow.sh
   test-build-wine.sh
   test-maplestory-patch-stack.sh
   test-maplestory-file-cache-patch.sh
+  test-maplestory-io-ring-patch.sh
   test-maplestory-d3dmetal-launcher.sh
   test-cyder-cxcompatdb.sh
   test-cyder-minos-env.sh

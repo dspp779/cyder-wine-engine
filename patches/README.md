@@ -30,6 +30,12 @@ Patch order for the CX26.3 / Wine 11.0 Cyder engine:
 26. `maplestory-cx26-fullscreen-restore.patch`
 27. `maplestory-cx26-no-sched-yield.patch`
 28. `maplestory-cx26-file-cache-adaptive.patch`
+29. `maplestory-cx26-io-ring.patch`
+30. `maplestory-cx26-io-ring-arm.patch`
+31. `maplestory-cx26-io-summary.patch`
+32. `maplestory-cx26-io-timeline.patch`
+33. `maplestory-cx26-io-cache-stats.patch`
+34. `maplestory-cx26-section-map-summary.patch`
 
 `w1-win32u-vulkan-soname.patch` is not part of the default patch set. It is a
 special-case build-only fallback for CX26 source trees where `win32u/vulkan.c`
@@ -57,6 +63,63 @@ sequential reads. Enable `CYDER_MAPLESTORY_FILE_CACHE=1` for the cache; the
 low-overhead counters, timing, full-offset diagnosis, and shadow window
 simulation. The cache is intentionally disabled by default while the behavior
 is evaluated against more game content.
+Measured slot-capacity, no-cache control, and mmap A/B results are recorded in
+[`docs/maplestory-cx26-wz-cache-experiments.zh-TW.md`](../docs/maplestory-cx26-wz-cache-experiments.zh-TW.md).
+
+`maplestory-cx26-io-ring.patch` adds a separate, opt-in diagnostic ring buffer.
+With `CYDER_MAPLESTORY_IO_RING=1`, it retains the latest 8192 regular-file
+`NtReadFile`/host-read events in memory, including monotonic timestamps, offsets,
+lengths, return values, durations, and paths. It emits the ring only through the
+`+cyderio` channel during the Unix process termination path, so it does not write
+one log line per read. The probe is intended for event-correlated experiments
+and is disabled by default.
+
+`maplestory-cx26-io-ring-arm.patch` adds a lower-noise phase control for that
+probe. When `CYDER_MAPLESTORY_IO_RING_ARM_FILE` points to a file that does not
+exist at startup, the ring stays disarmed and checks the file on the next
+regular-file read. Creating the file arms and clears the ring, emitting a single
+`CYDER_IO ring armed` marker per Wine process; after arming, the hot read path does not stat the
+control file. With no arm-file variable, the original always-on ring behavior
+is preserved. This lets a test load into a map first and capture WZ, graphics,
+and other regular-file reads around a first attack without adding a background
+thread to Wine.
+
+`maplestory-cx26-io-summary.patch` adds a compact alternative for high-volume
+captures. Set `CYDER_MAPLESTORY_IO_SUMMARY=1` (and optionally the same arm file)
+to aggregate regular-file reads in memory by path instead of retaining every
+event. At process termination it emits counts, bytes, host-read duration,
+failure count, length buckets, offset range, sequential/nearby movement, and
+first/last timestamps. The fixed 128-path table and summary output avoid the
+ring-overflow and per-event log volume seen during the first-attack probe; raw
+`CYDER_MAPLESTORY_IO_RING=1` remains available when exact tail events are needed.
+
+`maplestory-cx26-io-timeline.patch` adds an optional 100 ms timeline to summary
+mode. Set `CYDER_MAPLESTORY_IO_TIMELINE=1` to emit only non-empty buckets with
+read counts, bytes, host duration, and failures. The timeline has 512 buckets
+(about 51 seconds) and is reset by the arm file, so a first-attack run can show
+the exact I/O burst without writing one line per read.
+
+`maplestory-cx26-io-cache-stats.patch` adds an opt-in, arm-scoped view of the
+adaptive WZ cache. Set `CYDER_MAPLESTORY_IO_CACHE_STATS=1` together with
+`CYDER_MAPLESTORY_IO_SUMMARY=1`; it reports compact `CYDER_IO cache` lines with
+cache hits, read-ahead fills, fill bytes, fill duration, fill failures, and
+bypassed requests and `needs_close` skips per WZ path. Its compact decision
+summary also separates cache attempts from `needs_close`, unregistered-handle,
+and missing-offset skips. When an arm file is used, the telemetry counters
+are reset at the arm boundary while already-filled cache windows remain warm,
+so the result measures only the action under test without invalidating the
+experiment. The mode is disabled unless summary mode is also enabled.
+
+Set `CYDER_MAPLESTORY_FILE_CACHE_MMAP=1` only for the mmap-backed fill
+experiment. It keeps the same cache/index behavior but sources each window from
+an optional read-only mapping; it is disabled by default and is not a release
+recommendation until the first-use hitch is re-tested.
+
+`maplestory-cx26-section-map-summary.patch` is a low-overhead proof probe for
+the mmap hypothesis. Set `CYDER_MAPLESTORY_IO_SECTION_MAP=1` to count regular
+file section mappings and record whether the mapped file is a `.wz` resource.
+It emits one aggregate line and one line per WZ path at process exit through
+`+cyderio`; it does not log individual mappings or change the mapping path.
 
 CompatDB policy is no longer compiled into ntdll. `runtime/cxcompatdb/cxcompatdb.c`
 builds as the open `cxcompatdb.so` loaded through CrossOver's existing loader
@@ -191,6 +254,9 @@ strings as “already applied”:
 | `cyder-ntdll-query-directory-object-trace.patch` | `cyder QDO` (`dlls/ntdll/unix/sync.c`) — optional / not default |
 | `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch` | `cyder QDO optnone` (`dlls/ntdll/unix/sync.c`) |
 | `maplestory-cx26-message-wait-handoff.patch` | `MapleStoryPort: preserve one driver wait result` (`dlls/win32u/message.c`) |
+| `maplestory-cx26-no-sched-yield.patch` | `if (is_maplestory_process()) return STATUS_NO_YIELD_PERFORMED;` (`dlls/ntdll/unix/sync.c`) |
+| `maplestory-cx26-io-cache-stats.patch` | `CYDER_MAPLESTORY_IO_CACHE_STATS` (`dlls/ntdll/unix/file.c`) |
+| `maplestory-cx26-section-map-summary.patch` | `CYDER_MAPLESTORY_SECTION_MAP_PATH` (`dlls/ntdll/unix/virtual.c`) |
 
 New patches that may be amended in place should include a unique marker and a
 matching detection branch. Operational steps:

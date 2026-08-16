@@ -1,0 +1,167 @@
+--- a/dlls/ntdll/unix/file.c
++++ b/dlls/ntdll/unix/file.c
+@@ -266,6 +266,8 @@
+ #define CYDER_MAPLESTORY_IO_RING_EVENTS 8192
+ #define CYDER_MAPLESTORY_IO_RING_PATH 192
+ #define CYDER_MAPLESTORY_IO_SUMMARY_SLOTS 128
++#define CYDER_MAPLESTORY_IO_TIMELINE_BUCKET_US 100000
++#define CYDER_MAPLESTORY_IO_TIMELINE_BUCKETS 512
+ 
+ static const unsigned int cyder_maplestory_profile_window_sizes[CYDER_MAPLESTORY_PROFILE_WINDOWS] =
+     { 8192, 32768, 65536, 131072, 262144 };
+@@ -376,6 +378,18 @@
+     ULONG profile_last_length;
+     BOOL have_offset_range;
+     BOOL have_last_offset;
++};
++
++struct cyder_maplestory_io_timeline_bucket
++{
++    unsigned long long events;
++    unsigned long long ntread_calls;
++    unsigned long long ntread_bytes;
++    unsigned long long host_read_calls;
++    unsigned long long host_read_bytes;
++    unsigned long long host_read_dur_us;
++    unsigned long long host_read_failures;
++    BOOL used;
+ };
+ 
+ static pthread_mutex_t cyder_maplestory_file_cache_mutex = PTHREAD_MUTEX_INITIALIZER;
+@@ -392,6 +406,11 @@
+     cyder_maplestory_io_summaries[CYDER_MAPLESTORY_IO_SUMMARY_SLOTS];
+ static unsigned long long cyder_maplestory_io_summary_dropped;
+ static BOOL cyder_maplestory_io_summary_dumped;
++static struct cyder_maplestory_io_timeline_bucket
++    cyder_maplestory_io_timeline[CYDER_MAPLESTORY_IO_TIMELINE_BUCKETS];
++static unsigned long long cyder_maplestory_io_timeline_start;
++static unsigned long long cyder_maplestory_io_timeline_dropped;
++static BOOL cyder_maplestory_io_timeline_dumped;
+ static int cyder_maplestory_io_ring_control_configured = -1;
+ static BOOL cyder_maplestory_io_ring_armed;
+ static char cyder_maplestory_io_ring_control_path[PATH_MAX];
+@@ -424,6 +443,19 @@
+     if (enabled == -1)
+     {
+         value = getenv( "CYDER_MAPLESTORY_IO_SUMMARY" );
++        enabled = value && (!strcmp( value, "1" ) || !strcmp( value, "true" ));
++    }
++    return enabled == 1;
++}
++
++static BOOL cyder_maplestory_io_timeline_enabled(void)
++{
++    static int enabled = -1;
++    const char *value;
++
++    if (enabled == -1)
++    {
++        value = getenv( "CYDER_MAPLESTORY_IO_TIMELINE" );
+         enabled = value && (!strcmp( value, "1" ) || !strcmp( value, "true" ));
+     }
+     return enabled == 1;
+@@ -532,13 +564,87 @@
+     if (entry) trace = entry->trace;
+     pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
+     return trace;
++}
++
++static void cyder_maplestory_io_timeline_reset_locked(void)
++{
++    memset( cyder_maplestory_io_timeline, 0, sizeof(cyder_maplestory_io_timeline) );
++    cyder_maplestory_io_timeline_start = 0;
++    cyder_maplestory_io_timeline_dropped = 0;
++    cyder_maplestory_io_timeline_dumped = FALSE;
++}
++
++static void cyder_maplestory_io_timeline_record_locked(
++    unsigned int kind, ULONG length, long long result,
++    unsigned long long timestamp, unsigned long long duration )
++{
++    struct cyder_maplestory_io_timeline_bucket *bucket;
++    unsigned long long index;
++
++    if (!cyder_maplestory_io_timeline_enabled() || !timestamp) return;
++    if (!cyder_maplestory_io_timeline_start)
++        cyder_maplestory_io_timeline_start = timestamp;
++
++    index = timestamp >= cyder_maplestory_io_timeline_start ?
++        (timestamp - cyder_maplestory_io_timeline_start) / CYDER_MAPLESTORY_IO_TIMELINE_BUCKET_US : 0;
++    if (index >= CYDER_MAPLESTORY_IO_TIMELINE_BUCKETS)
++    {
++        cyder_maplestory_io_timeline_dropped++;
++        return;
++    }
++
++    bucket = &cyder_maplestory_io_timeline[index];
++    bucket->used = TRUE;
++    bucket->events++;
++    if (kind == CYDER_MAPLESTORY_IO_RING_NTREAD)
++    {
++        bucket->ntread_calls++;
++        bucket->ntread_bytes += length;
++    }
++    else
++    {
++        bucket->host_read_calls++;
++        if (result > 0) bucket->host_read_bytes += result;
++        if (result < 0) bucket->host_read_failures++;
++        bucket->host_read_dur_us += duration;
++    }
+ }
+ 
++static void cyder_maplestory_io_timeline_dump_locked(void)
++{
++    unsigned int i, count = 0;
++
++    if (!cyder_maplestory_io_timeline_enabled() || cyder_maplestory_io_timeline_dumped)
++        return;
++    cyder_maplestory_io_timeline_dumped = TRUE;
++    for (i = 0; i < ARRAY_SIZE(cyder_maplestory_io_timeline); i++)
++        if (cyder_maplestory_io_timeline[i].used) count++;
++
++    TRACE_(cyderio)( "CYDER_IO timeline start_t=%llu bucket_us=%u count=%u dropped=%llu capacity=%u\n",
++                     cyder_maplestory_io_timeline_start, CYDER_MAPLESTORY_IO_TIMELINE_BUCKET_US,
++                     count, cyder_maplestory_io_timeline_dropped,
++                     CYDER_MAPLESTORY_IO_TIMELINE_BUCKETS );
++    for (i = 0; i < ARRAY_SIZE(cyder_maplestory_io_timeline); i++)
++    {
++        const struct cyder_maplestory_io_timeline_bucket *bucket = &cyder_maplestory_io_timeline[i];
++
++        if (!bucket->used) continue;
++        TRACE_(cyderio)( "CYDER_IO bucket index=%u t0=%llu events=%llu ntread=%llu ntbytes=%llu "
++                         "host=%llu hostbytes=%llu hostdur_us=%llu failures=%llu\n",
++                         i, cyder_maplestory_io_timeline_start +
++                         (unsigned long long)i * CYDER_MAPLESTORY_IO_TIMELINE_BUCKET_US,
++                         bucket->events, bucket->ntread_calls, bucket->ntread_bytes,
++                         bucket->host_read_calls, bucket->host_read_bytes,
++                         bucket->host_read_dur_us, bucket->host_read_failures );
++    }
++}
++
+ static void cyder_maplestory_io_summary_reset_locked(void)
+ {
+     memset( cyder_maplestory_io_summaries, 0, sizeof(cyder_maplestory_io_summaries) );
+     cyder_maplestory_io_summary_dropped = 0;
+     cyder_maplestory_io_summary_dumped = FALSE;
++    cyder_maplestory_io_timeline_reset_locked();
+ }
+ 
+ static struct cyder_maplestory_io_summary *cyder_maplestory_io_summary_find_locked(
+@@ -579,6 +685,7 @@
+         path = host_path;
+ #endif
+ 
++    cyder_maplestory_io_timeline_record_locked( kind, length, result, timestamp, duration );
+     summary = cyder_maplestory_io_summary_find_locked( path );
+     if (!summary)
+     {
+@@ -700,6 +807,7 @@
+                          (long long)summary->max_offset, summary->first_length,
+                          summary->last_length, summary->min_length, summary->max_length );
+     }
++    cyder_maplestory_io_timeline_dump_locked();
+ }
+ 
+ void cyder_maplestory_io_ring_dump(void)
+

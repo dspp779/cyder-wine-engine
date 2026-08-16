@@ -12,11 +12,14 @@ Cyder. It does **not** own bottles, CompatDB policy, or the Cyder.app UI.
 **Read first (required):**
 
 1. [`docs/incremental-build-and-patches.md`](docs/incremental-build-and-patches.md)
-2. [`patches/README.md`](patches/README.md) (apply order and intent)
+2. [`docs/engine-development-test-workflow.zh-TW.md`](docs/engine-development-test-workflow.zh-TW.md)
+   (end-to-end build, test, and direct-engine hand-off)
+3. [`patches/README.md`](patches/README.md) (apply order and intent)
 
 Then follow that guide. Do not invent ad-hoc `make` invocations that omit
-`source scripts/env-x86_64.sh` / `MACOSX_DEPLOYMENT_TARGET` /
-`-mmacosx-version-min`.
+the project Bash environment, `MACOSX_DEPLOYMENT_TARGET`, or
+`-mmacosx-version-min`; see the workflow for the safe `bash -lc` form when a
+manual host command needs to source `scripts/env-x86_64.sh`.
 
 ## Non-negotiables
 

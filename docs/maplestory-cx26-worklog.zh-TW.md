@@ -15,6 +15,10 @@
 - CX26 每次測試都使用獨立 prefix、log 目錄，並由 launcher 強制注入
   `CYDER_GRAPHICS_BACKEND=d3dmetal`、GPTK 路徑與 CompatDB `.cdb`。
 
+WZ parser、第一次攻擊卡頓、userspace cache、slot capacity、mmap 與低干擾
+I/O 實驗的完整數據，另見
+[`maplestory-cx26-wz-cache-experiments.zh-TW.md`](maplestory-cx26-wz-cache-experiments.zh-TW.md)。
+
 ## 目前結論（持續更新）
 
 CX26 已能載入 MapleStory、BlackCipher、GR2D_DX11、DwarfAxe，並進入 macOS

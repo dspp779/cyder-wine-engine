@@ -1,0 +1,184 @@
+--- a/dlls/ntdll/unix/virtual.c
++++ b/dlls/ntdll/unix/virtual.c
+@@ -95,7 +95,152 @@
+ WINE_DEFAULT_DEBUG_CHANNEL(virtual);
+ WINE_DECLARE_DEBUG_CHANNEL(module);
+ WINE_DECLARE_DEBUG_CHANNEL(virtual_ranges);
++WINE_DECLARE_DEBUG_CHANNEL(cyderio);
++
++#define CYDER_MAPLESTORY_SECTION_MAP_PATH 192
++#define CYDER_MAPLESTORY_SECTION_MAP_SLOTS 64
++
++struct cyder_maplestory_section_map_summary
++{
++    BOOL used;
++    BOOL wz;
++    char path[CYDER_MAPLESTORY_SECTION_MAP_PATH];
++    unsigned long long calls;
++    unsigned long long successes;
++    unsigned long long failures;
++    unsigned long long bytes;
++    unsigned long long duration_us;
++};
++
++static struct cyder_maplestory_section_map_summary
++    cyder_maplestory_section_map_summaries[CYDER_MAPLESTORY_SECTION_MAP_SLOTS];
++static unsigned long long cyder_maplestory_section_map_calls;
++static unsigned long long cyder_maplestory_section_map_successes;
++static unsigned long long cyder_maplestory_section_map_failures;
++static unsigned long long cyder_maplestory_section_map_bytes;
++static unsigned long long cyder_maplestory_section_map_duration_us;
++static unsigned long long cyder_maplestory_section_map_wz_calls;
++static unsigned long long cyder_maplestory_section_map_wz_successes;
++static unsigned long long cyder_maplestory_section_map_wz_failures;
++static unsigned long long cyder_maplestory_section_map_wz_bytes;
++static unsigned long long cyder_maplestory_section_map_wz_duration_us;
++static unsigned long long cyder_maplestory_section_map_unknown;
++static BOOL cyder_maplestory_section_map_dumped;
++
++static void cyder_maplestory_section_map_dump(void);
++
++static BOOL cyder_maplestory_section_map_enabled(void)
++{
++    static int enabled = -1;
++    const char *value;
++
++    if (enabled == -1)
++    {
++        value = getenv( "CYDER_MAPLESTORY_IO_SECTION_MAP" );
++        enabled = value && (!strcmp( value, "1" ) || !strcmp( value, "true" ));
++        if (enabled) atexit( cyder_maplestory_section_map_dump );
++    }
++    return enabled == 1;
++}
++
++static BOOL cyder_maplestory_section_map_is_wz(const char *path)
++{
++    const char *extension;
++
++    if (!path || !*path) return FALSE;
++    extension = strrchr( path, '.' );
++    return extension && (!strcmp( extension, ".wz" ) || !strcmp( extension, ".WZ" ));
++}
++
++static struct cyder_maplestory_section_map_summary *cyder_maplestory_section_map_find(
++    const char *path )
++{
++    unsigned int i;
++
++    for (i = 0; i < ARRAY_SIZE(cyder_maplestory_section_map_summaries); i++)
++        if (cyder_maplestory_section_map_summaries[i].used &&
++            !strcmp( cyder_maplestory_section_map_summaries[i].path, path ))
++            return &cyder_maplestory_section_map_summaries[i];
++    for (i = 0; i < ARRAY_SIZE(cyder_maplestory_section_map_summaries); i++)
++        if (!cyder_maplestory_section_map_summaries[i].used)
++        {
++            cyder_maplestory_section_map_summaries[i].used = TRUE;
++            snprintf( cyder_maplestory_section_map_summaries[i].path,
++                      sizeof(cyder_maplestory_section_map_summaries[i].path), "%s", path );
++            return &cyder_maplestory_section_map_summaries[i];
++        }
++    return NULL;
++}
++
++static void cyder_maplestory_section_map_record( int fd, SIZE_T size, NTSTATUS status,
++                                                 unsigned long long duration_us )
++{
++    char path[PATH_MAX];
++    const char *name = "?";
++    struct cyder_maplestory_section_map_summary *summary;
++    BOOL is_wz;
+ 
++    if (!cyder_maplestory_section_map_enabled()) return;
++
++#ifdef F_GETPATH
++    if (fd >= 0 && !fcntl( fd, F_GETPATH, path )) name = path;
++#endif
++
++    cyder_maplestory_section_map_calls++;
++    cyder_maplestory_section_map_bytes += size;
++    cyder_maplestory_section_map_duration_us += duration_us;
++    if (status == STATUS_SUCCESS) cyder_maplestory_section_map_successes++;
++    else cyder_maplestory_section_map_failures++;
++
++    if (!strcmp( name, "?" ))
++    {
++        cyder_maplestory_section_map_unknown++;
++        return;
++    }
++    is_wz = cyder_maplestory_section_map_is_wz( name );
++    if (!(summary = cyder_maplestory_section_map_find( name ))) return;
++    summary->wz = is_wz;
++    summary->calls++;
++    summary->bytes += size;
++    summary->duration_us += duration_us;
++    if (status == STATUS_SUCCESS) summary->successes++;
++    else summary->failures++;
++
++    if (!is_wz) return;
++    cyder_maplestory_section_map_wz_calls++;
++    cyder_maplestory_section_map_wz_bytes += size;
++    cyder_maplestory_section_map_wz_duration_us += duration_us;
++    if (status == STATUS_SUCCESS) cyder_maplestory_section_map_wz_successes++;
++    else cyder_maplestory_section_map_wz_failures++;
++}
++
++static void cyder_maplestory_section_map_dump(void)
++{
++    unsigned int i;
++
++    if (!cyder_maplestory_section_map_enabled() || cyder_maplestory_section_map_dumped) return;
++    cyder_maplestory_section_map_dumped = TRUE;
++    TRACE_(cyderio)( "CYDER_IO section_map calls=%llu success=%llu failure=%llu bytes=%llu "
++                     "dur_us=%llu wz_calls=%llu wz_success=%llu wz_failure=%llu "
++                     "wz_bytes=%llu wz_dur_us=%llu unknown=%llu\n",
++                     cyder_maplestory_section_map_calls, cyder_maplestory_section_map_successes,
++                     cyder_maplestory_section_map_failures, cyder_maplestory_section_map_bytes,
++                     cyder_maplestory_section_map_duration_us, cyder_maplestory_section_map_wz_calls,
++                     cyder_maplestory_section_map_wz_successes, cyder_maplestory_section_map_wz_failures,
++                     cyder_maplestory_section_map_wz_bytes, cyder_maplestory_section_map_wz_duration_us,
++                     cyder_maplestory_section_map_unknown );
++    for (i = 0; i < ARRAY_SIZE(cyder_maplestory_section_map_summaries); i++)
++        if (cyder_maplestory_section_map_summaries[i].used)
++        {
++            const struct cyder_maplestory_section_map_summary *summary =
++                &cyder_maplestory_section_map_summaries[i];
++            TRACE_(cyderio)( "CYDER_IO section_path wz=%d path=%s calls=%llu success=%llu "
++                             "failure=%llu bytes=%llu dur_us=%llu\n",
++                             summary->wz, summary->path, summary->calls, summary->successes,
++                             summary->failures, summary->bytes, summary->duration_us );
++        }
++}
++
+ struct preload_info
+ {
+     void  *addr;
+@@ -3487,6 +3632,8 @@
+     HANDLE shared_file;
+     LARGE_INTEGER offset;
+     sigset_t sigset;
++    unsigned long long section_map_start = 0;
++    BOOL section_map_measure = FALSE;
+ 
+     switch(protect)
+     {
+@@ -3562,6 +3709,8 @@
+     if (!(sec_flags & SEC_RESERVE)) vprot |= VPROT_COMMITTED;
+ 
+     if ((res = server_get_unix_fd( handle, 0, &unix_handle, &needs_close, NULL, NULL ))) return res;
++    section_map_measure = cyder_maplestory_section_map_enabled();
++    if (section_map_measure) section_map_start = cyder_maplestory_io_timestamp_us();
+ 
+     server_enter_uninterrupted_section( &virtual_mutex, &sigset );
+ 
+@@ -3570,6 +3719,9 @@
+ 
+     TRACE( "handle=%p size=%lx offset=%s\n", handle, size, wine_dbgstr_longlong(offset.QuadPart) );
+     res = map_file_into_view( view, unix_handle, 0, size, offset.QuadPart, vprot, needs_close );
++    if (section_map_measure)
++        cyder_maplestory_section_map_record( unix_handle, size, res,
++                                             cyder_maplestory_io_timestamp_us() - section_map_start );
+     if (res == STATUS_SUCCESS)
+     {
+         /* file mappings must always be accessible */
+

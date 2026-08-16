@@ -1,0 +1,323 @@
+--- a/dlls/ntdll/unix/file.c
++++ b/dlls/ntdll/unix/file.c
+@@ -265,6 +265,7 @@
+ #define CYDER_MAPLESTORY_PROFILE_WINDOWS 5
+ #define CYDER_MAPLESTORY_IO_RING_EVENTS 8192
+ #define CYDER_MAPLESTORY_IO_RING_PATH 192
++#define CYDER_MAPLESTORY_IO_SUMMARY_SLOTS 128
+ 
+ static const unsigned int cyder_maplestory_profile_window_sizes[CYDER_MAPLESTORY_PROFILE_WINDOWS] =
+     { 8192, 32768, 65536, 131072, 262144 };
+@@ -341,6 +342,42 @@
+     char path[CYDER_MAPLESTORY_IO_RING_PATH];
+ };
+ 
++struct cyder_maplestory_io_summary
++{
++    BOOL used;
++    char path[CYDER_MAPLESTORY_IO_RING_PATH];
++    unsigned long long events;
++    unsigned long long ntread_calls;
++    unsigned long long ntread_bytes;
++    unsigned long long host_read_calls;
++    unsigned long long host_read_bytes;
++    unsigned long long host_read_dur_us;
++    unsigned long long host_read_failures;
++    unsigned long long len_le1;
++    unsigned long long len_le4k;
++    unsigned long long len_gt4k;
++    unsigned long long offset_samples;
++    unsigned long long offset_unknown;
++    unsigned long long sequential_reads;
++    unsigned long long nearby_reads;
++    unsigned long long forward_reads;
++    unsigned long long backward_reads;
++    unsigned long long first_timestamp;
++    unsigned long long last_timestamp;
++    off_t first_offset;
++    off_t last_offset;
++    off_t min_offset;
++    off_t max_offset;
++    ULONG first_length;
++    ULONG last_length;
++    ULONG min_length;
++    ULONG max_length;
++    off_t profile_last_offset;
++    ULONG profile_last_length;
++    BOOL have_offset_range;
++    BOOL have_last_offset;
++};
++
+ static pthread_mutex_t cyder_maplestory_file_cache_mutex = PTHREAD_MUTEX_INITIALIZER;
+ static struct cyder_maplestory_file_cache_entry
+     cyder_maplestory_file_cache[CYDER_MAPLESTORY_FILE_CACHE_SLOTS];
+@@ -351,6 +388,10 @@
+ static unsigned long long cyder_maplestory_io_ring_dropped;
+ static BOOL cyder_maplestory_io_ring_registered;
+ static BOOL cyder_maplestory_io_ring_dumped;
++static struct cyder_maplestory_io_summary
++    cyder_maplestory_io_summaries[CYDER_MAPLESTORY_IO_SUMMARY_SLOTS];
++static unsigned long long cyder_maplestory_io_summary_dropped;
++static BOOL cyder_maplestory_io_summary_dumped;
+ static int cyder_maplestory_io_ring_control_configured = -1;
+ static BOOL cyder_maplestory_io_ring_armed;
+ static char cyder_maplestory_io_ring_control_path[PATH_MAX];
+@@ -366,10 +407,28 @@
+     {
+         value = getenv( "CYDER_MAPLESTORY_IO_RING" );
+         enabled = value && (!strcmp( value, "1" ) || !strcmp( value, "true" ));
++        if (!enabled)
++        {
++            value = getenv( "CYDER_MAPLESTORY_IO_SUMMARY" );
++            enabled = value && (!strcmp( value, "1" ) || !strcmp( value, "true" ));
++        }
+     }
+     return enabled == 1;
+ }
+ 
++static BOOL cyder_maplestory_io_summary_enabled(void)
++{
++    static int enabled = -1;
++    const char *value;
++
++    if (enabled == -1)
++    {
++        value = getenv( "CYDER_MAPLESTORY_IO_SUMMARY" );
++        enabled = value && (!strcmp( value, "1" ) || !strcmp( value, "true" ));
++    }
++    return enabled == 1;
++}
++
+ static BOOL cyder_maplestory_file_cache_enabled(void)
+ {
+     static int enabled = -1;
+@@ -473,6 +532,174 @@
+     if (entry) trace = entry->trace;
+     pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
+     return trace;
++}
++
++static void cyder_maplestory_io_summary_reset_locked(void)
++{
++    memset( cyder_maplestory_io_summaries, 0, sizeof(cyder_maplestory_io_summaries) );
++    cyder_maplestory_io_summary_dropped = 0;
++    cyder_maplestory_io_summary_dumped = FALSE;
++}
++
++static struct cyder_maplestory_io_summary *cyder_maplestory_io_summary_find_locked(
++    const char *path )
++{
++    unsigned int i;
++
++    for (i = 0; i < ARRAY_SIZE(cyder_maplestory_io_summaries); i++)
++        if (cyder_maplestory_io_summaries[i].used &&
++            !strcmp( cyder_maplestory_io_summaries[i].path, path ))
++            return &cyder_maplestory_io_summaries[i];
++    return NULL;
++}
++
++static struct cyder_maplestory_io_summary *cyder_maplestory_io_summary_slot_locked(void)
++{
++    unsigned int i;
++
++    for (i = 0; i < ARRAY_SIZE(cyder_maplestory_io_summaries); i++)
++        if (!cyder_maplestory_io_summaries[i].used)
++            return &cyder_maplestory_io_summaries[i];
++    return NULL;
++}
++
++static void cyder_maplestory_io_summary_record_locked(
++    unsigned int kind, int fd, off_t offset, ULONG length, long long result,
++    unsigned long long timestamp, unsigned long long duration,
++    const struct cyder_maplestory_file_cache_entry *entry )
++{
++    struct cyder_maplestory_io_summary *summary;
++    char host_path[PATH_MAX];
++    const char *path = "?";
++
++    if (entry && entry->path[0])
++        path = entry->path;
++#ifdef F_GETPATH
++    else if (fd >= 0 && !fcntl( fd, F_GETPATH, host_path ))
++        path = host_path;
++#endif
++
++    summary = cyder_maplestory_io_summary_find_locked( path );
++    if (!summary)
++    {
++        summary = cyder_maplestory_io_summary_slot_locked();
++        if (!summary)
++        {
++            cyder_maplestory_io_summary_dropped++;
++            return;
++        }
++        memset( summary, 0, sizeof(*summary) );
++        summary->used = TRUE;
++        snprintf( summary->path, sizeof(summary->path), "%s", path );
++    }
++
++    summary->events++;
++    if (!summary->first_timestamp) summary->first_timestamp = timestamp;
++    summary->last_timestamp = timestamp;
++
++    if (kind == CYDER_MAPLESTORY_IO_RING_NTREAD)
++    {
++        long long delta;
++
++        summary->ntread_calls++;
++        summary->ntread_bytes += length;
++        if (length <= 1) summary->len_le1++;
++        else if (length <= 4096) summary->len_le4k++;
++        else summary->len_gt4k++;
++
++        if (summary->ntread_calls == 1)
++        {
++            summary->first_length = length;
++            summary->min_length = length;
++            summary->max_length = length;
++        }
++        else
++        {
++            if (length < summary->min_length) summary->min_length = length;
++            if (length > summary->max_length) summary->max_length = length;
++        }
++        summary->last_length = length;
++
++        if (offset < 0)
++            summary->offset_unknown++;
++        else
++        {
++            summary->offset_samples++;
++            if (!summary->have_offset_range)
++            {
++                summary->first_offset = offset;
++                summary->min_offset = offset;
++                summary->max_offset = offset;
++                summary->have_offset_range = TRUE;
++            }
++            else
++            {
++                if (offset < summary->min_offset) summary->min_offset = offset;
++                if (offset > summary->max_offset) summary->max_offset = offset;
++            }
++
++            if (summary->have_last_offset)
++            {
++                delta = offset - summary->profile_last_offset;
++                if (offset == summary->profile_last_offset + (off_t)summary->profile_last_length)
++                    summary->sequential_reads++;
++                if (delta > 0) summary->forward_reads++;
++                else if (delta < 0) summary->backward_reads++;
++                if (delta >= -8192 && delta <= 8192)
++                    summary->nearby_reads++;
++            }
++            summary->profile_last_offset = offset;
++            summary->profile_last_length = length;
++            summary->have_last_offset = TRUE;
++            summary->last_offset = offset;
++        }
++    }
++    else
++    {
++        summary->host_read_calls++;
++        if (result > 0) summary->host_read_bytes += result;
++        if (result < 0) summary->host_read_failures++;
++        summary->host_read_dur_us += duration;
++    }
++}
++
++static void cyder_maplestory_io_summary_dump_locked(void)
++{
++    unsigned int i, count = 0;
++
++    if (cyder_maplestory_io_summary_dumped) return;
++    cyder_maplestory_io_summary_dumped = TRUE;
++    for (i = 0; i < ARRAY_SIZE(cyder_maplestory_io_summaries); i++)
++        if (cyder_maplestory_io_summaries[i].used) count++;
++
++    TRACE_(cyderio)( "CYDER_IO aggregate count=%u dropped=%llu capacity=%u\n",
++                     count, cyder_maplestory_io_summary_dropped,
++                     CYDER_MAPLESTORY_IO_SUMMARY_SLOTS );
++    for (i = 0; i < ARRAY_SIZE(cyder_maplestory_io_summaries); i++)
++    {
++        const struct cyder_maplestory_io_summary *summary = &cyder_maplestory_io_summaries[i];
++
++        if (!summary->used) continue;
++        TRACE_(cyderio)( "CYDER_IO aggregate path=%s events=%llu ntread=%llu ntbytes=%llu "
++                         "host=%llu hostbytes=%llu hostdur_us=%llu failures=%llu "
++                         "le1=%llu le4k=%llu gt4k=%llu offs=%llu unknown=%llu "
++                         "seq=%llu nearby=%llu forward=%llu backward=%llu "
++                         "first_t=%llu last_t=%llu first_off=%lld last_off=%lld "
++                         "min_off=%lld max_off=%lld first_len=%u last_len=%u "
++                         "min_len=%u max_len=%u\n",
++                         summary->path, summary->events, summary->ntread_calls,
++                         summary->ntread_bytes, summary->host_read_calls,
++                         summary->host_read_bytes, summary->host_read_dur_us,
++                         summary->host_read_failures, summary->len_le1,
++                         summary->len_le4k, summary->len_gt4k, summary->offset_samples,
++                         summary->offset_unknown, summary->sequential_reads,
++                         summary->nearby_reads, summary->forward_reads,
++                         summary->backward_reads, summary->first_timestamp,
++                         summary->last_timestamp, (long long)summary->first_offset,
++                         (long long)summary->last_offset, (long long)summary->min_offset,
++                         (long long)summary->max_offset, summary->first_length,
++                         summary->last_length, summary->min_length, summary->max_length );
++    }
+ }
+ 
+ void cyder_maplestory_io_ring_dump(void)
+@@ -480,6 +707,12 @@
+     unsigned int i, start;
+ 
+     pthread_mutex_lock( &cyder_maplestory_file_cache_mutex );
++    if (cyder_maplestory_io_summary_enabled())
++    {
++        cyder_maplestory_io_summary_dump_locked();
++        pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++        return;
++    }
+     if (cyder_maplestory_io_ring_dumped || !cyder_maplestory_io_ring_events)
+     {
+         pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
+@@ -543,6 +776,7 @@
+             cyder_maplestory_io_ring_count = 0;
+             cyder_maplestory_io_ring_dropped = 0;
+             cyder_maplestory_io_ring_dumped = FALSE;
++            cyder_maplestory_io_summary_reset_locked();
+             TRACE_(cyderio)( "CYDER_IO ring armed t=%llu path=%s\n",
+                              cyder_maplestory_io_timestamp_us(),
+                              cyder_maplestory_io_ring_control_path );
+@@ -554,7 +788,18 @@
+ 
+ static void cyder_maplestory_io_ring_ensure_locked(void)
+ {
+-    if (!cyder_maplestory_io_ring_enabled() || cyder_maplestory_io_ring_events) return;
++    if (!cyder_maplestory_io_ring_enabled()) return;
++    if (cyder_maplestory_io_summary_enabled())
++    {
++        if (!cyder_maplestory_io_ring_registered)
++        {
++            atexit( cyder_maplestory_io_ring_dump );
++            cyder_maplestory_io_ring_registered = TRUE;
++        }
++        cyder_maplestory_io_ring_control_arm_locked();
++        return;
++    }
++    if (cyder_maplestory_io_ring_events) return;
+     cyder_maplestory_io_ring_events = calloc( CYDER_MAPLESTORY_IO_RING_EVENTS,
+                                               sizeof(*cyder_maplestory_io_ring_events) );
+     if (!cyder_maplestory_io_ring_events) return;
+@@ -575,6 +820,13 @@
+     char host_path[PATH_MAX];
+ 
+     cyder_maplestory_io_ring_ensure_locked();
++    if (cyder_maplestory_io_summary_enabled())
++    {
++        if (cyder_maplestory_io_ring_control_arm_locked())
++            cyder_maplestory_io_summary_record_locked( kind, fd, offset, length, result,
++                                                       timestamp, duration, entry );
++        return;
++    }
+     if (!cyder_maplestory_io_ring_events || !cyder_maplestory_io_ring_control_arm_locked()) return;
+ 
+     event = &cyder_maplestory_io_ring_events[cyder_maplestory_io_ring_next];

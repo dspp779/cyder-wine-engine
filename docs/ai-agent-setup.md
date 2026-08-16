@@ -9,6 +9,7 @@ Claude Code, and Antigravity/Gemini stay aligned.
 |------|------|
 | [`AGENTS.md`](../AGENTS.md) | Shared agent instructions (edit here) |
 | [`docs/incremental-build-and-patches.md`](incremental-build-and-patches.md) | Full incremental / patch / pack guide |
+| [`docs/engine-development-test-workflow.zh-TW.md`](engine-development-test-workflow.zh-TW.md) | End-to-end build, direct-engine test, and pack hand-off runbook |
 
 ## Per-tool adapters
 

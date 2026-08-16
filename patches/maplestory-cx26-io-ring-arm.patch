@@ -1,0 +1,102 @@
+--- a/dlls/ntdll/unix/file.c
++++ b/dlls/ntdll/unix/file.c
+@@ -351,6 +351,9 @@
+ static unsigned long long cyder_maplestory_io_ring_dropped;
+ static BOOL cyder_maplestory_io_ring_registered;
+ static BOOL cyder_maplestory_io_ring_dumped;
++static int cyder_maplestory_io_ring_control_configured = -1;
++static BOOL cyder_maplestory_io_ring_armed;
++static char cyder_maplestory_io_ring_control_path[PATH_MAX];
+ 
+ static struct cyder_maplestory_file_cache_entry *cyder_maplestory_file_cache_find( HANDLE handle );
+ 
+@@ -477,8 +480,7 @@
+     unsigned int i, start;
+ 
+     pthread_mutex_lock( &cyder_maplestory_file_cache_mutex );
+-    if (cyder_maplestory_io_ring_dumped || !cyder_maplestory_io_ring_events ||
+-        !cyder_maplestory_io_ring_count)
++    if (cyder_maplestory_io_ring_dumped || !cyder_maplestory_io_ring_events)
+     {
+         pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
+         return;
+@@ -488,8 +490,9 @@
+     TRACE_(cyderio)( "CYDER_IO ring count=%u dropped=%llu capacity=%u\n",
+                      cyder_maplestory_io_ring_count, cyder_maplestory_io_ring_dropped,
+                      CYDER_MAPLESTORY_IO_RING_EVENTS );
+-    start = (cyder_maplestory_io_ring_next + CYDER_MAPLESTORY_IO_RING_EVENTS -
+-             cyder_maplestory_io_ring_count) % CYDER_MAPLESTORY_IO_RING_EVENTS;
++    start = cyder_maplestory_io_ring_count ?
++        (cyder_maplestory_io_ring_next + CYDER_MAPLESTORY_IO_RING_EVENTS -
++         cyder_maplestory_io_ring_count) % CYDER_MAPLESTORY_IO_RING_EVENTS : 0;
+     for (i = 0; i < cyder_maplestory_io_ring_count; i++)
+     {
+         const struct cyder_maplestory_io_ring_event *event =
+@@ -503,6 +506,50 @@
+                          event->duration, event->path );
+     }
+     pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++}
++
++static BOOL cyder_maplestory_io_ring_control_arm_locked(void)
++{
++    const char *path;
++    struct stat st;
++    BOOL armed;
++
++    if (cyder_maplestory_io_ring_control_configured == -1)
++    {
++        path = getenv( "CYDER_MAPLESTORY_IO_RING_ARM_FILE" );
++        if (!path || !*path)
++        {
++            cyder_maplestory_io_ring_control_configured = 0;
++            cyder_maplestory_io_ring_armed = TRUE;
++        }
++        else
++        {
++            cyder_maplestory_io_ring_control_configured = 1;
++            snprintf( cyder_maplestory_io_ring_control_path,
++                      sizeof(cyder_maplestory_io_ring_control_path), "%s", path );
++            cyder_maplestory_io_ring_armed = !stat( cyder_maplestory_io_ring_control_path, &st );
++        }
++    }
++
++    if (!cyder_maplestory_io_ring_control_configured)
++        return TRUE;
++
++    if (!cyder_maplestory_io_ring_armed)
++    {
++        armed = !stat( cyder_maplestory_io_ring_control_path, &st );
++        if (armed && !cyder_maplestory_io_ring_armed)
++        {
++            cyder_maplestory_io_ring_next = 0;
++            cyder_maplestory_io_ring_count = 0;
++            cyder_maplestory_io_ring_dropped = 0;
++            cyder_maplestory_io_ring_dumped = FALSE;
++            TRACE_(cyderio)( "CYDER_IO ring armed t=%llu path=%s\n",
++                             cyder_maplestory_io_timestamp_us(),
++                             cyder_maplestory_io_ring_control_path );
++        }
++        cyder_maplestory_io_ring_armed = armed;
++    }
++    return cyder_maplestory_io_ring_armed;
+ }
+ 
+ static void cyder_maplestory_io_ring_ensure_locked(void)
+@@ -516,6 +563,7 @@
+         atexit( cyder_maplestory_io_ring_dump );
+         cyder_maplestory_io_ring_registered = TRUE;
+     }
++    cyder_maplestory_io_ring_control_arm_locked();
+ }
+ 
+ static void cyder_maplestory_io_ring_record_locked(
+@@ -527,7 +575,7 @@
+     char host_path[PATH_MAX];
+ 
+     cyder_maplestory_io_ring_ensure_locked();
+-    if (!cyder_maplestory_io_ring_events) return;
++    if (!cyder_maplestory_io_ring_events || !cyder_maplestory_io_ring_control_arm_locked()) return;
+ 
+     event = &cyder_maplestory_io_ring_events[cyder_maplestory_io_ring_next];
+     if (cyder_maplestory_io_ring_count == CYDER_MAPLESTORY_IO_RING_EVENTS)
