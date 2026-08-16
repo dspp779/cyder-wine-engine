@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "engineId": "cx26.3-w11-cyder010",
-  "versionLabel": "CX26.3.0-W11-Cyder010",
+  "engineId": "cx26.3-w11-cyder011",
+  "versionLabel": "CX26.3.0-W11-Cyder011",
   "base": {
     "crossover": "26.3.0",
     "wine": "11.0"
@@ -39,7 +39,14 @@
     "maplestory-cx26-texture-user-memory-reload.patch",
     "maplestory-cx26-blackxchg-foreground.patch",
     "maplestory-cx26-fullscreen-restore.patch",
-    "maplestory-cx26-no-sched-yield.patch"
+    "maplestory-cx26-no-sched-yield.patch",
+    "maplestory-cx26-file-cache-adaptive.patch",
+    "maplestory-cx26-io-ring.patch",
+    "maplestory-cx26-io-ring-arm.patch",
+    "maplestory-cx26-io-summary.patch",
+    "maplestory-cx26-io-timeline.patch",
+    "maplestory-cx26-io-cache-stats.patch",
+    "maplestory-cx26-section-map-summary.patch"
   ],
   "components": [
     "runtime/cxcompatdb/cxcompatdb.c"

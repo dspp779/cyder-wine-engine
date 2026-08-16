@@ -16,7 +16,7 @@ Cyder must reject an archive when its sidecar digest, embedded manifest,
 `version` file, or NTDLL SHA-256 disagree. Runtime/prefix ownership remains in
 Cyder; the engine project must never mutate a user's Cyder prefix.
 
-Cyder010 builds MoltenVK 1.4.0 from pinned upstream source and includes the
+Cyder011 builds MoltenVK 1.4.0 from pinned upstream source and includes the
 capability, timeline-wait, and present-autoreleasepool patches in one
 `libMoltenVK.dylib`. The engine archive must not contain the old
 `libMoltenVK.real.dylib` re-export shim. The former Cyder008 shim and RC overlay

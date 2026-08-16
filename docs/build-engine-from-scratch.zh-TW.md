@@ -1,6 +1,6 @@
 # 從零建置 Cyder Wine Engine
 
-本文件以目前 Cyder010 目標為例，說明如何從空白 checkout 建立可供 Cyder
+本文件以目前 Cyder011 目標為例，說明如何從空白 checkout 建立可供 Cyder
 測試的完整 engine 與 graphics payload。它涵蓋兩個 sibling repository：
 
 - `cyder-wine-engine`：CrossOver/Wine、MoltenVK、host dylib、CompatDB、簽署與
@@ -12,10 +12,10 @@ Engine repo 不會把 CrossOver source archive 或第三方 binary source 放進
 
 ## 目前建置座標
 
-| 項目 | Cyder010 目標 |
+| 項目 | Cyder011 目標 |
 |---|---|
 | CrossOver / Wine | CrossOver 26.3.0 / Wine 11.0 |
-| Engine label | `CX26.3.0-W11-Cyder010` |
+| Engine label | `CX26.3.0-W11-Cyder011` |
 | Host | macOS x86_64，Apple Silicon 以 Rosetta 2 執行 |
 | Host minOS | 10.15（所有 engine host Mach-O；DXMT 是明確例外） |
 | MapleStory | CX26 MapleStory compatibility stack；D3DMetal / Apple GPTK 為主要路徑 |
@@ -250,7 +250,7 @@ cat install/graphics-cx26-x86_64/version
 otool -l install/graphics-cx26-x86_64/lib/libMoltenVK.dylib | grep -A2 minos
 ```
 
-Cyder010 不應再使用 `libMoltenVK.real.dylib` shim pair，也不應透過
+Cyder011 不應再使用 `libMoltenVK.real.dylib` shim pair，也不應透過
 `install-crossover-app-moltenvk.sh` 取得正式 MoltenVK。
 
 ## 6. 編譯並安裝 Wine engine
@@ -346,7 +346,7 @@ bash tests/run.sh
 使用測試版簽署：
 
 ```bash
-CYDER_ENGINE_VERSION_LABEL='CX26.3.0-W11-Cyder010' \
+CYDER_ENGINE_VERSION_LABEL='CX26.3.0-W11-Cyder011' \
 SIGN_IDENTITY='-' \
   bash scripts/pack-engine-artifact.sh --xz --force
 ```
@@ -370,9 +370,9 @@ copy（排除 lib/dxvk、lib/dxvk2、lib/dxmt）
 輸出：
 
 ```text
-dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder010.tar.xz
-dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder010.tar.xz.sha256
-dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder010.tar.xz.manifest.json
+dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder011.tar.xz
+dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder011.tar.xz.sha256
+dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder011.tar.xz.manifest.json
 dist/artifacts/graphics/dxvk-1.10.3.tar.zst
 dist/artifacts/graphics/dxvk2-2.7.1.tar.zst
 dist/artifacts/graphics/dxmt-0.80.tar.zst
@@ -381,7 +381,7 @@ dist/artifacts/graphics/dxmt-0.80.tar.zst
 確認 engine archive 只含單一 MoltenVK：
 
 ```bash
-tar -tJf dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder010.tar.xz \
+tar -tJf dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder011.tar.xz \
   | grep -E 'libMoltenVK|lib/dxvk|lib/dxmt'
 ```
 
@@ -414,7 +414,7 @@ import／release 流程；不要手動解壓覆蓋使用者 runtime。Cyder 應�
 | `minos exceeds product floor` | 使用了新 macOS bottle 或錯誤 SDK flags | 用專案 `.brew-x86`，確認 `MACOSX_DEPLOYMENT_TARGET=10.15`，重建 host dylib |
 | `DXVK` log 但實際是 WineD3D | DLL 沒有 builtin stamp、payload 未安裝或舊 engine 不認識 token | 檢查 offset 64、runtime payload、`cxcompatdb.so` 與 engine label |
 | DXMT 啟動後立即結束 | 缺 `winemetal.dll` 或 macOS 不符合 DXMT 要求 | 重新 ensure DXMT，確認 prefix 與 payload 的 Windows／unix 檔案完整 |
-| 打包後出現 `libMoltenVK.real.dylib` | 混入舊 CrossOver shim | 清理 install tree 後重新 bundle；Cyder010 只使用 source-built 單一 dylib |
+| 打包後出現 `libMoltenVK.real.dylib` | 混入舊 CrossOver shim | 清理 install tree 後重新 bundle；Cyder011 只使用 source-built 單一 dylib |
 
 ## 相關文件
 

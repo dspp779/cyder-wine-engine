@@ -11,7 +11,7 @@ ntdll_sha="$(printf 'a%.0s' {1..64})"
 artifact_sha="$(printf 'b%.0s' {1..64})"
 bash "$ROOT/scripts/write-engine-manifest.sh" \
   --output "$TMP/engine-manifest.json" \
-  --version "CX26.3.0-W11-Cyder010" \
+  --version "CX26.3.0-W11-Cyder011" \
   --ntdll-sha256 "$ntdll_sha" \
   --artifact "engine-test.tar.xz" \
   --artifact-sha256 "$artifact_sha"
@@ -22,7 +22,7 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "\"ntdllSHA256\": \"$ntdll_
 assert_contains "$(cat "$TMP/engine-manifest.json")" "\"artifactSHA256\": \"$artifact_sha\"" \
   "sidecar manifest should pin the archive"
 assert_eq "$(plutil -extract engineId raw -o - "$TMP/engine-manifest.json")" \
-  "cx26.3-w11-cyder010" \
+  "cx26.3-w11-cyder011" \
   "manifest should use the canonical release engine ID"
 assert_eq "$(plutil -extract minimumCyderVersion raw -o - "$TMP/engine-manifest.json")" \
   "0.9.6" \
@@ -49,5 +49,7 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-add-compl
   "manifest should record the wineserver add-completion guard"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch" \
   "manifest should record the NtQueryDirectoryObject optnone bandage"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "maplestory-cx26-io-cache-stats.patch" \
+  "manifest should record the arm-scoped cache statistics patch"
 
 echo "PASS test-engine-manifest"

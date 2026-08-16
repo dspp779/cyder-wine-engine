@@ -9,7 +9,7 @@ engine artifact during the first extraction phase.
 
 ## Current release target
 
-- Engine: `CX26.3.0-W11-Cyder010`
+- Engine: `CX26.3.0-W11-Cyder011`
 - Base: CrossOver 26.3.0 / Wine 11.0
 - Host: macOS x86_64 under Rosetta 2
 - Product deployment floor: macOS 10.15 (`.env` / `MACOSX_DEPLOYMENT_TARGET`, default 10.15)
@@ -100,6 +100,9 @@ See **[`docs/incremental-build-and-patches.md`](docs/incremental-build-and-patch
 for env/minOS rules, patch markers, cheatsheets, and pack gates. Agents
 (Codex, Cursor, Claude, Antigravity): start from [`AGENTS.md`](AGENTS.md) and
 [`docs/ai-agent-setup.md`](docs/ai-agent-setup.md).
+For the complete repeatable sequence from preflight through direct MapleStory
+testing and pack hand-off, use
+[`docs/engine-development-test-workflow.zh-TW.md`](docs/engine-development-test-workflow.zh-TW.md).
 
 The patch application is idempotent and can migrate a Cyder006 combined
 frame-walk patch into the current split patch set.
@@ -140,7 +143,7 @@ FRAME_WALK_WINE_RUNTIME=/path/to/wine-x86_64 \
 ## Package
 
 ```sh
-CYDER_ENGINE_VERSION_LABEL='CX26.3.0-W11-Cyder010' \
+CYDER_ENGINE_VERSION_LABEL='CX26.3.0-W11-Cyder011' \
 SIGN_IDENTITY='Developer ID Application: …' \
   bash scripts/pack-engine-artifact.sh --xz --force
 ```
