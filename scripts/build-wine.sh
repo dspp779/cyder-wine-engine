@@ -63,7 +63,7 @@ Usage: $(basename "$0") [options]
 Build CrossOver Wine for macOS x86_64 (Rosetta).
 
 Options:
-  --cx 25|26         CrossOver release (default: 26)
+  --cx 26         CrossOver release (default: 26)
   --prepare-only     Extract archives from tools/archives/ and exit
   --with-tests       Build Wine regression-test executables (off for runtime builds)
   --maplestory        Apply the production MapleStory compatibility stack (CX26 only;
@@ -101,22 +101,16 @@ EOF
 done
 
 case "$CX_VERSION" in
-  25 | 26) ;;
+  25)
+    echo "CX25 support was retired; this tree only builds CrossOver 26." >&2
+    exit 1
+    ;;
+  26) ;;
   *)
-    echo "Unknown --cx value: $CX_VERSION (expected 25 or 26)" >&2
+    echo "Unknown --cx value: $CX_VERSION (expected 26)" >&2
     exit 1
     ;;
 esac
-
-if [[ "$MAPLESTORY" -eq 1 && "$CX_VERSION" != "26" ]]; then
-  echo "--maplestory currently supports only --cx 26" >&2
-  exit 1
-fi
-
-if [[ "$VULKAN_SONAME_FALLBACK" -eq 1 && "$CX_VERSION" != "26" ]]; then
-  echo "--vulkan-soname-fallback currently supports only --cx 26" >&2
-  exit 1
-fi
 
 case "$VULKAN_SOURCE" in
   homebrew | crossover) ;;

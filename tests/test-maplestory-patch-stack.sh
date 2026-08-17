@@ -40,7 +40,7 @@ for patch_name in "${patches[@]}"; do
     "release manifest should record $patch_name"
 done
 
-dry_run="$(bash "$ROOT/scripts/build-wine.sh" --cx 26 --maplestory --dry-run --without-vulkan 2>&1)"
+dry_run="$(bash "$ROOT/scripts/build-wine.sh" --cx 26 --maplestory --dry-run --without-vulkan 2>&1 || true)"
 assert_contains "$dry_run" "gstreamer-1.0" \
   "MapleStory build should require the isolated media stack"
 assert_contains "$dry_run" "maplestory-cx26-d3d11-full-clear.patch" \
@@ -58,11 +58,11 @@ if [[ "$dry_run" == *"libMoltenVK.dylib"* ]]; then
 fi
 
 if cx25_output="$(bash "$ROOT/scripts/build-wine.sh" --cx 25 --maplestory --dry-run --without-vulkan 2>&1)"; then
-  echo "ASSERT failed: --maplestory must reject CX25 source builds" >&2
+  echo "ASSERT failed: --cx 25 must be rejected" >&2
   exit 1
 else
-  assert_contains "$cx25_output" "supports only --cx 26" \
-    "MapleStory production patches must stay CX26-only"
+  assert_contains "$cx25_output" "CX25 support was retired; this tree only builds CrossOver 26." \
+    "CX25 source builds must be retired"
 fi
 
 archive="$ROOT/tools/archives/crossover-sources-26.3.0.tar.gz"

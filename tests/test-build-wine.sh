@@ -112,35 +112,64 @@ assert_contains "$output_vk_crossover" "build-graphics-stack.sh" "crossover path
 assert_contains "$output_vk_crossover" "require" "crossover path should check graphics install"
 assert_contains "$output_vk_crossover" "graphics-cx26-x86_64" "crossover path should use graphics prefix"
 
-output_cx25="$(bash "$ROOT/scripts/build-wine.sh" --cx 25 --prepare-only --dry-run 2>&1 || true)"
-if [[ "$output_cx25" != *"crossover-sources-25.1.1.tar.gz"* && "$output_cx25" != *"CX25 sources already present"* ]]; then
-  echo "ASSERT failed: CX25 prepare should reference CX25 archive" >&2
+retired_msg='CX25 support was retired; this tree only builds CrossOver 26.'
+
+if output_cx25="$(bash "$ROOT/scripts/build-wine.sh" --cx 25 --dry-run --without-vulkan 2>&1)"; then
+  echo "ASSERT failed: build-wine --cx 25 must fail" >&2
   exit 1
 fi
-assert_contains "$output_cx25" "build/cx25" "CX25 prepare should target cx25 tree"
+assert_contains "$output_cx25" "$retired_msg" "build-wine --cx 25 must print the retired message"
 
-if [[ -d "$ROOT/build/cx26/sources/wine" ]]; then
-  output_cx25_build="$(
-    WINE_SRC="$ROOT/build/cx26/sources/wine" \
-    WINE_INSTALL="${TMPDIR:-/tmp}/cyder-test-wine-cx25" \
-      bash "$ROOT/scripts/build-wine.sh" --cx 25 --dry-run --without-vulkan 2>&1 || true
-  )"
-  if [[ "$output_cx25_build" == *"rtlwalkframechain-null-function.patch"* ||
-        "$output_cx25_build" == *"ntdll-frame-walk-page-fault-guard.patch"* ||
-        "$output_cx25_build" == *"obsolete/cyder-ntdll-frame-walk-guard.patch"* ||
-        "$output_cx25_build" == *"cyder-wineserver-sock-reselect-pseudo-fd.patch"* ||
-        "$output_cx25_build" == *"cyder-wineserver-poll-slot-guard.patch"* ||
-        "$output_cx25_build" == *"cyder-wineserver-exit-diagnostics.patch"* ||
-        "$output_cx25_build" == *"cyder-wineserver-fd-reselect-async-null-ops.patch"* ||
-        "$output_cx25_build" == *"cyder-wineserver-sock-rebind-async-fd.patch"* ||
-        "$output_cx25_build" == *"cyder-wineserver-free-async-queue-null-fd.patch"* ||
-        "$output_cx25_build" == *"cyder-wineserver-pipe-end-disconnect-null-fd.patch"* ||
-        "$output_cx25_build" == *"cyder-ntdll-query-directory-object-trace.patch"* ||
-        "$output_cx25_build" == *"cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch"* ]]; then
-    echo "ASSERT failed: CX25 builds must not migrate or apply CX26-only patches" >&2
-    exit 1
-  fi
+if output_prep25="$(bash "$ROOT/scripts/prepare-build-deps.sh" --cx 25 --dry-run 2>&1)"; then
+  echo "ASSERT failed: prepare-build-deps --cx 25 must fail" >&2
+  exit 1
 fi
+assert_contains "$output_prep25" "$retired_msg" "prepare-build-deps --cx 25 must print the retired message"
+
+output_all="$(bash "$ROOT/scripts/prepare-build-deps.sh" --all --dry-run 2>&1 || true)"
+if [[ "$output_all" == *"crossover-sources-25.1.1.tar.gz"* || "$output_all" == *"build/cx25"* ]]; then
+  echo "ASSERT failed: prepare --all must not mention CX25 archives or build/cx25" >&2
+  exit 1
+fi
+if [[ "$output_all" != *"crossover-sources-26.3.0.tar.gz"* && "$output_all" != *"CX26 sources already present"* ]]; then
+  echo "ASSERT failed: prepare --all should still prepare CX26" >&2
+  exit 1
+fi
+
+if cx25_env="$(
+  export CX_VERSION=25
+  unset WINE_SRC WINE_INSTALL CYDER_ENGINE_CX_PREFIX
+  # shellcheck disable=SC1091
+  source "$ROOT/scripts/env-x86_64.sh" 2>&1
+  echo SHOULD_NOT_REACH
+)"; then
+  echo "ASSERT failed: CX_VERSION=25 must fail in env-x86_64.sh" >&2
+  exit 1
+fi
+assert_contains "$cx25_env" "$retired_msg" "env-x86_64.sh must print the retired message for CX25"
+
+if graphics25="$(bash "$ROOT/scripts/build-graphics-stack.sh" --cx 25 --dry-run 2>&1)"; then
+  echo "ASSERT failed: build-graphics-stack --cx 25 must fail" >&2
+  exit 1
+fi
+assert_contains "$graphics25" "$retired_msg" "build-graphics-stack --cx 25 must print the retired message"
+
+if media25="$(bash "$ROOT/scripts/build-media-stack.sh" --cx 25 2>&1)"; then
+  echo "ASSERT failed: build-media-stack --cx 25 must fail" >&2
+  exit 1
+fi
+assert_contains "$media25" "$retired_msg" "build-media-stack --cx 25 must print the retired message"
+
+[[ ! -e "$ROOT/scripts/pack-maplestory-oem25-engine.sh" ]] || {
+  echo "ASSERT failed: pack-maplestory-oem25-engine.sh must be removed" >&2
+  exit 1
+}
+[[ ! -e "$ROOT/config/engine-release-maplestory-oem25.json" ]] || {
+  echo "ASSERT failed: engine-release-maplestory-oem25.json must be removed" >&2
+  exit 1
+}
+
+
 
 
 echo "PASS test-build-wine"
