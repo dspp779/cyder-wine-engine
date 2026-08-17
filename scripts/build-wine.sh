@@ -530,18 +530,8 @@ if [[ "$CX_VERSION" == "26" ]]; then
       "dlls/ntdll/unix/sync.c" "if (is_maplestory_process()) return STATUS_NO_YIELD_PERFORMED;"
     apply_maplestory_patch "maplestory-cx26-file-cache-adaptive.patch" \
       "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW"
-    apply_maplestory_patch "maplestory-cx26-io-ring.patch" \
-      "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_IO_RING_EVENTS"
-    apply_maplestory_patch "maplestory-cx26-io-ring-arm.patch" \
-      "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_IO_RING_ARM_FILE"
-    apply_maplestory_patch "maplestory-cx26-io-summary.patch" \
-      "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_IO_SUMMARY_SLOTS"
-    apply_maplestory_patch "maplestory-cx26-io-timeline.patch" \
-      "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_IO_TIMELINE_BUCKETS"
-    apply_maplestory_patch "maplestory-cx26-io-cache-stats.patch" \
-      "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_IO_CACHE_STATS"
-    apply_maplestory_patch "maplestory-cx26-section-map-summary.patch" \
-      "dlls/ntdll/unix/virtual.c" "CYDER_MAPLESTORY_SECTION_MAP_PATH"
+    apply_maplestory_patch "maplestory-cx26-file-cache-capacity.patch" \
+      "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_FILE_CACHE_SLOTS 512"
   fi
 fi
 

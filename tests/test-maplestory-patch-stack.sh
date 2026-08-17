@@ -27,6 +27,8 @@ patches=(
   maplestory-cx26-blackxchg-foreground.patch
   maplestory-cx26-fullscreen-restore.patch
   maplestory-cx26-no-sched-yield.patch
+  maplestory-cx26-file-cache-adaptive.patch
+  maplestory-cx26-file-cache-capacity.patch
 )
 
 for patch_name in "${patches[@]}"; do

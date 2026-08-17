@@ -16,16 +16,17 @@ BUILD_SCRIPT="$(<"$ROOT/scripts/build-wine.sh")"
   echo "ASSERT failed: missing MapleStory I/O ring patch" >&2
   exit 1
 }
-assert_contains "$BUILD_SCRIPT" "maplestory-cx26-io-ring.patch" \
-  "MapleStory builds should apply the I/O ring patch"
-assert_contains "$BUILD_SCRIPT" "maplestory-cx26-io-ring-arm.patch" \
-  "MapleStory builds should apply the scoped I/O ring arm patch"
-assert_contains "$BUILD_SCRIPT" "maplestory-cx26-io-summary.patch" \
-  "MapleStory builds should apply the low-overhead I/O summary patch"
-assert_contains "$BUILD_SCRIPT" "maplestory-cx26-io-timeline.patch" \
-  "MapleStory builds should apply the I/O timeline patch"
-assert_contains "$BUILD_SCRIPT" "maplestory-cx26-io-cache-stats.patch" \
-  "MapleStory builds should apply the arm-scoped cache statistics patch"
+for diagnostic_patch in \
+  maplestory-cx26-io-ring.patch \
+  maplestory-cx26-io-ring-arm.patch \
+  maplestory-cx26-io-summary.patch \
+  maplestory-cx26-io-timeline.patch \
+  maplestory-cx26-io-cache-stats.patch; do
+  if [[ "$BUILD_SCRIPT" == *"$diagnostic_patch"* ]]; then
+    echo "ASSERT failed: $diagnostic_patch must remain development-only" >&2
+    exit 1
+  fi
+done
 assert_contains "$(<"$PATCH_FILE")" "CYDER_MAPLESTORY_IO_RING_EVENTS" \
   "I/O ring patch should contain its idempotence marker"
 assert_contains "$(<"$PATCH_FILE")" "CYDER_IO ring count" \
@@ -84,8 +85,10 @@ assert_contains "$(<"$CACHE_STATS_PATCH_FILE")" "CYDER_MAPLESTORY_FILE_CACHE_MMA
   echo "ASSERT failed: missing MapleStory section-map summary patch" >&2
   exit 1
 }
-assert_contains "$BUILD_SCRIPT" "maplestory-cx26-section-map-summary.patch" \
-  "MapleStory builds should apply the section-map summary patch"
+if [[ "$BUILD_SCRIPT" == *"maplestory-cx26-section-map-summary.patch"* ]]; then
+  echo "ASSERT failed: section-map summary must remain development-only" >&2
+  exit 1
+fi
 assert_contains "$(<"$SECTION_MAP_PATCH_FILE")" "CYDER_MAPLESTORY_SECTION_MAP_PATH" \
   "section-map patch should contain its idempotence marker"
 assert_contains "$(<"$SECTION_MAP_PATCH_FILE")" "CYDER_MAPLESTORY_IO_SECTION_MAP" \

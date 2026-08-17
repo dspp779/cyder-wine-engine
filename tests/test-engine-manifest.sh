@@ -49,7 +49,13 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-add-compl
   "manifest should record the wineserver add-completion guard"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch" \
   "manifest should record the NtQueryDirectoryObject optnone bandage"
-assert_contains "$(cat "$TMP/engine-manifest.json")" "maplestory-cx26-io-cache-stats.patch" \
-  "manifest should record the arm-scoped cache statistics patch"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "maplestory-cx26-file-cache-adaptive.patch" \
+  "manifest should record the production adaptive file-cache patch"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "maplestory-cx26-file-cache-capacity.patch" \
+  "manifest should record the production file-cache capacity patch"
+if [[ "$(cat "$TMP/engine-manifest.json")" == *"maplestory-cx26-io-cache-stats.patch"* ]]; then
+  echo "ASSERT failed: release manifest must not include diagnostic cache statistics" >&2
+  exit 1
+fi
 
 echo "PASS test-engine-manifest"

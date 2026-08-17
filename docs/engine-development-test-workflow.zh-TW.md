@@ -156,7 +156,10 @@ install：
 
 ```bash
 strings "$ENGINE/lib/wine/x86_64-unix/ntdll.so" \
-  | rg 'CYDER_MAPLESTORY_FILE_CACHE|CYDER_IO summary|CYDER_IO host_pread'
+  | rg 'CYDER_MAPLESTORY_FILE_CACHE'
+
+rg -F 'CYDER_MAPLESTORY_FILE_CACHE_SLOTS 512' \
+  "$ENGINE_ROOT/build/cx26/sources/wine/dlls/ntdll/unix/file.c"
 ```
 
 ## 6. 測試順序

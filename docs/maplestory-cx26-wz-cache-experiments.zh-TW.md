@@ -2,7 +2,7 @@
 
 > 更新日期：2026-08-16  
 > 範圍：CX26／Cyder011 engine、MapleStory WZ 讀取、第一次攻擊卡頓  
-> 狀態：診斷實驗；userspace cache 與 mmap fill 尚未是 release recommendation
+> 狀態：adaptive WZ cache 已列入 0.10.1 candidate；mmap／prewarm 仍為診斷實驗
 
 本文件集中整理 2026-08-15～2026-08-16 針對「重新登入後第一次攻擊怪物會卡頓」
 所做的 WZ 讀取、userspace read-ahead、cache slot、mmap 與低干擾 log 實驗。
@@ -86,8 +86,15 @@ database API；它只是說存取局部性適合 index-aware window cache。
   - 只針對 read-only `.wz`。
   - 小於等於 4 KiB 的請求才進入 cache；較大的請求保留 Wine 原本路徑。
   - 初始以 8 KiB aligned window 讀取；觀察到連續讀取後升級到 32 KiB。
-  - cache slot 由初始 64 逐步測到 256、512；目前 source／generated patch 為
-    512，但功能仍由 `CYDER_MAPLESTORY_FILE_CACHE=1` opt-in。
+  - cache slot 的 production 容量由獨立的
+    `maplestory-cx26-file-cache-capacity.patch` 設為 512；功能仍由
+    `CYDER_MAPLESTORY_FILE_CACHE=1` opt-in。
+- `maplestory-cx26-file-cache-capacity.patch`
+  - 只調整 adaptive cache 的 per-process slot 容量，不加入統計或 log。
+- `maplestory-cx26-io-ring.patch`、`maplestory-cx26-io-ring-arm.patch`、
+  `maplestory-cx26-io-summary.patch`、`maplestory-cx26-io-timeline.patch`、
+  `maplestory-cx26-io-cache-stats.patch`、`maplestory-cx26-section-map-summary.patch`
+  - 都是低干擾開發診斷，不納入 0.10.1 release engine。
 - `maplestory-cx26-io-ring.patch` 與 `maplestory-cx26-io-ring-arm.patch`
   - 將 bounded read event 留在記憶體中。
   - 以不存在的 arm file 啟動；在測試動作前 `touch` 該檔案，清除並開始記錄。
@@ -101,9 +108,30 @@ database API；它只是說存取局部性適合 index-aware window cache。
 - `maplestory-cx26-section-map-summary.patch`
   - 另外統計 section／mapped-file 行為；不改變讀取路徑。
   - 本輪尚未取得足以判斷 WZ parser 是否使用 section mapping 的完整結果。
+- `maplestory-cx26-file-cache-prewarm.patch`
+  - 以 `CYDER_MAPLESTORY_FILE_CACHE_PREWARM_IN_PROCESS=1` 啟用。
+  - arm 後只使用遊戲已開啟的同一個 handle，對第一次攻擊實際讀到的
+    `Data/Packs/Skill_00001.ms`、`Skill_00000.ms`、`Skill_00006.ms`、
+    `Skill_00005.ms`、`Skill_00004.ms` first-use offset，分別預熱受控的
+    32–64 KiB 區段；active-handle 路徑以 4 KiB request 讓既有 8 KiB／32 KiB
+    per-handle window 在動作前填入。這不是整個 `.ms` 檔掃描。
+  - 若 arm 當下對應 handle 尚未開啟，會在後續 resource handle 註冊時再次嘗試；
+    仍找不到目標時會輸出 `prewarm skip`，不能把該輪視為預熱成功。
+  - `CYDER_MAPLESTORY_IO_RING_ARM_FILE` 支援檔案的建立／移除／重新建立轉換，
+    讓每輪實驗可以重新清空統計而不必重啟遊戲。
+- host-path follow-up 在沒有遊戲 handle 時，改由 Wine ntdll process 對遊戲
+  working directory 下的目標檔做受控的對齊 8 KiB `pread()` 區段讀取；log 會標記
+  `mode=host-path`，用來區分 active-handle adaptive cache。
+- deferred-start follow-up 會先在 I/O mutex 內登記 pending，再於解除 mutex
+  後在同一個 Wine process 內同步執行 bounded probe；因此不會在 Wine 檔案
+  註冊的 critical path 內重入 mutex，也不會建立新的 pthread。若沒有看到
+  `prewarm start/done`，該輪仍不算預熱成功；若 `start` 後長時間沒有 `done`，
+  則應視為同步預熱阻塞，該輪不可用於效能結論。
+  - 預設關閉，僅供 A/B 實驗；它不會另開檔案，也不會掃描整個 pack。
 
-目前 cache 預設關閉。mmap fill 另由 `CYDER_MAPLESTORY_FILE_CACHE_MMAP=1`
-啟用，預設關閉且不應直接視為產品修正。
+Engine 的 cache flag 對 raw Wine 仍預設關閉；Cyder app 只對 MapleStory
+profile 預設啟用，並可在進階偏好設定關閉。mmap fill 另由
+`CYDER_MAPLESTORY_FILE_CACHE_MMAP=1` 啟用，預設關閉且不納入 0.10.1。
 
 ## 5. Cache slot 實驗
 
@@ -406,8 +434,11 @@ timeline 行為，不能確認 fill source。
 > 路徑的成本，使「數千次小讀取」比現代 SSD 的總傳輸量更容易形成可見 hitch。
 
 userspace cache 的方向是對的，但目前的同步 read-ahead 仍可能把許多小成本集中
-成一次較大的 first-use pause。增加 slots 解決了 coverage，沒有解決 fill timing；
-因此 512 slots 不應直接視為最終設定，更不應在未完成 A/B 前預設開啟。
+成一次較大的 first-use pause。512 slots 主要解決 coverage 與 handle eviction，
+不等於已解決 fill timing；因此首次攻擊與首次被動技能仍是正式回歸測試的必要 gate。
+0.10.1 先納入 512-slot pread adaptive cache，透過 Cyder 偏好設定預設開啟，並保留
+進階關閉選項；若實機回歸顯示負面影響，回退到 256 slots 或關閉功能。mmap、
+prewarm 與低干擾診斷不納入本版。
 
 ## 10. 下一步建議
 
@@ -447,15 +478,14 @@ userspace cache 的方向是對的，但目前的同步 read-ahead 仍可能把�
 - 預熱必須有 bounded queue、取消機制與記憶體上限；不要因預讀拖慢畫面初始化。
 - mmap mapping 應可重用並在 close／invalidate 正確解除，且所有失敗要安全回退。
 
-在這些條件完成前，正式 runtime 仍應保持：
+正式 0.10.1 runtime 使用 pread adaptive cache；mmap 與 prewarm 維持關閉：
 
 ```text
-CYDER_MAPLESTORY_FILE_CACHE=0
+CYDER_MAPLESTORY_FILE_CACHE=1
 CYDER_MAPLESTORY_FILE_CACHE_MMAP=0
 ```
 
-實驗功能可以由 launcher／偏好設定提供，但不應把尚未驗證的 mmap 或同步
-read-ahead 當成預設最佳化。
+低干擾統計與逐筆 I/O 記錄仍只供開發實驗使用，不由一般 launcher 開啟。
 
 ## 11. 測試操作與低干擾記錄規範
 
@@ -464,6 +494,7 @@ read-ahead 當成預設最佳化。
 ```text
 CYDER_MAPLESTORY_FILE_CACHE=1
 CYDER_MAPLESTORY_FILE_CACHE_MMAP=1       # 只在 mmap A/B 使用
+CYDER_MAPLESTORY_FILE_CACHE_PREWARM_IN_PROCESS=1  # 只在程序內預熱 A/B 使用
 CYDER_MAPLESTORY_IO_TRACE=1
 CYDER_MAPLESTORY_IO_PROFILE=1
 CYDER_MAPLESTORY_IO_PROFILE_TIMING=0     # 低干擾；source counter 完成後維持

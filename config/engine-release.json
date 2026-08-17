@@ -41,15 +41,10 @@
     "maplestory-cx26-fullscreen-restore.patch",
     "maplestory-cx26-no-sched-yield.patch",
     "maplestory-cx26-file-cache-adaptive.patch",
-    "maplestory-cx26-io-ring.patch",
-    "maplestory-cx26-io-ring-arm.patch",
-    "maplestory-cx26-io-summary.patch",
-    "maplestory-cx26-io-timeline.patch",
-    "maplestory-cx26-io-cache-stats.patch",
-    "maplestory-cx26-section-map-summary.patch"
+    "maplestory-cx26-file-cache-capacity.patch"
   ],
   "components": [
     "runtime/cxcompatdb/cxcompatdb.c"
   ],
-  "notes": "Cyder uses an open cxcompatdb.so loaded by the original CrossOver ntdll hook. It owns current-process CompatDB arguments, DLL overrides, graphics backend validation and runtime prepend; Cyder no longer patches ntdll for CompatDB. The MapleStory stack is D3DMetal-neutral; MoltenVK feature-level validation applies only to the optional DXVK path. Graphics payloads are shipped separately. The graphics build is pinned to upstream MoltenVK 1.4.0 with the Cyder CrossOver capability patch plus timeline-wait and present autoreleasepool patches."
+  "notes": "Cyder uses an open cxcompatdb.so loaded by the original CrossOver ntdll hook. It owns current-process CompatDB arguments, DLL overrides, graphics backend validation and runtime prepend; Cyder no longer patches ntdll for CompatDB. The MapleStory stack is D3DMetal-neutral; MoltenVK feature-level validation applies only to the optional DXVK path. Graphics payloads are shipped separately. The release stack includes only the MapleStory adaptive read-ahead cache for read-only WZ files and its 512-slot capacity tuning; ring, summary, timeline, cache-stats, section-map, mmap and prewarm patches remain development diagnostics and are not shipped in the release engine. The graphics build is pinned to upstream MoltenVK 1.4.0 with the Cyder CrossOver capability patch plus timeline-wait and present autoreleasepool patches."
 }

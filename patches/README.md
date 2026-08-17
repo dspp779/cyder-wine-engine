@@ -54,17 +54,24 @@ shared-texture and ClearView entries remain one functional group because the
 CX25 bisect showed that splitting them produces a partially rendered in-world
 state.
 
-`maplestory-cx26-file-cache-adaptive.patch` is an opt-in WZ read-ahead and I/O
-profiling probe for the first-use hitch observed under macOS translation. It
-only targets read-only `.wz` files, keeps requests larger than 4 KiB on Wine's
-normal path, and adapts between 8 KiB and 32 KiB aligned windows after observing
-sequential reads. Enable `CYDER_MAPLESTORY_FILE_CACHE=1` for the cache; the
-`CYDER_MAPLESTORY_IO_*` variables exposed by the MapleStory launcher enable
-low-overhead counters, timing, full-offset diagnosis, and shadow window
-simulation. The cache is intentionally disabled by default while the behavior
-is evaluated against more game content.
-Measured slot-capacity, no-cache control, and mmap A/B results are recorded in
+`maplestory-cx26-file-cache-adaptive.patch` is the MapleStory-only WZ
+read-ahead path for the first-use hitch observed under macOS translation. It
+targets read-only `.wz` files, keeps requests larger than 4 KiB on
+Wine's normal path, and adapts between 8 KiB and 32 KiB aligned windows after
+observing sequential reads. The engine flag remains opt-in for raw Wine; the
+Cyder app enables it by default only for MapleStory and exposes an Advanced
+preference to disable it. The `CYDER_MAPLESTORY_IO_*` variables remain
+diagnostic-only and are disabled in normal launches.
+`maplestory-cx26-file-cache-capacity.patch` raises the adaptive cache table to
+512 per-process entries without enabling any diagnostic counters. Measured
+slot-capacity, no-cache control, and mmap A/B results are recorded in
 [`docs/maplestory-cx26-wz-cache-experiments.zh-TW.md`](../docs/maplestory-cx26-wz-cache-experiments.zh-TW.md).
+
+The following patches are development-only diagnostics and are not in the
+release patch stack: `maplestory-cx26-io-ring.patch`,
+`maplestory-cx26-io-ring-arm.patch`, `maplestory-cx26-io-summary.patch`,
+`maplestory-cx26-io-timeline.patch`, `maplestory-cx26-io-cache-stats.patch`,
+`maplestory-cx26-section-map-summary.patch`, and the prewarm probes.
 
 `maplestory-cx26-io-ring.patch` adds a separate, opt-in diagnostic ring buffer.
 With `CYDER_MAPLESTORY_IO_RING=1`, it retains the latest 8192 regular-file
@@ -120,6 +127,28 @@ the mmap hypothesis. Set `CYDER_MAPLESTORY_IO_SECTION_MAP=1` to count regular
 file section mappings and record whether the mapped file is a `.wz` resource.
 It emits one aggregate line and one line per WZ path at process exit through
 `+cyderio`; it does not log individual mappings or change the mapping path.
+
+`maplestory-cx26-file-cache-prewarm.patch` adds a separate, opt-in Wine-process
+prewarm probe. Set `CYDER_MAPLESTORY_FILE_CACHE_PREWARM_IN_PROCESS=1` together
+with the adaptive cache and arm file. At the arm transition, or when a later
+resource handle is registered, it finds the same already-open `.wz`/`.ms`
+handles used by the game and visits bounded spans at previously observed
+first-use offsets, causing the existing per-handle 8 KiB / 32 KiB window to
+fill before the action. The current experiment targets the five skill packs
+seen at the first attack (`Skill_00001/00/06/05/04.ms`) and limits each span to
+32–64 KiB. It never opens a second handle or scans a whole pack.
+The follow-up patch also makes arm-file create/remove/re-create transitions
+observable. The host-path follow-up can perform one bounded aligned 8 KiB
+`pread()` against the game working directory when no target handle is open.
+The deferred-start follow-up records the request while the I/O mutex is held,
+then releases the mutex before running the bounded probe synchronously inside
+the Wine process. This avoids both I/O-lock reentrancy and `pthread_create()`
+from the Wine file-registration critical path. The log reports each matched
+handle, fill, host-path read, and skipped target; the option is disabled by
+default and is a diagnostic experiment, not a release default.
+The host-path follow-up adds bounded aligned 8 KiB `pread()` reads inside the
+Wine ntdll worker when the game has not opened the target handle yet; it uses
+the game's working directory and does not scan or retain a second handle.
 
 CompatDB policy is no longer compiled into ntdll. `runtime/cxcompatdb/cxcompatdb.c`
 builds as the open `cxcompatdb.so` loaded through CrossOver's existing loader
@@ -255,8 +284,14 @@ strings as “already applied”:
 | `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch` | `cyder QDO optnone` (`dlls/ntdll/unix/sync.c`) |
 | `maplestory-cx26-message-wait-handoff.patch` | `MapleStoryPort: preserve one driver wait result` (`dlls/win32u/message.c`) |
 | `maplestory-cx26-no-sched-yield.patch` | `if (is_maplestory_process()) return STATUS_NO_YIELD_PERFORMED;` (`dlls/ntdll/unix/sync.c`) |
+| `maplestory-cx26-file-cache-adaptive.patch` | `CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW` (`dlls/ntdll/unix/file.c`) |
+| `maplestory-cx26-file-cache-capacity.patch` | `CYDER_MAPLESTORY_FILE_CACHE_SLOTS 512` (`dlls/ntdll/unix/file.c`) |
 | `maplestory-cx26-io-cache-stats.patch` | `CYDER_MAPLESTORY_IO_CACHE_STATS` (`dlls/ntdll/unix/file.c`) |
 | `maplestory-cx26-section-map-summary.patch` | `CYDER_MAPLESTORY_SECTION_MAP_PATH` (`dlls/ntdll/unix/virtual.c`) |
+| `maplestory-cx26-file-cache-prewarm.patch` | `CYDER_MAPLESTORY_FILE_CACHE_PREWARM_IN_PROCESS` (`dlls/ntdll/unix/file.c`) |
+| `maplestory-cx26-file-cache-prewarm-followup.patch` | `CYDER_IO ring disarmed` (`dlls/ntdll/unix/file.c`) |
+| `maplestory-cx26-file-cache-prewarm-host-path.patch` | `CYDER_IO prewarm item mode=host-path` (`dlls/ntdll/unix/file.c`) |
+| `maplestory-cx26-file-cache-prewarm-deferred-start.patch` | `cyder_maplestory_file_cache_prewarm_requested` (`dlls/ntdll/unix/file.c`) |
 
 New patches that may be amended in place should include a unique marker and a
 matching detection branch. Operational steps:
