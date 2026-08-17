@@ -68,9 +68,9 @@ and packing from **this** repository.
    release.** Ship via `scripts/pack-engine-artifact.sh` (DXVK + minOS +
    codesign gates), then install that archive.
 
-6. **CX26-only for frame-walk and wineserver patches.** CX25 (Wine 10) must not
-   receive them without a separate ABI review (`tests/test-build-wine.sh`
-   enforces this).
+6. **This tree builds CX26 only.** `--cx 25` is retired. Frame-walk and
+   wineserver patches apply to the CX26 tree (`tests/test-build-wine.sh`
+   asserts `--cx 25` fails with the retired message).
 
 ## When to incremental vs full rebuild
 

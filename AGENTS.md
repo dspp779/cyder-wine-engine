@@ -33,7 +33,7 @@ manual host command needs to source `scripts/env-x86_64.sh`.
   cannot regress the effective floor. See `scripts/pack-minos-scan.py`.
 - Prefer `scripts/rebuild-wine-host-unix.sh` after a contaminated incremental
   host build.
-- Frame-walk and wineserver patches are **CX26-only**.
+- This tree builds **CrossOver 26 only**. `--cx 25` is retired.
 - Release artifacts go through `scripts/pack-engine-artifact.sh` (DXVK + minOS +
   codesign). Do not treat a raw copy into `~/.cyder/runtime` as a release
   unless the user explicitly asks to install a packed archive.

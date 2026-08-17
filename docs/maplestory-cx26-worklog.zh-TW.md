@@ -1,5 +1,7 @@
 # CX26 新楓之谷移植工作紀錄
 
+> CX25 OEM 產品線與 `--cx 25` 建置已退役。現行路徑是正式 Cyder.app + CX26。本文保留為研究紀錄。
+
 > 目標：只維護 CX26 engine，使用 D3DMetal/GPTK 啟動
 > `/Users/jjc/games/tms/MapleStory.exe`，並實際到達登入畫面。CX25 OEM 保留作為
 > 可比對的已知正常基準。D3DMetal 路徑不引入 MoltenVK；MoltenVK 僅屬於另行驗證的

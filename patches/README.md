@@ -301,8 +301,8 @@ matching detection branch. Operational steps:
 incremental Cyder006 source tree. It is removed before the two replacement
 patches are applied.
 
-The frame-walk and wineserver patches are intentionally CX26-only. CX25 uses a
-Wine 10 base and must not receive them without a separate source and ABI review.
+The frame-walk and wineserver patches apply to this CX26-only tree. CX25
+source builds are retired.
 
 ## MoltenVK (graphics stack, not Wine patch order)
 
