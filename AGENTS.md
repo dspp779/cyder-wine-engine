@@ -4,8 +4,10 @@ Canonical instructions for **Codex, Cursor, Claude Code, Antigravity/Gemini**,
 and any other AGENTS.md-aware tool. Tool-specific stubs (`CLAUDE.md`,
 `GEMINI.md`, `.cursor/rules/`, `.agents/skills/`) point here—do not fork rules.
 
-This repository builds, patches, signs, and packs the Wine engine consumed by
-Cyder. It does **not** own bottles, CompatDB policy, or the Cyder.app UI.
+This repository is the Wine engine that actually runs Windows `.exe` files. It
+builds, patches, signs, and packs the engine consumed by Cyder. The application
+layer lives in [CyderBits](https://github.com/dspp779/CyderBits); this tree does
+**not** own bottles, CompatDB policy, or the Cyder.app UI.
 
 ## Before incremental builds or new Wine patches
 

@@ -1,11 +1,13 @@
 # Cyder Wine Engine
 
-This repository owns the reproducible build, patch, test, signing, and packaging
-pipeline for the Wine engine consumed by Cyder.
+This repository is the Wine engine that actually runs Windows `.exe` files for
+Cyder. It owns the reproducible build, patch, test, signing, and packaging
+pipeline.
 
-It intentionally does **not** own the Cyder app, user prefixes, game profiles,
-CompatDB policy, or engine installation UI. Cyder continues to bundle a pinned
-engine artifact during the first extraction phase.
+The **application layer** (Cyder launcher, game library, bottles, CompatDB,
+packager) lives in [CyderBits](https://github.com/dspp779/CyderBits). This
+repository intentionally does **not** own that UI or policy. Cyder continues to
+bundle a pinned engine artifact during the first extraction phase.
 
 ## Current release target
 
