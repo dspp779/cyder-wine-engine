@@ -165,6 +165,10 @@ otherwise accept an already-patched source tree and duplicate a helper/guard.
 | `cyder-wineserver-add-completion-guard.patch` | `add_completion: invalid completion` in `server/completion.c` |
 | `cyder-ntdll-query-directory-object-trace.patch` | `cyder QDO` in `dlls/ntdll/unix/sync.c` (optional; not default) |
 | `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch` | `cyder QDO optnone` in `dlls/ntdll/unix/sync.c` |
+| `cyder-wineserver-macos-timezone-bias.patch` | `get_timezone_bias` in `server/fd.c` |
+| `cyder-wineserver-registry-fsync.patch` | `fsync( fileno( f ) )` in `server/registry.c` |
+| `cyder-winemac-hide-ime-only-klid.patch` | `leaks IME-only HKLs` in `dlls/winemac.drv/keyboard.c` |
+| `cyder-kernelbase-disk-free-space-fallback.patch` | `retry a real mapped volume instead of inventing free space` in `dlls/kernelbase/volume.c` |
 | `maplestory-cx26-no-sched-yield.patch` | `if (is_maplestory_process()) return STATUS_NO_YIELD_PERFORMED;` |
 | `maplestory-cx26-file-cache-adaptive.patch` | `CYDER_MAPLESTORY_FILE_CACHE` in `dlls/ntdll/unix/file.c` |
 | `maplestory-cx26-io-ring.patch` | `CYDER_MAPLESTORY_IO_RING_EVENTS` in `dlls/ntdll/unix/file.c` |

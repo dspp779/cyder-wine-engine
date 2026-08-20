@@ -29,6 +29,7 @@ tests=(
   test-wineserver-free-async-queue-null-fd.sh
   test-wineserver-pipe-end-disconnect-null-fd.sh
   test-wineserver-add-completion-guard.sh
+  test-gamesir-platform-p1-patches.sh
   test-ntdll-query-directory-object-trace.sh
   test-moltenvk-timeline-wait-poll.sh
   test-moltenvk-1-4-source-and-capabilities.sh

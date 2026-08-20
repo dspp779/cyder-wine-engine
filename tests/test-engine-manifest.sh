@@ -49,6 +49,14 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-add-compl
   "manifest should record the wineserver add-completion guard"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch" \
   "manifest should record the NtQueryDirectoryObject optnone bandage"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-macos-timezone-bias.patch" \
+  "manifest should record the macOS wineserver timezone bias patch"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-registry-fsync.patch" \
+  "manifest should record the registry fsync patch"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-winemac-hide-ime-only-klid.patch" \
+  "manifest should record the winemac IME-only KLID patch"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-kernelbase-disk-free-space-fallback.patch" \
+  "manifest should record the GetDiskFreeSpaceExW fallback patch"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "maplestory-cx26-file-cache-adaptive.patch" \
   "manifest should record the production adaptive file-cache patch"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "maplestory-cx26-file-cache-capacity.patch" \
