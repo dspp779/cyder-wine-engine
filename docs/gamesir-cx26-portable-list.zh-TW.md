@@ -103,6 +103,9 @@
 
 **預設不進 CX26 release stack。** 獨立 patch，env 未設則為 no-op。
 
+完整評估（Gcenx `wine@devel` 對照、改動範圍、不良影響、日後納入清單）見  
+[`rosetta-x87-port-evaluation.zh-TW.md`](rosetta-x87-port-evaluation.zh-TW.md)。
+
 ### 6. `unixpid` debug channel
 
 | | |
@@ -141,7 +144,7 @@
    - `patches/README.md` + `build-wine.sh` apply 清單 + 各一個 marker
 2. **Patch B**（可選）：`unixpid`
 3. **調查後再決定**：gstreamer-gl on Wine 11
-4. **產品決策後**：`ROSETTA_X87_PATH`（含 DYLD stash），預設關閉
+4. **產品決策後**：`ROSETTA_X87_PATH`（含 DYLD stash），預設關閉 — 評估見 [`rosetta-x87-port-evaluation.zh-TW.md`](rosetta-x87-port-evaluation.zh-TW.md)
 
 不要做的下一步：不要從 GameSir 抄 `kernelbase/process.c` 的 exe 表；新遊戲用 CompatDB YAML。
 
