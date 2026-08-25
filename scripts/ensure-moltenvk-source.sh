@@ -13,6 +13,17 @@ if [[ "${1:-}" == "--dry-run" ]]; then
 fi
 [[ $# -eq 0 ]] || { echo "Usage: $(basename "$0") [--dry-run]" >&2; exit 1; }
 
+# Non-upstream trees (crossover-foss / custom) are already on disk; do not
+# require an upstream tarball SHA pin for legacy versions such as 1.2.10.
+if [[ "$MOLTENVK_SOURCE" != "upstream" ]]; then
+  [[ -d "$MOLTENVK_SRC" ]] || {
+    echo "MOLTENVK_SOURCE=$MOLTENVK_SOURCE requires an existing source tree: $MOLTENVK_SRC" >&2
+    exit 1
+  }
+  printf '%s\n' "$MOLTENVK_SRC"
+  exit 0
+fi
+
 MOLTENVK_URL="${MOLTENVK_URL:-https://github.com/KhronosGroup/MoltenVK/archive/refs/tags/v${MOLTENVK_VERSION}.tar.gz}"
 case "$MOLTENVK_VERSION" in
   1.4.2)
@@ -26,15 +37,6 @@ case "$MOLTENVK_VERSION" in
     exit 1
     ;;
 esac
-
-if [[ "$MOLTENVK_SOURCE" != "upstream" ]]; then
-  [[ -d "$MOLTENVK_SRC" ]] || {
-    echo "MOLTENVK_SOURCE=$MOLTENVK_SOURCE requires an existing source tree: $MOLTENVK_SRC" >&2
-    exit 1
-  }
-  printf '%s\n' "$MOLTENVK_SRC"
-  exit 0
-fi
 
 [[ "$MOLTENVK_SRC" == "$BUILD_DIR/moltenvk-$MOLTENVK_VERSION" ]] || {
   echo "upstream MoltenVK source must use the pinned path $BUILD_DIR/moltenvk-$MOLTENVK_VERSION (got $MOLTENVK_SRC)" >&2
