@@ -439,18 +439,30 @@ if bad:
         print(f"  {b} -> {d}", file=sys.stderr)
     sys.exit(1)
 
+# Dual-variant MoltenVK keeps versioned reals plus a .real symlink that is
+# not always a dependency-graph seed (resolve() collapses it to the target).
+MOLTENVK_DUAL_KEEP = {
+    "libMoltenVK.dylib",
+    "libMoltenVK.real.dylib",
+    "libMoltenVK-1.4.2.dylib",
+    "libMoltenVK-1.2.10.dylib",
+}
+MOLTENVK_142_NAME = "libMoltenVK-1.4.2.dylib"
+MOLTENVK_142_CEILING = (12, 0, 0)
+
 # Drop orphaned third-party dylibs left from a previous (broader) seed graph —
 # e.g. media/gnutls deps that are no longer reachable after a rebuild/drop.
 for p in sorted(unix_lib.iterdir()):
     if p.suffix != ".dylib":
         continue
-    if p.name in bundled:
+    if p.name in bundled or p.name in MOLTENVK_DUAL_KEEP:
         continue
     print(f"  remove orphan {p.name}")
     p.unlink()
 
 # Product floor gate: every remaining bundled .dylib must have Mach-O minos
 # ≤ MACOSX_DEPLOYMENT_TARGET (default 10.15). Bottles built for 14/15 fail here.
+# Exception: libMoltenVK-1.4.2.dylib may declare up to 12.0 (macOS 12+ only).
 def parse_version(v: str):
     parts = []
     for p in v.split("."):
@@ -481,6 +493,12 @@ def macho_minos(path: Path):
     return None
 
 
+def minos_limit_for(name: str, floor_v: tuple) -> tuple:
+    if name == MOLTENVK_142_NAME:
+        return max(floor_v, MOLTENVK_142_CEILING)
+    return floor_v
+
+
 floor = os.environ.get("MACOSX_DEPLOYMENT_TARGET", "10.15")
 floor_v = parse_version(floor)
 high = []
@@ -489,11 +507,14 @@ macho_paths.extend(sorted(plugin_bundle_dir.glob("*.dylib")))
 if scanner_bundle.is_file():
     macho_paths.append(scanner_bundle)
 for p in macho_paths:
+    if p.is_symlink():
+        continue
     minos = macho_minos(p)
     if minos is None:
         print(f"WARNING: could not read minos for {p.name}", file=sys.stderr)
         continue
-    if parse_version(minos) > floor_v:
+    limit = minos_limit_for(p.name, floor_v)
+    if parse_version(minos) > limit:
         high.append((p.name, minos))
 
 if high:
@@ -512,5 +533,5 @@ if high:
     sys.exit(1)
 
 print("OK: runtime dylibs are relocatable under", unix_lib)
-print(f"OK: all bundled dylibs have minos ≤ {floor}")
+print(f"OK: all bundled dylibs have minos ≤ {floor} (MoltenVK 1.4.2 ≤ 12.0)")
 PY

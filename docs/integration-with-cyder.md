@@ -16,12 +16,13 @@ Cyder must reject an archive when its sidecar digest, embedded manifest,
 `version` file, or NTDLL SHA-256 disagree. Runtime/prefix ownership remains in
 Cyder; the engine project must never mutate a user's Cyder prefix.
 
-Cyder011 builds MoltenVK 1.4.0 from pinned upstream source and includes the
-capability, timeline-wait, and present-autoreleasepool patches in one
-`libMoltenVK.dylib`. The engine archive must not contain the old
-`libMoltenVK.real.dylib` re-export shim. The former Cyder008 shim and RC overlay
-contract are retained only as historical documentation in
-[`docs/moltenvk-timeline-wait-poll-app-overlay.md`](moltenvk-timeline-wait-poll-app-overlay.md).
+Cyder012+ ships a **dual-variant** MoltenVK layout: versioned reals
+(`libMoltenVK-1.4.2.dylib`, `libMoltenVK-1.2.10.dylib`), a
+`libMoltenVK.real.dylib` symlink selecting one of them, and a wait-poll
+`libMoltenVK.dylib` shim that re-exports `.real`. Upstream 1.4.2 reals get
+capability + present patches only; timeline-wait stays in the shim. See
+[`patches/README.md`](../patches/README.md) (MoltenVK section) and
+`scripts/install-moltenvk-dual-variant.sh`.
 
 Cross-repository changes cannot be atomic. A Cyder commit therefore pins an
 already published immutable engine release rather than a moving branch name.

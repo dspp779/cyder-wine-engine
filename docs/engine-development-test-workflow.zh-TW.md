@@ -137,8 +137,11 @@ ENGINE="$ENGINE_ROOT/install/wine-cx26-x86_64"
 
 cat "$ENGINE/version"
 test "$(cat "$ENGINE/version")" = "$(head -n 1 config/engine-version.txt)"
-test ! -e "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.real.dylib"
+test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK-1.4.2.dylib"
+test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK-1.2.10.dylib"
+test -L "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.real.dylib"
 test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.dylib"
+strings "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.dylib" | grep -q cyder-moltenvk-timeline-wait-poll
 test -f "$ENGINE/lib/dxvk/x86_64-windows/d3d11.dll"
 test -f "$ENGINE/lib/dxvk/i386-windows/d3d11.dll"
 test -f "$ENGINE/lib/dxvk2/x86_64-windows/d3d11.dll"
@@ -327,7 +330,7 @@ tree 直接複製到 `~/.cyder/runtime` 後稱為 release；若要交給 Cyder�
 
 - patch、README、manifest 與窄測試已同步更新。
 - build64 prefix 正確，install `version` 與 config 版本一致。
-- host minOS、MoltenVK 單一 dylib、DXVK/DXVK2/DXMT payload 驗證通過。
+- host minOS、MoltenVK dual-variant（versioned reals + wait-poll shim）、DXVK/DXVK2/DXMT payload 驗證通過。
 - `bash tests/run.sh` 通過；若是環境錯誤，已在報告中明確分開，不冒充 pass。
 - direct engine dry-run、no-OTP smoke 與需要的 OTP acceptance 已完成。
 - cold/warm 或 file-cache A/B 的變因、prefix、引擎版本、log 路徑都有記錄。

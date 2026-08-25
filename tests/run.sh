@@ -31,10 +31,13 @@ tests=(
   test-wineserver-add-completion-guard.sh
   test-ntdll-query-directory-object-trace.sh
   test-moltenvk-timeline-wait-poll.sh
+  test-moltenvk-wait-poll-shim-tool.sh
+  test-moltenvk-dual-variant-layout.sh
   test-moltenvk-1-4-source-and-capabilities.sh
   test-pack-graphics-payloads.sh
   test-pack-engine-dxmt-gate.sh
   test-pack-minos-scan.sh
+  test-pack-minos-scan-moltenvk-exempt.sh
 )
 
 for test_file in "${tests[@]}"; do

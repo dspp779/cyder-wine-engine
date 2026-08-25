@@ -100,8 +100,11 @@ strings "$ENGINE/lib/wine/x86_64-unix/ntdll.so" | rg 'CYDER_MAPLESTORY|CYDER_IO'
 test -f "$ENGINE/lib/dxvk/x86_64-windows/d3d11.dll"
 test -f "$ENGINE/lib/dxvk2/x86_64-windows/d3d11.dll"
 test -f "$ENGINE/lib/dxmt/x86_64-unix/winemetal.so"
+test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK-1.4.2.dylib"
+test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK-1.2.10.dylib"
+test -L "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.real.dylib"
 test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.dylib"
-test ! -e "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.real.dylib"
+strings "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.dylib" | grep -q cyder-moltenvk-timeline-wait-poll
 ```
 
 Product host binaries must declare minOS ≤ 10.15; DXMT is the documented

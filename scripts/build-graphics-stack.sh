@@ -52,7 +52,7 @@ Then build Wine with CrossOver Vulkan:
   bash scripts/build-wine.sh --cx 26 --with-vulkan --vulkan-source crossover
 
 Notes:
-  - MoltenVK 1.4.0 is fetched and SHA-256 verified by ensure-moltenvk-source.sh.
+  - MoltenVK 1.4.2 is fetched and SHA-256 verified by ensure-moltenvk-source.sh.
     Set MOLTENVK_SOURCE=crossover-foss only for an explicit legacy comparison.
   - MoltenVK fetchDependencies may download upstream deps (network required).
   - Requires Xcode (xcodebuild). On Apple Silicon, MoltenVK is built under Rosetta
@@ -193,15 +193,22 @@ build_moltenvk() {
   fi
 
   ensure_moltenvk_source
-  apply_capability_patch
-  apply_source_patch \
-    cyder-moltenvk-timeline-wait-poll.patch \
-    'Cyder: each -[MTLSharedEvent notifyListener' \
-    "$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKSync.mm"
-  apply_source_patch \
-    cyder-moltenvk-present-autoreleasepool.patch \
-    'Cyder: Metal scheduled-handler threads' \
-    "$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKImage.mm"
+  # Cyder capability/present patches target upstream 1.4.x. CrossOver FOSS
+  # 1.2.10 already carries Damavand capability hacks; present hunks do not apply.
+  # timeline-wait stays in the wait-poll shim (libMoltenVK.dylib), never in reals.
+  local capability_stamp="none"
+  local present_stamp="none"
+  if [[ "$MOLTENVK_SOURCE" == "upstream" ]]; then
+    apply_capability_patch
+    capability_stamp="cyder-moltenvk-crossover-capability-hacks"
+    apply_source_patch \
+      cyder-moltenvk-present-autoreleasepool.patch \
+      'Cyder: Metal scheduled-handler threads' \
+      "$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKImage.mm"
+    present_stamp="cyder-moltenvk-present-autoreleasepool"
+  else
+    echo "Skipping Cyder MoltenVK source patches for MOLTENVK_SOURCE=$MOLTENVK_SOURCE"
+  fi
 
   require_xcode
 
@@ -282,9 +289,9 @@ graphics moltenvk-cyder
 moltenvk ${pinned_mvk:-$MOLTENVK_VERSION}
 arch ${ARCHS}
 source ${MOLTENVK_SOURCE}
-capability-patch cyder-moltenvk-crossover-capability-hacks
-patch cyder-moltenvk-timeline-wait-poll
-patch cyder-moltenvk-present-autoreleasepool
+capability-patch ${capability_stamp}
+patch ${present_stamp}
+ports-fix wait-poll-shim
 EOF
   echo "Installed MoltenVK -> $marker"
 }

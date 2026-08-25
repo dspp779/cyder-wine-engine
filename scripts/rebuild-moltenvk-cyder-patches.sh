@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Rebuild MoltenVK with Cyder patches (CrossOver capability compatibility,
-# timeline wait poll, and present autoreleasepool).
+# Rebuild MoltenVK with Cyder patches (CrossOver capability compatibility
+# and present autoreleasepool). Timeline-wait ports fix lives in the wait-poll
+# shim, not the real dylib.
 # Does not pack a release artifact. Installs into GRAPHICS_INSTALL + WINE_INSTALL.
 set -euo pipefail
 
@@ -80,11 +81,6 @@ apply_one \
   "$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm"
 
 apply_one \
-  "$ROOT/patches/cyder-moltenvk-timeline-wait-poll.patch" \
-  'Cyder: each -[MTLSharedEvent notifyListener' \
-  "$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKSync.mm"
-
-apply_one \
   "$ROOT/patches/cyder-moltenvk-present-autoreleasepool.patch" \
   'Cyder: Metal scheduled-handler threads' \
   "$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKImage.mm"
@@ -131,13 +127,13 @@ cp -p "$dylib_out" "$GRAPHICS_INSTALL/lib/libMoltenVK.dylib"
 chmod 755 "$GRAPHICS_INSTALL/lib/libMoltenVK.dylib"
 cat >"$GRAPHICS_INSTALL/version" <<EOF
 graphics moltenvk-cyder
-moltenvk ${source_version}+cyder-crossover-capability+timeline-wait-poll+present-autoreleasepool
+moltenvk ${source_version}+cyder-crossover-capability+present-autoreleasepool
 arch x86_64
 source ${MOLTENVK_SOURCE}
 capability-patch cyder-moltenvk-crossover-capability-hacks
 minos ${minos:-unknown}
-patch cyder-moltenvk-timeline-wait-poll
 patch cyder-moltenvk-present-autoreleasepool
+ports-fix wait-poll-shim
 EOF
 
 unix_dest="$WINE_INSTALL/lib/wine/x86_64-unix/libMoltenVK.dylib"
