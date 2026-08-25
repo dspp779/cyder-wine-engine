@@ -399,6 +399,18 @@ apply_cyder_patch() {
   elif [[ "$(basename "$patch_file")" == "a6-final-same-view-backing-sync.patch" ]] &&
        grep -Fq 'macdrv_finalize_window_backing_sync' "$WINE_SRC/dlls/winemac.drv/cocoa_window.m" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-wineserver-macos-timezone-bias.patch" ]] &&
+       grep -Fq 'get_timezone_bias' "$WINE_SRC/server/fd.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-wineserver-registry-fsync.patch" ]] &&
+       grep -Fq 'fsync( fileno( f ) )' "$WINE_SRC/server/registry.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-winemac-hide-ime-only-klid.patch" ]] &&
+       grep -Fq 'leaks IME-only HKLs' "$WINE_SRC/dlls/winemac.drv/keyboard.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-kernelbase-disk-free-space-fallback.patch" ]] &&
+       grep -Fq 'retry a real mapped volume instead of inventing free space' "$WINE_SRC/dlls/kernelbase/volume.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
   else
     echo "Cannot apply required Wine patch: $patch_file" >&2
     exit 1
@@ -459,6 +471,10 @@ if [[ "$CX_VERSION" == "26" ]]; then
     "$OGOM/patches/cyder-ntdll-query-directory-object-trace.patch" \
     "$OGOM/patches/cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch"
   apply_cyder_patch "$OGOM/patches/cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-wineserver-macos-timezone-bias.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-wineserver-registry-fsync.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-winemac-hide-ime-only-klid.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-kernelbase-disk-free-space-fallback.patch"
 
   apply_maplestory_patch() {
       local patch_name="$1"

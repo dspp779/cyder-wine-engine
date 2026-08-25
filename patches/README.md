@@ -15,27 +15,31 @@ Patch order for the CX26.3 / Wine 11.0 Cyder engine:
 11. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
 12. `cyder-wineserver-add-completion-guard.patch`
 13. `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch`
-14. `maplestory-cx26-message-wait-handoff.patch`
-15. `maplestory-cx26-core.patch`
-16. `maplestory-cx26-window-resizable-flag.patch`
-17. `maplestory-cx26-tmp-module-name.patch`
-18. `maplestory-cx26-dbghelp-dwarf-guard.patch`
-19. `maplestory-cx26-d3d11-shared-texture-test.patch`
-20. `maplestory-cx26-d3dmetal-legacy-surface.patch`
-21. `maplestory-cx26-plain-metal-layer.patch`
-22. `maplestory-cx26-d3d11-full-clear.patch`
-23. `maplestory-cx26-dxgi-shared-handle.patch`
-24. `maplestory-cx26-texture-user-memory-reload.patch`
-25. `maplestory-cx26-blackxchg-foreground.patch`
-26. `maplestory-cx26-fullscreen-restore.patch`
-27. `maplestory-cx26-no-sched-yield.patch`
-28. `maplestory-cx26-file-cache-adaptive.patch`
-29. `maplestory-cx26-io-ring.patch`
-30. `maplestory-cx26-io-ring-arm.patch`
-31. `maplestory-cx26-io-summary.patch`
-32. `maplestory-cx26-io-timeline.patch`
-33. `maplestory-cx26-io-cache-stats.patch`
-34. `maplestory-cx26-section-map-summary.patch`
+14. `cyder-wineserver-macos-timezone-bias.patch`
+15. `cyder-wineserver-registry-fsync.patch`
+16. `cyder-winemac-hide-ime-only-klid.patch`
+17. `cyder-kernelbase-disk-free-space-fallback.patch`
+18. `maplestory-cx26-message-wait-handoff.patch`
+19. `maplestory-cx26-core.patch`
+20. `maplestory-cx26-window-resizable-flag.patch`
+21. `maplestory-cx26-tmp-module-name.patch`
+22. `maplestory-cx26-dbghelp-dwarf-guard.patch`
+23. `maplestory-cx26-d3d11-shared-texture-test.patch`
+24. `maplestory-cx26-d3dmetal-legacy-surface.patch`
+25. `maplestory-cx26-plain-metal-layer.patch`
+26. `maplestory-cx26-d3d11-full-clear.patch`
+27. `maplestory-cx26-dxgi-shared-handle.patch`
+28. `maplestory-cx26-texture-user-memory-reload.patch`
+29. `maplestory-cx26-blackxchg-foreground.patch`
+30. `maplestory-cx26-fullscreen-restore.patch`
+31. `maplestory-cx26-no-sched-yield.patch`
+32. `maplestory-cx26-file-cache-adaptive.patch`
+33. `maplestory-cx26-io-ring.patch`
+34. `maplestory-cx26-io-ring-arm.patch`
+35. `maplestory-cx26-io-summary.patch`
+36. `maplestory-cx26-io-timeline.patch`
+37. `maplestory-cx26-io-cache-stats.patch`
+38. `maplestory-cx26-section-map-summary.patch`
 
 `w1-win32u-vulkan-soname.patch` is not part of the default patch set. It is a
 special-case build-only fallback for CX26 source trees where `win32u/vulkan.c`
@@ -257,6 +261,27 @@ livelock (same class as `-O0` / dead `fprintf` heisenbug bandages). **Not** a
 semantic HID / directory-object fidelity fix. Evidence:
 [`docs/grap-core-qdo-ab-findings.md`](../docs/grap-core-qdo-ab-findings.md).
 
+`cyder-wineserver-macos-timezone-bias.patch` avoids `gmtime`/`localtime` on
+macOS in `set_user_shared_data_time()`. Those libc calls initialize timezone
+state on the wineserver hot path. Apple uses `gettimeofday` `tz_minuteswest`
+at most once per second; other hosts keep the original libc bias. This is not
+a process-lifetime cache, so DST can still refresh on the next second.
+
+`cyder-wineserver-registry-fsync.patch` flushes and `fsync`s a registry branch
+before `fclose` in `save_branch()`, so `user.reg` / `system.reg` are less
+likely to stay in the libc buffer across an abnormal wineserver exit.
+
+`cyder-winemac-hide-ime-only-klid.patch` stops encoding IME-only TIS sources as
+KLID `0xe0000000`. `GetKeyboardLayoutNameW` otherwise leaks those values into
+games that parse the layout id as a keyboard layout.
+
+`cyder-kernelbase-disk-free-space-fallback.patch` retries `GetDiskFreeSpaceExW`
+on a real mapped directory when `open_device_root` fails (typically `\\.\C:`
+with `FILE_DIRECTORY_FILE`). It maps `\\.\X:` / `\\?\X:` to `X:\`, then the
+current volume, then `windows_dir`, and returns those `NtQueryVolumeInformationFile`
+sizes. If every open fails, the API still returns `FALSE`. It does not invent
+capacity.
+
 `cyder-ntdll-query-directory-object-trace.patch` remains for optional diagnosis
 (`CYDER_QDO_TRACE=1`); copy also under `patches/experimental/`. It is **not**
 in the default CX26 apply list (superseded by optnone). See
@@ -282,6 +307,10 @@ strings as “already applied”:
 | `cyder-wineserver-add-completion-guard.patch` | `add_completion: invalid completion` (`completion.c`) |
 | `cyder-ntdll-query-directory-object-trace.patch` | `cyder QDO` (`dlls/ntdll/unix/sync.c`) — optional / not default |
 | `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch` | `cyder QDO optnone` (`dlls/ntdll/unix/sync.c`) |
+| `cyder-wineserver-macos-timezone-bias.patch` | `get_timezone_bias` (`server/fd.c`) |
+| `cyder-wineserver-registry-fsync.patch` | `fsync( fileno( f ) )` (`server/registry.c`) |
+| `cyder-winemac-hide-ime-only-klid.patch` | `leaks IME-only HKLs` (`dlls/winemac.drv/keyboard.c`) |
+| `cyder-kernelbase-disk-free-space-fallback.patch` | `retry a real mapped volume instead of inventing free space` (`dlls/kernelbase/volume.c`) |
 | `maplestory-cx26-message-wait-handoff.patch` | `MapleStoryPort: preserve one driver wait result` (`dlls/win32u/message.c`) |
 | `maplestory-cx26-no-sched-yield.patch` | `if (is_maplestory_process()) return STATUS_NO_YIELD_PERFORMED;` (`dlls/ntdll/unix/sync.c`) |
 | `maplestory-cx26-file-cache-adaptive.patch` | `CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW` (`dlls/ntdll/unix/file.c`) |

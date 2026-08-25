@@ -73,6 +73,14 @@ assert_contains "$output" "$ROOT/patches/cyder-wineserver-pipe-end-disconnect-nu
   "build should guard pipe_end_disconnect against NULL fd"
 assert_contains "$output" "$ROOT/patches/cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch" \
   "build should apply NtQueryDirectoryObject optnone leave-game bandage"
+assert_contains "$output" "$ROOT/patches/cyder-wineserver-macos-timezone-bias.patch" \
+  "build should avoid gmtime/localtime timezone init on macOS wineserver"
+assert_contains "$output" "$ROOT/patches/cyder-wineserver-registry-fsync.patch" \
+  "build should fsync registry files before close"
+assert_contains "$output" "$ROOT/patches/cyder-winemac-hide-ime-only-klid.patch" \
+  "build should stop exposing IME-only KLIDs from winemac"
+assert_contains "$output" "$ROOT/patches/cyder-kernelbase-disk-free-space-fallback.patch" \
+  "build should retry GetDiskFreeSpaceExW on a real mapped volume when the device root cannot be opened"
 assert_contains "$output" "$ROOT/patches/cyder-ntdll-query-directory-object-trace.patch" \
   "build should remove obsolete QDO TRACE before applying optnone"
 # Tarball trees skip make_*; git checkouts regenerate.
