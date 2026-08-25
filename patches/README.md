@@ -307,25 +307,26 @@ source builds are retired.
 ## MoltenVK (graphics stack, not Wine patch order)
 
 Applied under `$MOLTENVK_SRC` via
-`scripts/rebuild-moltenvk-cyder-patches.sh --apply-patches`:
+`scripts/rebuild-moltenvk-cyder-patches.sh --apply-patches` (capability + present
+only; timeline-wait is **not** applied to the real):
 
 | Patch | Intent |
 |-------|--------|
 | `cyder-moltenvk-crossover-capability-hacks.patch` | Port the three CrossOver DXVK compatibility advertisements (`geometryShader`, `pipelineStatisticsQuery`, `shaderCullDistance`) required for the D3D10/11 feature-level probe to reach 10_x/11_1. It deliberately does not fake `VK_EXT_transform_feedback` or the AMD bitwise-not compiler workaround. |
-| `cyder-moltenvk-timeline-wait-poll.patch` | Host `vkWaitSemaphores` polls timeline counters instead of `MTLSharedEvent notifyListener`, which leaks Mach receive rights on finite-timeout waits (DXVK + MapleStory Classic). |
 | `cyder-moltenvk-present-autoreleasepool.patch` | Drain `@autoreleasepool` on Metal present / presented-handler threads. |
+| `cyder-moltenvk-timeline-wait-poll.patch` | **Retained for reference / optional local experiments.** Dual-variant engines deliver the equivalent host-wait fix via `tools/cyder-mvk-timeline-wait-poll/` as `libMoltenVK.dylib` (shim) over versioned `.real` dylibs — do not bake this into the 1.4.2 / 1.2.10 reals. |
 
-The default graphics build is pinned to upstream MoltenVK **1.4.0** by
-`scripts/ensure-moltenvk-source.sh` (SHA-256 is checked before extraction), with
-the minimum host floor remaining macOS 10.15. Set `MOLTENVK_SOURCE=crossover-foss`
-only for an explicit legacy comparison; `custom` requires an explicit
-`MOLTENVK_SRC`.
+The default graphics build is pinned to upstream MoltenVK **1.4.2** by
+`scripts/ensure-moltenvk-source.sh` (SHA-256 is checked before extraction). The
+1.4.2 real may declare minos 12.0; product floor for other host Mach-O remains
+macOS 10.15. Set `MOLTENVK_SOURCE=crossover-foss` for the legacy **1.2.10** real
+used in the dual-variant layout; `custom` requires an explicit `MOLTENVK_SRC`.
 
 CrossOver's other capability changes were reviewed but are not silently copied
-into the 1.4.0 tree:
+into the 1.4.2 tree:
 
 - The AMD `bitwiseNotCausesICE` flag is coupled to a CrossOver-only
-  SPIRV-Cross `bitwise_not_causes_ice` option. Upstream MoltenVK 1.4.0 and its
+  SPIRV-Cross `bitwise_not_causes_ice` option. Upstream MoltenVK and its
   pinned SPIRV-Cross revision do not define that option, so porting only the
   flag would not change generated MSL. It needs a separate SPIRV-Cross patch
   and AMD shader regression tests.
@@ -334,26 +335,26 @@ into the 1.4.0 tree:
   part of DXVK 2.7.1's required feature set.
 - The ANGLE engine ID/synchronization path, texel-alignment emulation, and
   macOS 26 AMD concurrent-compilation guard are separate CrossOver behavior;
-  they are not needed to solve the DXVK feature-level failure. The latter is
-  already present in upstream MoltenVK 1.4.0, and the AMD counter-sampling
-  guard is also upstream.
+  they are not needed to solve the DXVK feature-level failure.
 
-Markers: `Cyder: each -[MTLSharedEvent notifyListener` (`MVKSync.mm`),
-`Cyder: Metal scheduled-handler threads` (`MVKImage.mm`).
+Markers: `Cyder: Metal scheduled-handler threads` (`MVKImage.mm`) on the real;
+wait-poll shim marker `cyder-moltenvk-timeline-wait-poll` on `libMoltenVK.dylib`.
 
-Cyder008 packages the equivalent host-wait fix as an engine-owned re-export
-shim pair (`libMoltenVK.dylib` + `libMoltenVK.real.dylib`). The packer validates
-the dependency and exported wait entry point, so Cyder.app no longer injects
-or builds this workaround at runtime.
+Dual-variant engines ship:
 
-For local development, install the re-export shim with Apple clang:
+```text
+libMoltenVK-1.4.2.dylib / libMoltenVK-1.2.10.dylib   # reals
+libMoltenVK.real.dylib -> selected real
+libMoltenVK.dylib                                  # wait-poll shim
+```
+
+For local development, build/install the re-export shim with Apple clang:
 
 ```bash
 bash tools/cyder-mvk-timeline-wait-poll/install-shim.sh --install-runtime
 ```
 
-Undo with `--undo --install-runtime`. Once Xcode can rebuild
-`libMoltenVK.dylib`, prefer the source patch and remove the shim.
+Undo with `--undo --install-runtime`.
 
 The former App-side RC overlay is retained only as historical documentation:
 [`docs/moltenvk-timeline-wait-poll-app-overlay.md`](../docs/moltenvk-timeline-wait-poll-app-overlay.md).
