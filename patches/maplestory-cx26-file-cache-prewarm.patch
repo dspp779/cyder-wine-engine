@@ -1,0 +1,280 @@
+--- a/dlls/ntdll/unix/file.c	2026-08-16 22:52:58
++++ b/dlls/ntdll/unix/file.c	2026-08-16 22:54:22
+@@ -109,6 +109,7 @@
+ #endif
+ #include <time.h>
+ #include <unistd.h>
++#include <pthread.h>
+ 
+ #include "ntstatus.h"
+ #define WIN32_NO_STATUS
+@@ -442,8 +443,11 @@
+ static int cyder_maplestory_io_ring_control_configured = -1;
+ static BOOL cyder_maplestory_io_ring_armed;
+ static char cyder_maplestory_io_ring_control_path[PATH_MAX];
++static int cyder_maplestory_file_cache_prewarm_configured = -1;
++static BOOL cyder_maplestory_file_cache_prewarm_started;
+ 
+ static struct cyder_maplestory_file_cache_entry *cyder_maplestory_file_cache_find( HANDLE handle );
++static void cyder_maplestory_file_cache_prewarm_start_locked(void);
+ 
+ static BOOL cyder_maplestory_io_ring_enabled(void)
+ {
+@@ -518,7 +522,21 @@
+     }
+     return enabled == 1;
+ }
++
++static BOOL cyder_maplestory_file_cache_prewarm_enabled(void)
++{
++    const char *value;
+ 
++    if (cyder_maplestory_file_cache_prewarm_configured == -1)
++    {
++        value = getenv( "CYDER_MAPLESTORY_FILE_CACHE_PREWARM_IN_PROCESS" );
++        cyder_maplestory_file_cache_prewarm_configured =
++            value && (!strcmp( value, "1" ) || !strcmp( value, "true" ));
++    }
++    return cyder_maplestory_file_cache_prewarm_configured == 1 &&
++        cyder_maplestory_file_cache_enabled();
++}
++
+ static BOOL cyder_maplestory_file_cache_mmap_enabled(void)
+ {
+     static int enabled = -1;
+@@ -1110,6 +1128,7 @@
+                              cyder_maplestory_io_ring_control_path );
+         }
+         cyder_maplestory_io_ring_armed = armed;
++        if (armed) cyder_maplestory_file_cache_prewarm_start_locked();
+     }
+     return cyder_maplestory_io_ring_armed;
+ }
+@@ -1437,6 +1456,15 @@
+     if (!unix_name) return FALSE;
+     extension = strrchr( unix_name, '.' );
+     return extension && !strcasecmp( extension, ".wz" );
++}
++
++static BOOL cyder_maplestory_resource_path( const char *unix_name )
++{
++    const char *extension;
++
++    if (!unix_name) return FALSE;
++    extension = strrchr( unix_name, '.' );
++    return extension && (!strcasecmp( extension, ".wz" ) || !strcasecmp( extension, ".ms" ));
+ }
+ 
+ static BOOL cyder_maplestory_trace_resource_path( const char *unix_name )
+@@ -1448,7 +1476,7 @@
+                                                   const char *unix_name )
+ {
+     struct cyder_maplestory_file_cache_entry *entry;
+-    BOOL cacheable = cyder_maplestory_file_cache_enabled() && cyder_maplestory_wz_path( unix_name ) &&
++    BOOL cacheable = cyder_maplestory_file_cache_enabled() && cyder_maplestory_resource_path( unix_name ) &&
+             !(access & (GENERIC_WRITE | FILE_WRITE_DATA | FILE_APPEND_DATA |
+                         DELETE | WRITE_DAC | WRITE_OWNER));
+     BOOL trace = cyder_maplestory_trace_resource_path( unix_name );
+@@ -1464,7 +1492,8 @@
+     entry->eligible = TRUE;
+     entry->cacheable = cacheable;
+     entry->trace = trace;
+-    if (trace || (cacheable && cyder_maplestory_io_cache_stats_enabled()))
++    if (trace || (cacheable && (cyder_maplestory_io_cache_stats_enabled() ||
++                                cyder_maplestory_file_cache_prewarm_enabled())))
+         snprintf( entry->path, sizeof(entry->path), "%s", unix_name );
+     entry->age = ++cyder_maplestory_file_cache_age;
+     pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
+@@ -1710,9 +1739,192 @@
+     *result = length;
+     pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
+     return TRUE;
++}
++
++/* These are offsets observed at the first-use boundary in the clean
++ * MapleStory sessions.  Each target is a bounded span from the first-use
++ * offset, not a whole-file scan.  The active-handle path visits the span in
++ * small requests so the existing per-HANDLE adaptive window can fill it. */
++struct cyder_maplestory_file_cache_prewarm_target
++{
++    const char *path;
++    off_t offset;
++    unsigned int length;
++};
++
++static const struct cyder_maplestory_file_cache_prewarm_target
++    cyder_maplestory_file_cache_prewarm_targets[] =
++{
++    { "Data/Packs/Skill_00001.ms", 60050432, 65536 },
++    { "Data/Packs/Skill_00000.ms", 875520, 65536 },
++    { "Data/Packs/Skill_00006.ms", 65107968, 65536 },
++    { "Data/Packs/Skill_00005.ms", 13408256, 65536 },
++    { "Data/Packs/Skill_00004.ms", 15905792, 32768 }
++};
++
++static BOOL cyder_maplestory_file_cache_prewarm_path_matches( const char *path,
++                                                               const char *suffix )
++{
++    size_t path_length, suffix_length;
++
++    if (!path || !*path || !suffix) return FALSE;
++    path_length = strlen( path );
++    suffix_length = strlen( suffix );
++    return path_length >= suffix_length &&
++        !strcasecmp( path + path_length - suffix_length, suffix );
++}
++
++static unsigned int cyder_maplestory_file_cache_prewarm_snapshot_locked(
++    const char *path, HANDLE *handles )
++{
++    unsigned int i, count = 0;
++
++    for (i = 0; i < ARRAY_SIZE(cyder_maplestory_file_cache) &&
++                count < ARRAY_SIZE(cyder_maplestory_file_cache); i++)
++    {
++        const struct cyder_maplestory_file_cache_entry *entry =
++            &cyder_maplestory_file_cache[i];
++        if (entry->eligible && entry->cacheable &&
++            cyder_maplestory_file_cache_prewarm_path_matches( entry->path, path ))
++        {
++            if (handles) handles[count] = entry->handle;
++            count++;
++        }
++    }
++    return count;
++}
++
++static void *cyder_maplestory_file_cache_prewarm_thread( void *unused )
++{
++    HANDLE handles[CYDER_MAPLESTORY_FILE_CACHE_SLOTS];
++    unsigned int i, j, matched = 0, attempted = 0, served = 0, filled = 0, skipped = 0;
++
++    (void)unused;
++    TRACE_(cyderio)( "CYDER_IO prewarm start targets=%u mode=active-handle\n",
++                     (unsigned int)ARRAY_SIZE(cyder_maplestory_file_cache_prewarm_targets) );
++    for (i = 0; i < ARRAY_SIZE(cyder_maplestory_file_cache_prewarm_targets); i++)
++    {
++        const struct cyder_maplestory_file_cache_prewarm_target *target =
++            &cyder_maplestory_file_cache_prewarm_targets[i];
++        unsigned int handle_count;
++
++        pthread_mutex_lock( &cyder_maplestory_file_cache_mutex );
++        handle_count = cyder_maplestory_file_cache_prewarm_snapshot_locked(
++            target->path, handles );
++        pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++        matched += handle_count;
++        if (!handle_count)
++        {
++            skipped++;
++            TRACE_(cyderio)( "CYDER_IO prewarm skip path=%s offset=%lld reason=no-target-handle\n",
++                             target->path, (long long)target->offset );
++            continue;
++        }
++
++        TRACE_(cyderio)( "CYDER_IO prewarm target path=%s offset=%lld handles=%u\n",
++                         target->path, (long long)target->offset, handle_count );
++        for (j = 0; j < handle_count; j++)
++        {
++            struct cyder_maplestory_file_cache_entry *entry;
++            unsigned long long fills_before = 0, fills_after = 0;
++            off_t cursor, end;
++            unsigned int target_bytes = 0, target_chunks = 0;
++            int fd, needs_close;
++            char data[CYDER_MAPLESTORY_FILE_CACHE_MAX_REQUEST];
++            BOOL target_served = TRUE;
++
++            pthread_mutex_lock( &cyder_maplestory_file_cache_mutex );
++            entry = cyder_maplestory_file_cache_find( handles[j] );
++            if (entry) fills_before = entry->cache_fills;
++            pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++
++            if (server_get_unix_fd( handles[j], FILE_READ_DATA, &fd, &needs_close,
++                                    NULL, NULL ))
++            {
++                skipped++;
++                TRACE_(cyderio)( "CYDER_IO prewarm skip path=%s offset=%lld h=%p "
++                                 "reason=fd-unavailable\n",
++                                 target->path, (long long)target->offset, handles[j] );
++                continue;
++            }
++
++            end = target->offset + target->length;
++            cursor = target->offset & ~(off_t)(CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW - 1);
++            while (cursor < end)
++            {
++                ULONG chunk = CYDER_MAPLESTORY_FILE_CACHE_MAX_REQUEST;
++                ULONG result = 0;
++                BOOL served_now;
++
++                if (end - cursor < (off_t)chunk) chunk = (ULONG)(end - cursor);
++                served_now = cyder_maplestory_file_cache_read(
++                    handles[j], fd, cursor, data, chunk, &result );
++                attempted++;
++                if (served_now)
++                {
++                    served++;
++                    target_bytes += result;
++                    if (result) target_chunks++;
++                }
++                else
++                    target_served = FALSE;
++                cursor += chunk;
++            }
++            if (needs_close) close( fd );
++
++            pthread_mutex_lock( &cyder_maplestory_file_cache_mutex );
++            entry = cyder_maplestory_file_cache_find( handles[j] );
++            if (entry) fills_after = entry->cache_fills;
++            pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++
++            if (fills_after > fills_before) filled += (unsigned int)(fills_after - fills_before);
++            if (!target_served) skipped++;
++            TRACE_(cyderio)( "CYDER_IO prewarm item path=%s offset=%lld span=%u h=%p "
++                             "result=%s bytes=%u chunks=%u\n",
++                             target->path, (long long)target->offset, target->length, handles[j],
++                             target_served ? "served" : "partial", target_bytes, target_chunks );
++            usleep( 1000 );
++        }
++    }
++    TRACE_(cyderio)( "CYDER_IO prewarm done matched=%u attempted=%u served=%u "
++                     "filled=%u skipped=%u\n",
++                     matched, attempted, served, filled, skipped );
++    return NULL;
+ }
+ 
++static BOOL cyder_maplestory_file_cache_prewarm_has_target_locked(void)
++{
++    unsigned int i;
++
++    for (i = 0; i < ARRAY_SIZE(cyder_maplestory_file_cache_prewarm_targets); i++)
++        if (cyder_maplestory_file_cache_prewarm_snapshot_locked(
++                cyder_maplestory_file_cache_prewarm_targets[i].path, NULL))
++            return TRUE;
++    return FALSE;
++}
++
++static void cyder_maplestory_file_cache_prewarm_start_locked(void)
++{
++    pthread_t thread;
++
++    if (cyder_maplestory_file_cache_prewarm_started ||
++        !cyder_maplestory_file_cache_prewarm_enabled()) return;
++    if (!cyder_maplestory_file_cache_prewarm_has_target_locked())
++    {
++        TRACE_(cyderio)( "CYDER_IO prewarm skipped reason=no-target-handle\n" );
++        return;
++    }
++
++    if (pthread_create( &thread, NULL, cyder_maplestory_file_cache_prewarm_thread, NULL ))
++    {
++        TRACE_(cyderio)( "CYDER_IO prewarm skipped reason=thread-create-failed\n" );
++        return;
++    }
++    cyder_maplestory_file_cache_prewarm_started = TRUE;
++    pthread_detach( thread );
++}
++
+ 
+ /* check if a given Unicode char is OK in a DOS short name */
+ static inline BOOL is_invalid_dos_char( WCHAR ch )
+ {

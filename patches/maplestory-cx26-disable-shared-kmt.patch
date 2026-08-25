@@ -1,0 +1,28 @@
+--- a/dlls/d3d11/device.c
++++ b/dlls/d3d11/device.c
+@@ -4646,6 +4646,12 @@ static HRESULT STDMETHODCALLTYPE d3d11_device_OpenSharedResource(ID3D11Device5 *iface, HANDLE resource, REFIID iid,
+         UINT height;
+     } *texture_metadata;
+
++    if (getenv("CYDER_MAPLESTORY_DISABLE_SHARED_KMT"))
++    {
++        FIXME("MapleStoryPort A/B: shared KMT import disabled.\n");
++        return E_NOTIMPL;
++    }
++
+     TRACE("iface %p, resource %p, iid %s, out %p.\n", iface, resource, debugstr_guid(iid), out);
+ 
+     if (!IsEqualGUID(iid, &IID_ID3D11Texture2D))
+--- a/dlls/dxgi/resource.c
++++ b/dlls/dxgi/resource.c
+@@ -393,6 +393,12 @@ static HRESULT STDMETHODCALLTYPE dxgi_resource_GetSharedHandle(IDXGIResource1 *iface, HANDLE *shared_handle)
+     struct wined3d_resource_desc resource_desc;
+     static UINT_PTR free_handle = 0x40000000;
+
++    if (getenv("CYDER_MAPLESTORY_DISABLE_SHARED_KMT"))
++    {
++        FIXME("MapleStoryPort A/B: shared KMT export disabled.\n");
++        return E_NOTIMPL;
++    }
++
+     FIXME("iface %p, shared_handle %p partial stub!\n", iface, shared_handle);

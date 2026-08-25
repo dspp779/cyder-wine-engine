@@ -1,0 +1,77 @@
+--- a/dlls/ntdll/unix/file.c
++++ b/dlls/ntdll/unix/file.c
+@@ -448,6 +448,7 @@
+ 
+ static struct cyder_maplestory_file_cache_entry *cyder_maplestory_file_cache_find( HANDLE handle );
+ static void cyder_maplestory_file_cache_prewarm_start_locked(void);
++static BOOL cyder_maplestory_file_cache_prewarm_has_target_locked(void);
+ 
+ static BOOL cyder_maplestory_io_ring_enabled(void)
+ {
+@@ -1105,17 +1106,19 @@
+             cyder_maplestory_io_ring_control_configured = 1;
+             snprintf( cyder_maplestory_io_ring_control_path,
+                       sizeof(cyder_maplestory_io_ring_control_path), "%s", path );
+-            cyder_maplestory_io_ring_armed = !stat( cyder_maplestory_io_ring_control_path, &st );
++            /* Start unarmed so an arm file that already exists at process
++             * startup still produces the normal arm transition. */
++            cyder_maplestory_io_ring_armed = FALSE;
+         }
+     }
+ 
+     if (!cyder_maplestory_io_ring_control_configured)
+         return TRUE;
+ 
+-    if (!cyder_maplestory_io_ring_armed)
++    armed = !stat( cyder_maplestory_io_ring_control_path, &st );
++    if (armed != cyder_maplestory_io_ring_armed)
+     {
+-        armed = !stat( cyder_maplestory_io_ring_control_path, &st );
+-        if (armed && !cyder_maplestory_io_ring_armed)
++        if (armed)
+         {
+             cyder_maplestory_io_ring_next = 0;
+             cyder_maplestory_io_ring_count = 0;
+@@ -1127,8 +1130,18 @@
+                              cyder_maplestory_io_timestamp_us(),
+                              cyder_maplestory_io_ring_control_path );
+         }
++        else
++            TRACE_(cyderio)( "CYDER_IO ring disarmed t=%llu path=%s\n",
++                             cyder_maplestory_io_timestamp_us(),
++                             cyder_maplestory_io_ring_control_path );
+         cyder_maplestory_io_ring_armed = armed;
+-        if (armed) cyder_maplestory_file_cache_prewarm_start_locked();
++        if (armed && cyder_maplestory_file_cache_prewarm_enabled())
++        {
++            if (cyder_maplestory_file_cache_prewarm_has_target_locked())
++                cyder_maplestory_file_cache_prewarm_start_locked();
++            else
++                TRACE_(cyderio)( "CYDER_IO prewarm skipped reason=no-target-handle\n" );
++        }
+     }
+     return cyder_maplestory_io_ring_armed;
+ }
+@@ -1496,6 +1509,9 @@
+                                 cyder_maplestory_file_cache_prewarm_enabled())))
+         snprintf( entry->path, sizeof(entry->path), "%s", unix_name );
+     entry->age = ++cyder_maplestory_file_cache_age;
++    cyder_maplestory_io_ring_ensure_locked();
++    if (cyder_maplestory_io_ring_armed)
++        cyder_maplestory_file_cache_prewarm_start_locked();
+     pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
+ 
+     if (trace && !cyder_maplestory_io_profile_enabled())
+@@ -1895,11 +1911,7 @@
+ 
+     if (cyder_maplestory_file_cache_prewarm_started ||
+         !cyder_maplestory_file_cache_prewarm_enabled()) return;
+-    if (!cyder_maplestory_file_cache_prewarm_has_target_locked())
+-    {
+-        TRACE_(cyderio)( "CYDER_IO prewarm skipped reason=no-target-handle\n" );
+-        return;
+-    }
++    if (!cyder_maplestory_file_cache_prewarm_has_target_locked()) return;
+ 
+     if (pthread_create( &thread, NULL, cyder_maplestory_file_cache_prewarm_thread, NULL ))
+     {

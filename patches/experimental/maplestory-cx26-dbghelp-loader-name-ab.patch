@@ -1,0 +1,40 @@
+--- a/dlls/dbghelp/module.c
++++ b/dlls/dbghelp/module.c
+@@ -31,5 +31,5 @@
+ #include "psapi.h"
+ #include "winternl.h"
+ #include "wine/debug.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(dbghelp);
+@@ -83,5 +83,30 @@ static BOOL is_wine_loader(const WCHAR *module)
+ {
+     const WCHAR *filename = get_filename(module, NULL);
++    const char *ptr;
++    BOOL ret = FALSE;
++    WCHAR *buffer;
++    DWORD len;
+ 
+-    return !wcscmp( filename, L"wine" );
++    if ((ptr = getenv("WINELOADER")))
++    {
++        ptr = file_nameA(ptr);
++        len = 2 + MultiByteToWideChar( CP_UNIXCP, 0, ptr, -1, NULL, 0 );
++        buffer = HeapAlloc( GetProcessHeap(), 0, len * sizeof(WCHAR) );
++        MultiByteToWideChar( CP_UNIXCP, 0, ptr, -1, buffer, len );
++    }
++    else
++    {
++        buffer = HeapAlloc( GetProcessHeap(), 0, sizeof(L"wine") + 2 * sizeof(WCHAR) );
++        lstrcpyW( buffer, L"wine" );
++    }
++
++    if (!wcscmp( filename, buffer ))
++        ret = TRUE;
++
++    lstrcatW( buffer, L"64" );
++    if (!wcscmp( filename, buffer ))
++        ret = TRUE;
++
++    HeapFree( GetProcessHeap(), 0, buffer );
++    return ret;
+ }

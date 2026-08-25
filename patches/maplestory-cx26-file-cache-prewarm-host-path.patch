@@ -1,0 +1,136 @@
+--- a/dlls/ntdll/unix/file.c
++++ b/dlls/ntdll/unix/file.c
+@@ -1137,10 +1137,9 @@
+         cyder_maplestory_io_ring_armed = armed;
+         if (armed && cyder_maplestory_file_cache_prewarm_enabled())
+         {
+-            if (cyder_maplestory_file_cache_prewarm_has_target_locked())
+-                cyder_maplestory_file_cache_prewarm_start_locked();
+-            else
+-                TRACE_(cyderio)( "CYDER_IO prewarm skipped reason=no-target-handle\n" );
++            if (!cyder_maplestory_file_cache_prewarm_has_target_locked())
++                TRACE_(cyderio)( "CYDER_IO prewarm no-active-target; using host-path fallback\n" );
++            cyder_maplestory_file_cache_prewarm_start_locked();
+         }
+     }
+     return cyder_maplestory_io_ring_armed;
+@@ -1808,16 +1807,77 @@
+         }
+     }
+     return count;
+ }
++
++static BOOL cyder_maplestory_file_cache_prewarm_host_path(
++    const struct cyder_maplestory_file_cache_prewarm_target *target,
++    const char *root, unsigned int *attempted, unsigned int *served )
++{
++    char path[PATH_MAX];
++    char data[CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW];
++    off_t read_offset, end;
++    unsigned long long start, duration;
++    unsigned int requests = 0, total_bytes = 0;
++    BOOL complete = TRUE;
++    int fd;
++
++    if (!root || !*root)
++    {
++        TRACE_(cyderio)( "CYDER_IO prewarm skip path=%s offset=%lld "
++                         "reason=no-game-root\n",
++                         target->path, (long long)target->offset );
++        return FALSE;
++    }
++    snprintf( path, sizeof(path), "%s/%s", root, target->path );
++    read_offset = target->offset & ~(off_t)(CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW - 1);
++    end = target->offset + target->length;
++    fd = open( path, O_RDONLY );
++    if (fd == -1)
++    {
++        TRACE_(cyderio)( "CYDER_IO prewarm skip path=%s offset=%lld "
++                         "reason=open-failed errno=%d\n",
++                         target->path, (long long)target->offset, errno );
++        return FALSE;
++    }
++
++    if (attempted) (*attempted)++;
++    start = cyder_maplestory_io_timestamp_us();
++    while (read_offset < end)
++    {
++        size_t chunk = sizeof(data);
++        ssize_t result;
++
++        if (end - read_offset < (off_t)chunk) chunk = (size_t)(end - read_offset);
++        result = pread( fd, data, chunk, read_offset );
++        requests++;
++        if (result != (ssize_t)chunk) complete = FALSE;
++        if (result > 0) total_bytes += (unsigned int)result;
++        read_offset += chunk;
++    }
++    duration = cyder_maplestory_io_timestamp_us() - start;
++    close( fd );
++    if (complete && served) (*served)++;
++    TRACE_(cyderio)( "CYDER_IO prewarm item mode=host-path path=%s "
++                     "offset=%lld span=%u requests=%u bytes=%u ret=%s dur_us=%llu\n",
++                     target->path, (long long)target->offset, target->length, requests,
++                     total_bytes, complete ? "served" : "partial",
++                     duration );
++    return complete;
++}
+ 
+ static void *cyder_maplestory_file_cache_prewarm_thread( void *unused )
+ {
+     HANDLE handles[CYDER_MAPLESTORY_FILE_CACHE_SLOTS];
++    char root[PATH_MAX];
+     unsigned int i, j, matched = 0, attempted = 0, served = 0, filled = 0, skipped = 0;
++    unsigned int host_attempted = 0, host_served = 0;
++    BOOL have_root;
+ 
+     (void)unused;
+-    TRACE_(cyderio)( "CYDER_IO prewarm start targets=%u mode=active-handle\n",
+-                     (unsigned int)ARRAY_SIZE(cyder_maplestory_file_cache_prewarm_targets) );
++    have_root = getcwd( root, sizeof(root) ) != NULL;
++    TRACE_(cyderio)( "CYDER_IO prewarm start targets=%u mode=active-handle-or-host-path root=%s\n",
++                     (unsigned int)ARRAY_SIZE(cyder_maplestory_file_cache_prewarm_targets),
++                     have_root ? root : "<none>" );
+     for (i = 0; i < ARRAY_SIZE(cyder_maplestory_file_cache_prewarm_targets); i++)
+     {
+         const struct cyder_maplestory_file_cache_prewarm_target *target =
+@@ -1831,9 +1878,9 @@
+         matched += handle_count;
+         if (!handle_count)
+         {
+-            skipped++;
+-            TRACE_(cyderio)( "CYDER_IO prewarm skip path=%s offset=%lld reason=no-target-handle\n",
+-                             target->path, (long long)target->offset );
++            if (!cyder_maplestory_file_cache_prewarm_host_path(
++                    target, have_root ? root : NULL, &host_attempted, &host_served ))
++                skipped++;
+             continue;
+         }
+ 
+@@ -1889,8 +1936,8 @@
+         }
+     }
+     TRACE_(cyderio)( "CYDER_IO prewarm done matched=%u attempted=%u served=%u "
+-                     "filled=%u skipped=%u\n",
+-                     matched, attempted, served, filled, skipped );
++                     "filled=%u host_attempted=%u host_served=%u skipped=%u\n",
++                     matched, attempted, served, filled, host_attempted, host_served, skipped );
+     return NULL;
+ }
+ 
+@@ -1911,7 +1958,6 @@
+ 
+     if (cyder_maplestory_file_cache_prewarm_started ||
+         !cyder_maplestory_file_cache_prewarm_enabled()) return;
+-    if (!cyder_maplestory_file_cache_prewarm_has_target_locked()) return;
+ 
+     if (pthread_create( &thread, NULL, cyder_maplestory_file_cache_prewarm_thread, NULL ))
+     {
+@@ -1922,7 +1968,6 @@
+     pthread_detach( thread );
+ }
+ 
+-
+ /* check if a given Unicode char is OK in a DOS short name */
+ static inline BOOL is_invalid_dos_char( WCHAR ch )
+ {

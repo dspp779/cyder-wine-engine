@@ -3,7 +3,7 @@
 Date: 2026-08-07  
 Repos: `cyder-wine-engine` (Wine) + MapleStory Classic on Cyder bottle  
 Related: `docs/grap-core-qdo-trace.md`, Cyder app
-`grap-core64-residual-process-analysis.md`
+`docs/games/maplestory/grap-core64-residual-process-analysis.md`
 
 ## Symptom
 

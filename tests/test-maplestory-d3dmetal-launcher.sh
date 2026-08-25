@@ -29,6 +29,20 @@ assert_contains "$source_text" 'CYDER_MAPLESTORY_IO_SECTION_MAP' \
   "MapleStory launcher must pass the section-map diagnostic mode"
 assert_contains "$source_text" 'CYDER_MAPLESTORY_FILE_CACHE_MMAP' \
   "MapleStory launcher must pass the experimental mmap cache mode"
+assert_contains "$source_text" 'CYDER_MAPLESTORY_FILE_CACHE_PREWARM_IN_PROCESS' \
+  "MapleStory launcher must pass the in-process cache prewarm mode"
+assert_contains "$source_text" 'CYDER_MAPLESTORY_PREWARM' \
+  "MapleStory launcher must expose the focused prewarm experiment"
+assert_contains "$source_text" 'maplestory-prewarm.sh' \
+  "MapleStory launcher must invoke the prewarm helper"
+[[ -x "$ROOT/scripts/maplestory-prewarm.sh" ]] || {
+  echo "ASSERT failed: missing executable MapleStory prewarm helper" >&2
+  exit 1
+}
+if ! bash -n "$ROOT/scripts/maplestory-prewarm.sh"; then
+  echo "ASSERT failed: MapleStory prewarm helper has shell syntax errors" >&2
+  exit 1
+fi
 assert_contains "$source_text" 'wineserver" -k' \
   "MapleStory launcher must stop stale Wine processes before launch"
 if [[ "$source_text" == *"copy-oem-moltenvk.sh"* || "$source_text" == *"libMoltenVK.dylib"* ]]; then

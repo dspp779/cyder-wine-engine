@@ -1,0 +1,13 @@
+--- a/dlls/winemac.drv/window.c
++++ b/dlls/winemac.drv/window.c
+@@ -1915,6 +1915,9 @@ void macdrv_app_deactivated(void)
+ {
+     NtUserClipCursor(NULL);
+
++    if (getenv("CYDER_MAPLESTORY_KEEP_FOREGROUND"))
++        return;
++
+     if (get_active_window() == NtUserGetForegroundWindow())
+     {
+         TRACE("setting fg to desktop\n");
+         NtUserSetForegroundWindowInternal(NtUserGetDesktopWindow());

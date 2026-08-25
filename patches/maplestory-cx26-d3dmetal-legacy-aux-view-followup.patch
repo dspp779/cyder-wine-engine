@@ -1,0 +1,27 @@
+--- a/dlls/winemac.drv/d3dmetal.c
++++ b/dlls/winemac.drv/d3dmetal.c
+@@ -156,9 +156,12 @@
+-    if (!getenv("CYDER_MAPLESTORY_LEGACY_D3DMETAL_SURFACE"))
+-        macdrv_set_view_d3dmetal_client_surface(client_surface->cocoa_view, &client_surface->client);
+-
+-    if (!data->d3dmetal_client_surfaces)
+-    {
+-        static const CFArrayCallBacks callbacks = { .release = cf_client_surface_release };
+-        data->d3dmetal_client_surfaces = CFArrayCreateMutable(NULL, 0, &callbacks);
+-    }
+-    CFArrayAppendValue(data->d3dmetal_client_surfaces, client_surface);
++    if (client_surface)
++    {
++        if (!getenv("CYDER_MAPLESTORY_LEGACY_D3DMETAL_SURFACE"))
++            macdrv_set_view_d3dmetal_client_surface(client_surface->cocoa_view, &client_surface->client);
++
++        if (!data->d3dmetal_client_surfaces)
++        {
++            static const CFArrayCallBacks callbacks = { .release = cf_client_surface_release };
++            data->d3dmetal_client_surfaces = CFArrayCreateMutable(NULL, 0, &callbacks);
++        }
++        CFArrayAppendValue(data->d3dmetal_client_surfaces, client_surface);
++    }
+@@ -174,1 +174,1 @@
+-    d3dm_data->client_cocoa_view = client_surface->cocoa_view;
++    d3dm_data->client_cocoa_view = client_surface ? client_surface->cocoa_view : data->client_view;

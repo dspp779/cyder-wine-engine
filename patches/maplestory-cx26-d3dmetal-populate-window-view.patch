@@ -1,0 +1,11 @@
+--- a/dlls/winemac.drv/d3dmetal.c
++++ b/dlls/winemac.drv/d3dmetal.c
+@@ -137,6 +137,8 @@ static struct d3dmetal_macdrv_win_data *my_get_win_data(HWND hwnd)
+ 
+     d3dm_data->hwnd = data->hwnd;
+     d3dm_data->cocoa_window = data->cocoa_window;
++    if (getenv("CYDER_MAPLESTORY_POPULATE_D3DMETAL_WINDOW_VIEW"))
++        d3dm_data->cocoa_view = data->client_view;
+     /* cocoa_view is no longer present in macdrv_win_data. D3DMetal doesn't use it. */
+     d3dm_data->client_cocoa_view = client_surface->cocoa_view;
+     d3dm_data->window_rect = data->rects.window;

@@ -1,0 +1,20 @@
+--- a/dlls/dbghelp/dbghelp.c
++++ b/dlls/dbghelp/dbghelp.c
+@@ -451,6 +451,17 @@
+  * mechanism (ie only load the debug information when we actually need it).
+  */
+ BOOL WINAPI SymInitializeW(HANDLE hProcess, PCWSTR UserSearchPath, BOOL fInvadeProcess)
+ {
++    /*
++     * MapleStory OEM keeps dbghelp symbol initialization disabled by default.
++     * Keep this behind a test-only switch until the CX26 behavior is proven.
++     */
++    if (getenv("CYDER_MAPLESTORY_DISABLE_DBGHELP_SYMBOLS"))
++    {
++        FIXME("MapleStoryPort: dbghelp symbol initialization disabled for A/B test.\n");
++        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
++        return FALSE;
++    }
++
+     struct process*     pcs;
+     BOOL wow64, child_wow64;

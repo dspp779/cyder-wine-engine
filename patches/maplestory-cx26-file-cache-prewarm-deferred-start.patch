@@ -1,0 +1,85 @@
+--- a/dlls/ntdll/unix/file.c
++++ b/dlls/ntdll/unix/file.c
+@@ -445,9 +445,11 @@
+ static char cyder_maplestory_io_ring_control_path[PATH_MAX];
+ static int cyder_maplestory_file_cache_prewarm_configured = -1;
+ static BOOL cyder_maplestory_file_cache_prewarm_started;
++static BOOL cyder_maplestory_file_cache_prewarm_requested;
+ 
+ static struct cyder_maplestory_file_cache_entry *cyder_maplestory_file_cache_find( HANDLE handle );
+-static void cyder_maplestory_file_cache_prewarm_start_locked(void);
++static void cyder_maplestory_file_cache_prewarm_request_locked(void);
++static void cyder_maplestory_file_cache_prewarm_start(void);
+ static BOOL cyder_maplestory_file_cache_prewarm_has_target_locked(void);
+ 
+ static BOOL cyder_maplestory_io_ring_enabled(void)
+@@ -1139,7 +1141,7 @@
+         {
+             if (!cyder_maplestory_file_cache_prewarm_has_target_locked())
+                 TRACE_(cyderio)( "CYDER_IO prewarm no-active-target; using host-path fallback\n" );
+-            cyder_maplestory_file_cache_prewarm_start_locked();
++            cyder_maplestory_file_cache_prewarm_request_locked();
+         }
+     }
+     return cyder_maplestory_io_ring_armed;
+@@ -1413,6 +1415,7 @@
+                                                 cyder_maplestory_io_timestamp_us(), 0, NULL );
+     }
+     pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++    cyder_maplestory_file_cache_prewarm_start();
+     return trace;
+ }
+ 
+@@ -1444,6 +1447,7 @@
+         cyder_maplestory_io_ring_record_locked( CYDER_MAPLESTORY_IO_RING_HOST_READ, handle, fd,
+                                                 offset, length, result, timestamp, duration, NULL );
+     pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++    cyder_maplestory_file_cache_prewarm_start();
+ }
+ 
+ static struct cyder_maplestory_file_cache_entry *cyder_maplestory_file_cache_slot(void)
+@@ -1510,8 +1514,9 @@
+     entry->age = ++cyder_maplestory_file_cache_age;
+     cyder_maplestory_io_ring_ensure_locked();
+     if (cyder_maplestory_io_ring_armed)
+-        cyder_maplestory_file_cache_prewarm_start_locked();
++        cyder_maplestory_file_cache_prewarm_request_locked();
+     pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++    cyder_maplestory_file_cache_prewarm_start();
+ 
+     if (trace && !cyder_maplestory_io_profile_enabled())
+         TRACE_(cyderio)( "CYDER_IO open h=%p path=%s cache=%d\n", handle, unix_name, cacheable );
+@@ -1952,20 +1957,26 @@
+     return FALSE;
+ }
+ 
+-static void cyder_maplestory_file_cache_prewarm_start_locked(void)
++static void cyder_maplestory_file_cache_prewarm_request_locked(void)
+ {
+-    pthread_t thread;
++    if (cyder_maplestory_file_cache_prewarm_enabled())
++        cyder_maplestory_file_cache_prewarm_requested = TRUE;
++}
+ 
++static void cyder_maplestory_file_cache_prewarm_start(void)
++{
++    pthread_mutex_lock( &cyder_maplestory_file_cache_mutex );
+     if (cyder_maplestory_file_cache_prewarm_started ||
+-        !cyder_maplestory_file_cache_prewarm_enabled()) return;
+-
+-    if (pthread_create( &thread, NULL, cyder_maplestory_file_cache_prewarm_thread, NULL ))
++        !cyder_maplestory_file_cache_prewarm_requested ||
++        !cyder_maplestory_file_cache_prewarm_enabled())
+     {
+-        TRACE_(cyderio)( "CYDER_IO prewarm skipped reason=thread-create-failed\n" );
++        pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
+         return;
+     }
+     cyder_maplestory_file_cache_prewarm_started = TRUE;
+-    pthread_detach( thread );
++    cyder_maplestory_file_cache_prewarm_requested = FALSE;
++    pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
++    cyder_maplestory_file_cache_prewarm_thread( NULL );
+ }
+ 
+ /* check if a given Unicode char is OK in a DOS short name */

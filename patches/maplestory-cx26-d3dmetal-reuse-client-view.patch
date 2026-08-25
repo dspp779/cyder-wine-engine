@@ -1,0 +1,111 @@
+--- a/dlls/winemac.drv/d3dmetal.c
++++ b/dlls/winemac.drv/d3dmetal.c
+@@ -101,21 +101,48 @@
+ {
+     struct macdrv_win_data *data;
+     struct d3dmetal_macdrv_win_data *d3dm_data;
+-    struct macdrv_client_surface *client_surface;
++    struct macdrv_client_surface *client_surface = NULL;
++    BOOL reuse_client_view = !!getenv("CYDER_MAPLESTORY_REUSE_CLIENT_VIEW");
+     TRACE("get_win_data %p\n", hwnd);
+ 
+-    /* Creating a client surface on each call to get_win_data() means it's no longer idempotent,
+-     * but D3DMetal/DXMT both call it only when creating a new DXGI swapchain.
+-     * They do:
+-     * get_win_data() -> create_metal_device() -> create_metal_view() -> get_metal_layer() -> release_win_data()
+-     */
+-    client_surface = macdrv_client_surface_create(hwnd);
++    if (reuse_client_view)
++    {
++        /* CX25 OEM passes the visible client view directly. CX26 may not have
++         * one yet when D3DMetal asks for the first swapchain, so create the
++         * normal client surface only as a fallback and then retry. */
++        data = get_win_data(hwnd);
++        if (data && data->client_view)
++        {
++            TRACE("reusing existing client view %p\n", data->client_view);
++        }
++        else
++        {
++            if (data) release_win_data(data);
++            data = NULL;
++            client_surface = macdrv_client_surface_create(hwnd);
++            if (client_surface)
++            {
++                TRACE("created fallback client surface %p\n", client_surface->cocoa_view);
++                data = get_win_data(hwnd);
++            }
++        }
++    }
++    else
++    {
++        /* Creating a client surface on each call to get_win_data() means it's no longer idempotent,
++         * but D3DMetal/DXMT both call it only when creating a new DXGI swapchain.
++         * They do:
++         * get_win_data() -> create_metal_device() -> create_metal_view() -> get_metal_layer() -> release_win_data()
++         */
++        client_surface = macdrv_client_surface_create(hwnd);
+ 
+-    /* get_win_data() needs to happen after client_surface creation to avoid deadlocks */
+-    data = get_win_data(hwnd);
++        /* get_win_data() needs to happen after client_surface creation to avoid deadlocks */
++        data = get_win_data(hwnd);
++    }
+     if (!data)
+     {
+-        client_surface_release((struct client_surface *)client_surface);
++        if (client_surface)
++            client_surface_release((struct client_surface *)client_surface);
+         return NULL;
+     }
+ 
+@@ -123,22 +150,41 @@
+      * directly and does not use the nextDrawable event bridge. Keep the
+      * surface alive for D3DMetal, but allow that bridge to be disabled while
+      * comparing the two handoff models. */
+-    if (!getenv("CYDER_MAPLESTORY_LEGACY_D3DMETAL_SURFACE"))
+-        macdrv_set_view_d3dmetal_client_surface(client_surface->cocoa_view, &client_surface->client);
++    if (!reuse_client_view)
++    {
++        if (!getenv("CYDER_MAPLESTORY_LEGACY_D3DMETAL_SURFACE"))
++            macdrv_set_view_d3dmetal_client_surface(client_surface->cocoa_view, &client_surface->client);
+ 
+-    if (!data->d3dmetal_client_surfaces)
++        if (!data->d3dmetal_client_surfaces)
++        {
++            static const CFArrayCallBacks callbacks = { .release = cf_client_surface_release };
++            data->d3dmetal_client_surfaces = CFArrayCreateMutable(NULL, 0, &callbacks);
++        }
++        CFArrayAppendValue(data->d3dmetal_client_surfaces, client_surface);
++    }
++    else if (client_surface)
+     {
+-        static const CFArrayCallBacks callbacks = { .release = cf_client_surface_release };
+-        data->d3dmetal_client_surfaces = CFArrayCreateMutable(NULL, 0, &callbacks);
++        /* Keep a fallback-created view alive after handing it back through
++         * the ordinary window data, just like the normal CX26 path. */
++        if (!data->d3dmetal_client_surfaces)
++        {
++            static const CFArrayCallBacks callbacks = { .release = cf_client_surface_release };
++            data->d3dmetal_client_surfaces = CFArrayCreateMutable(NULL, 0, &callbacks);
++        }
++        CFArrayAppendValue(data->d3dmetal_client_surfaces, client_surface);
+     }
+-    CFArrayAppendValue(data->d3dmetal_client_surfaces, client_surface);
+ 
+     d3dm_data = calloc(1, sizeof(*d3dm_data));
+ 
+     d3dm_data->hwnd = data->hwnd;
+     d3dm_data->cocoa_window = data->cocoa_window;
+-    /* cocoa_view is no longer present in macdrv_win_data. D3DMetal doesn't use it. */
+-    d3dm_data->client_cocoa_view = client_surface->cocoa_view;
++    if (reuse_client_view)
++        d3dm_data->client_cocoa_view = data->client_view;
++    else
++        /* cocoa_view is no longer present in macdrv_win_data. D3DMetal doesn't use it. */
++        d3dm_data->client_cocoa_view = client_surface->cocoa_view;
++    if (!d3dm_data->client_cocoa_view)
++        WARN("no client view available for hwnd %p\n", hwnd);
+     d3dm_data->window_rect = data->rects.window;
+     d3dm_data->whole_rect = data->rects.visible;
+     d3dm_data->client_rect = data->rects.client;
