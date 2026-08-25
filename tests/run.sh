@@ -37,6 +37,7 @@ tests=(
   test-pack-graphics-payloads.sh
   test-pack-engine-dxmt-gate.sh
   test-pack-minos-scan.sh
+  test-pack-minos-scan-moltenvk-exempt.sh
 )
 
 for test_file in "${tests[@]}"; do

@@ -25,12 +25,11 @@ manual host command needs to source `scripts/env-x86_64.sh`.
 
 - Product host minOS floor is **10.15** (`.env` / default). Mach-O `minos` must
   not exceed 10.15 on shipped host binaries (`wine`, `wineserver`, `*.so`,
-  bundled dylibs) — **except** bundled DXMT under `lib/dxmt/**`
-  (e.g. `lib/dxmt/x86_64-unix/winemetal.so`), which may declare minos up to
-  **15.0**. That exemption is intentional: it is pinned upstream DXMT v0.80,
-  which Cyder does not rebuild, and Cyder only offers DXMT as a selectable
-  graphics backend on **macOS 15+** in the first place, so the exemption
-  cannot regress the effective floor. See `scripts/pack-minos-scan.py`.
+  bundled dylibs) — **except**:
+  - bundled DXMT under `lib/dxmt/**` (minos up to **15.0**);
+  - `libMoltenVK-1.4.2.dylib` (minos up to **12.0**; dual-variant real activated
+    only on macOS 12+).
+  See `scripts/pack-minos-scan.py`.
 - Prefer `scripts/rebuild-wine-host-unix.sh` after a contaminated incremental
   host build.
 - This tree builds **CrossOver 26 only**. `--cx 25` is retired.
