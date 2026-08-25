@@ -196,9 +196,65 @@ bash "$SCRIPT_DIR/strip-wine-install.sh" "$ENGINE_TREE"
 VULKAN_MODE="${VULKAN_MODE:-with}" VULKAN_SOURCE=existing \
   bash "$SCRIPT_DIR/bundle-wine-dylibs.sh" "$ENGINE_TREE"
 
-# Cyder008+ owns the MoltenVK wait-poll workaround in the engine artifact.
-# Refuse to publish a plain MoltenVK or a broken shim-on-shim pair so the App
-# never needs to mutate the installed engine at runtime.
+# Cyder012+ dual-variant MoltenVK: two versioned reals + wait-poll shim + .real symlink.
+# Cyder008/009 kept the older single-real + shim pair without versioned siblings.
+cyder_validate_moltenvk_dual_layout() {
+  local dir="$1"
+  local shim="$dir/libMoltenVK.dylib"
+  local real_link="$dir/libMoltenVK.real.dylib"
+  local v142="$dir/libMoltenVK-1.4.2.dylib"
+  local v1210="$dir/libMoltenVK-1.2.10.dylib"
+  local target
+
+  [[ -f "$v142" && -f "$v1210" ]] || {
+    echo "Refusing to pack: missing versioned MoltenVK reals (need libMoltenVK-1.4.2.dylib and libMoltenVK-1.2.10.dylib)" >&2
+    return 1
+  }
+  [[ -L "$real_link" || -f "$real_link" ]] || {
+    echo "Refusing to pack: missing libMoltenVK.real.dylib" >&2
+    return 1
+  }
+  [[ -f "$shim" ]] || {
+    echo "Refusing to pack: missing libMoltenVK.dylib shim" >&2
+    return 1
+  }
+  target="$(readlink "$real_link" 2>/dev/null || true)"
+  if [[ -z "$target" ]]; then
+    # Non-symlink .real is only acceptable if it is not itself a shim (legacy).
+    target="$(basename "$real_link")"
+  fi
+  case "$target" in
+    libMoltenVK-1.4.2.dylib | libMoltenVK-1.2.10.dylib | */libMoltenVK-1.4.2.dylib | */libMoltenVK-1.2.10.dylib) ;;
+    *)
+      if [[ -L "$real_link" ]]; then
+        echo "Refusing to pack: libMoltenVK.real.dylib must point at a versioned real (got $target)" >&2
+        return 1
+      fi
+      ;;
+  esac
+  strings "$shim" | grep -Fq 'cyder-moltenvk-timeline-wait-poll' || {
+    echo "Refusing to pack: libMoltenVK.dylib is not the wait-poll shim" >&2
+    return 1
+  }
+  otool -L "$shim" | grep -Fq '@loader_path/libMoltenVK.real.dylib' || {
+    echo "Refusing to pack: MoltenVK shim does not re-export libMoltenVK.real.dylib" >&2
+    return 1
+  }
+  nm -gj "$shim" | grep -Fxq '_vkWaitSemaphores' || {
+    echo "Refusing to pack: MoltenVK shim does not export vkWaitSemaphores" >&2
+    return 1
+  }
+  if otool -L "$v142" | tail -n +3 | grep -Fq 'libMoltenVK.real.dylib'; then
+    echo "Refusing to pack: libMoltenVK-1.4.2.dylib looks like a shim" >&2
+    return 1
+  fi
+  if otool -L "$v1210" | tail -n +3 | grep -Fq 'libMoltenVK.real.dylib'; then
+    echo "Refusing to pack: libMoltenVK-1.2.10.dylib looks like a shim" >&2
+    return 1
+  fi
+  echo "OK: MoltenVK dual-variant wait-poll layout"
+}
+
 if [[ "$ENGINE_VERSION_LABEL" == *Cyder008* || "$ENGINE_VERSION_LABEL" == *Cyder009* ]]; then
   MOLTENVK_DIR="$ENGINE_TREE/lib/wine/x86_64-unix"
   MOLTENVK_SHIM="$MOLTENVK_DIR/libMoltenVK.dylib"
@@ -220,6 +276,8 @@ if [[ "$ENGINE_VERSION_LABEL" == *Cyder008* || "$ENGINE_VERSION_LABEL" == *Cyder
     exit 1
   fi
   echo "OK: MoltenVK wait-poll shim pair ($ENGINE_VERSION_LABEL)"
+elif [[ "$ENGINE_VERSION_LABEL" == *Cyder012* || "$ENGINE_VERSION_LABEL" == *Cyder01[3-9]* || "$ENGINE_VERSION_LABEL" == *Cyder0[2-9]* ]]; then
+  cyder_validate_moltenvk_dual_layout "$ENGINE_TREE/lib/wine/x86_64-unix" || exit 1
 fi
 bash "$SCRIPT_DIR/sign-wine.sh" --root "$ENGINE_TREE" --entitlements "$ENTITLEMENTS_PLIST"
 

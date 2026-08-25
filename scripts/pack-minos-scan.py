@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Scan a staged engine tree for Mach-O `minos` violations.
 
-The product host minOS floor is 10.15. The single narrow exception is
-upstream DXMT's bundled `winemetal.so` (and any other Mach-O under
-`lib/dxmt/**`): pinned upstream v0.80 declares minos up to 15.0, and Cyder
-only offers DXMT as a selectable graphics backend on macOS 15+, so this
-exemption cannot regress the floor for any other shipped binary
-(`wine`, `wineserver`, `*.so`, bundled dylibs).
+The product host minOS floor is 10.15. Narrow exceptions:
+
+- upstream DXMT under `lib/dxmt/**` (ceiling 15.0; Cyder only offers DXMT on
+  macOS 15+)
+- `libMoltenVK-1.4.2.dylib` (ceiling 12.0; only activated on macOS 12+ via
+  the dual-variant `.real` symlink)
 """
 import re
 import subprocess
@@ -15,6 +15,8 @@ from pathlib import Path
 
 DXMT_PATH_PREFIX = "lib/dxmt/"
 DXMT_MINOS_CEILING = (15, 0, 0)
+MOLTENVK_142_NAME = "libMoltenVK-1.4.2.dylib"
+MOLTENVK_142_CEILING = (12, 0, 0)
 
 
 def parse_version(v: str):
@@ -30,11 +32,17 @@ def is_dxmt_exempt_path(rel_path: str) -> bool:
     return rel_path.startswith(DXMT_PATH_PREFIX)
 
 
+def is_moltenvk_142_exempt_path(rel_path: str) -> bool:
+    """True when the basename is the dual-variant MoltenVK 1.4.2 real."""
+    return Path(rel_path).name == MOLTENVK_142_NAME
+
+
 def minos_limit_for(rel_path: str, floor: tuple) -> tuple:
-    """Effective minos ceiling for rel_path: the product floor everywhere,
-    except the pinned DXMT payload which may declare up to 15.0."""
+    """Effective minos ceiling for rel_path."""
     if is_dxmt_exempt_path(rel_path):
         return max(floor, DXMT_MINOS_CEILING)
+    if is_moltenvk_142_exempt_path(rel_path):
+        return max(floor, MOLTENVK_142_CEILING)
     return floor
 
 
@@ -68,18 +76,23 @@ def main(argv) -> int:
     root = Path(argv[1])
     floor_s = argv[2]
     floor, violations = scan(root, floor_s)
-    ceiling_s = ".".join(str(x) for x in DXMT_MINOS_CEILING)
+    dxmt_s = ".".join(str(x) for x in DXMT_MINOS_CEILING)
+    mvk_s = ".".join(str(x) for x in MOLTENVK_142_CEILING)
     if violations:
         print(
             f"Refusing to pack: Mach-O minos exceeds allowed ceiling "
-            f"(product floor {floor_s}; {DXMT_PATH_PREFIX}** is exempt up to {ceiling_s} "
-            "for pinned upstream DXMT v0.80):",
+            f"(product floor {floor_s}; {DXMT_PATH_PREFIX}** exempt up to {dxmt_s}; "
+            f"{MOLTENVK_142_NAME} exempt up to {mvk_s}):",
             file=sys.stderr,
         )
         for ver, rel in sorted(violations):
             print(f"  {ver}  {rel}", file=sys.stderr)
         return 1
-    print(f"OK: staged engine Mach-O minos <= {floor_s} ({DXMT_PATH_PREFIX}** exempt up to {ceiling_s})")
+    print(
+        f"OK: staged engine Mach-O minos <= {floor_s} "
+        f"({DXMT_PATH_PREFIX}** exempt up to {dxmt_s}; "
+        f"{MOLTENVK_142_NAME} exempt up to {mvk_s})"
+    )
     return 0
 
 

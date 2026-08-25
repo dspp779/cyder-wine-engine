@@ -250,8 +250,9 @@ cat install/graphics-cx26-x86_64/version
 otool -l install/graphics-cx26-x86_64/lib/libMoltenVK.dylib | grep -A2 minos
 ```
 
-Cyder011 不應再使用 `libMoltenVK.real.dylib` shim pair，也不應透過
-`install-crossover-app-moltenvk.sh` 取得正式 MoltenVK。
+Cyder012+ 使用 dual-variant MoltenVK（versioned reals + `.real` symlink +
+wait-poll shim）。以 `scripts/install-moltenvk-dual-variant.sh` 組裝；不要只留
+單一 `libMoltenVK.dylib` 而無 versioned reals。
 
 ## 6. 編譯並安裝 Wine engine
 
@@ -289,8 +290,10 @@ bash scripts/build-wine.sh \
 ```bash
 arch -x86_64 install/wine-cx26-x86_64/bin/wine --version
 test -f install/wine-cx26-x86_64/lib/wine/x86_64-unix/cxcompatdb.so
+test -f install/wine-cx26-x86_64/lib/wine/x86_64-unix/libMoltenVK-1.4.2.dylib
+test -f install/wine-cx26-x86_64/lib/wine/x86_64-unix/libMoltenVK-1.2.10.dylib
+test -L install/wine-cx26-x86_64/lib/wine/x86_64-unix/libMoltenVK.real.dylib
 test -f install/wine-cx26-x86_64/lib/wine/x86_64-unix/libMoltenVK.dylib
-test ! -e install/wine-cx26-x86_64/lib/wine/x86_64-unix/libMoltenVK.real.dylib
 ```
 
 若增量 build 曾使用錯誤 SDK／minOS，先執行：
@@ -378,14 +381,15 @@ dist/artifacts/graphics/dxvk2-2.7.1.tar.zst
 dist/artifacts/graphics/dxmt-0.80.tar.zst
 ```
 
-確認 engine archive 只含單一 MoltenVK：
+確認 engine archive 含 dual-variant MoltenVK：
 
 ```bash
-tar -tJf dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder011.tar.xz \
+tar -tJf dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder012.tar.xz \
   | grep -E 'libMoltenVK|lib/dxvk|lib/dxmt'
 ```
 
-預期只有 `lib/wine/x86_64-unix/libMoltenVK.dylib`；graphics payload 會出現在
+預期含 `libMoltenVK-1.4.2.dylib`、`libMoltenVK-1.2.10.dylib`、
+`libMoltenVK.real.dylib`、`libMoltenVK.dylib`（shim）；graphics payload 仍在
 `dist/artifacts/graphics/` 的獨立 archive。
 
 ## 9. 匯入 Cyder 並做 smoke test
@@ -414,7 +418,7 @@ import／release 流程；不要手動解壓覆蓋使用者 runtime。Cyder 應�
 | `minos exceeds product floor` | 使用了新 macOS bottle 或錯誤 SDK flags | 用專案 `.brew-x86`，確認 `MACOSX_DEPLOYMENT_TARGET=10.15`，重建 host dylib |
 | `DXVK` log 但實際是 WineD3D | DLL 沒有 builtin stamp、payload 未安裝或舊 engine 不認識 token | 檢查 offset 64、runtime payload、`cxcompatdb.so` 與 engine label |
 | DXMT 啟動後立即結束 | 缺 `winemetal.dll` 或 macOS 不符合 DXMT 要求 | 重新 ensure DXMT，確認 prefix 與 payload 的 Windows／unix 檔案完整 |
-| 打包後出現 `libMoltenVK.real.dylib` | 混入舊 CrossOver shim | 清理 install tree 後重新 bundle；Cyder011 只使用 source-built 單一 dylib |
+| 打包後缺少 versioned MoltenVK 或 shim | 未跑 `install-moltenvk-dual-variant.sh` | 組裝 dual layout 後再 pack；Cyder012+ 需要雙 real + `.real` + wait-poll shim |
 
 ## 相關文件
 

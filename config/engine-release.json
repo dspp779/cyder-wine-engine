@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "engineId": "cx26.3-w11-cyder011",
-  "versionLabel": "CX26.3.0-W11-Cyder011",
+  "engineId": "cx26.3-w11-cyder012",
+  "versionLabel": "CX26.3.0-W11-Cyder012",
   "base": {
     "crossover": "26.3.0",
     "wine": "11.0"
@@ -50,5 +50,5 @@
   "components": [
     "runtime/cxcompatdb/cxcompatdb.c"
   ],
-  "notes": "Cyder uses an open cxcompatdb.so loaded by the original CrossOver ntdll hook. It owns current-process CompatDB arguments, DLL overrides, graphics backend validation and runtime prepend; Cyder no longer patches ntdll for CompatDB. The MapleStory stack is D3DMetal-neutral; MoltenVK feature-level validation applies only to the optional DXVK path. Graphics payloads are shipped separately. The release stack includes only the MapleStory adaptive read-ahead cache for read-only WZ files and its 512-slot capacity tuning; ring, summary, timeline, cache-stats, section-map, mmap and prewarm patches remain development diagnostics and are not shipped in the release engine. The graphics build is pinned to upstream MoltenVK 1.4.0 with the Cyder CrossOver capability patch plus timeline-wait and present autoreleasepool patches."
+  "notes": "Cyder uses an open cxcompatdb.so loaded by the original CrossOver ntdll hook. It owns current-process CompatDB arguments, DLL overrides, graphics backend validation and runtime prepend; Cyder no longer patches ntdll for CompatDB. The MapleStory stack is D3DMetal-neutral; MoltenVK feature-level validation applies only to the optional DXVK path. Graphics payloads are shipped separately. The release stack includes only the MapleStory adaptive read-ahead cache for read-only WZ files and its 512-slot capacity tuning; ring, summary, timeline, cache-stats, section-map, mmap and prewarm patches remain development diagnostics and are not shipped in the release engine. Dual-variant MoltenVK ships libMoltenVK-1.4.2.dylib and libMoltenVK-1.2.10.dylib with a wait-poll shim as libMoltenVK.dylib and libMoltenVK.real.dylib selecting the active real; 1.4.2 reals keep capability plus present patches (timeline-wait is shim-owned)."
 }
