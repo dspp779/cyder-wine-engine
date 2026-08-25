@@ -15,6 +15,9 @@ fi
 
 MOLTENVK_URL="${MOLTENVK_URL:-https://github.com/KhronosGroup/MoltenVK/archive/refs/tags/v${MOLTENVK_VERSION}.tar.gz}"
 case "$MOLTENVK_VERSION" in
+  1.4.2)
+    MOLTENVK_SHA256="${MOLTENVK_SHA256:-6864db532f1dbbdb621a8d0ec13f24edae318fd9269dd3dd0cdff791334bb1cb}"
+    ;;
   1.4.0)
     MOLTENVK_SHA256="${MOLTENVK_SHA256:-fc74aef926ee3cd473fe260a93819c09fdc939bff669271a587e9ebaa43d4306}"
     ;;
@@ -40,9 +43,10 @@ fi
 }
 
 marker="$MOLTENVK_SRC/MoltenVK/MoltenVK/API/mvk_private_api.h"
+mvk_patch="${MOLTENVK_VERSION##*.}"
 if [[ -f "$marker" ]] && rg -q '^#define[[:space:]]+MVK_VERSION_MAJOR[[:space:]]+1([[:space:]]|$)' "$marker" \
     && rg -q '^#define[[:space:]]+MVK_VERSION_MINOR[[:space:]]+4([[:space:]]|$)' "$marker" \
-    && rg -q '^#define[[:space:]]+MVK_VERSION_PATCH[[:space:]]+0([[:space:]]|$)' "$marker"; then
+    && rg -q "^#define[[:space:]]+MVK_VERSION_PATCH[[:space:]]+${mvk_patch}([[:space:]]|$)" "$marker"; then
   printf '%s\n' "$MOLTENVK_SRC"
   exit 0
 fi

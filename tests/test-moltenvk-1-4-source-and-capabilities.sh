@@ -16,9 +16,17 @@ assert_contains() {
   fi
 }
 
+assert_not_contains() {
+  local text="$1" needle="$2" message="$3"
+  if [[ "$text" == *"$needle"* ]]; then
+    echo "FAIL $message: unexpected $needle" >&2
+    exit 1
+  fi
+}
+
 env_text="$(<"$ENV_SCRIPT")"
-assert_contains "$env_text" 'MOLTENVK_VERSION="${MOLTENVK_VERSION:-1.4.0}"' \
-  "default MoltenVK version should be 1.4.0"
+assert_contains "$env_text" 'MOLTENVK_VERSION="${MOLTENVK_VERSION:-1.4.2}"' \
+  "default MoltenVK version should be 1.4.2"
 assert_contains "$env_text" 'MOLTENVK_SOURCE="${MOLTENVK_SOURCE:-upstream}"' \
   "default MoltenVK source should be upstream"
 
@@ -38,14 +46,20 @@ for script in "$BUILD_SCRIPT" "$REBUILD_SCRIPT"; do
   text="$(<"$script")"
   assert_contains "$text" 'cyder-moltenvk-crossover-capability-hacks.patch' \
     "$(basename "$script") should apply the capability patch"
+  assert_contains "$text" 'cyder-moltenvk-present-autoreleasepool.patch' \
+    "$(basename "$script") should apply the present autoreleasepool patch"
 done
 
-ensure_text="$(<"$ENSURE_SCRIPT")"
-assert_contains "$ensure_text" 'fc74aef926ee3cd473fe260a93819c09fdc939bff669271a587e9ebaa43d4306' \
-  "source ensure should pin the MoltenVK 1.4.0 checksum"
+build_text="$(<"$BUILD_SCRIPT")"
+assert_not_contains "$build_text" 'cyder-moltenvk-timeline-wait-poll.patch' \
+  "upstream graphics build must not source-patch timeline-wait (shim owns ports fix)"
 
-dry_run="$(MOLTENVK_SOURCE=upstream MOLTENVK_VERSION=1.4.0 bash "$ENSURE_SCRIPT" --dry-run)"
-assert_contains "$dry_run" 'build/moltenvk-1.4.0' \
+ensure_text="$(<"$ENSURE_SCRIPT")"
+assert_contains "$ensure_text" '6864db532f1dbbdb621a8d0ec13f24edae318fd9269dd3dd0cdff791334bb1cb' \
+  "source ensure should pin the MoltenVK 1.4.2 checksum"
+
+dry_run="$(MOLTENVK_SOURCE=upstream MOLTENVK_VERSION=1.4.2 bash "$ENSURE_SCRIPT" --dry-run)"
+assert_contains "$dry_run" 'build/moltenvk-1.4.2' \
   "source ensure dry-run should resolve the pinned MoltenVK source path"
 
-echo "PASS MoltenVK 1.4.0 source and CrossOver capability patch checks"
+echo "PASS MoltenVK 1.4.2 source and CrossOver capability patch checks"

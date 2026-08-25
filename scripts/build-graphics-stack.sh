@@ -52,7 +52,7 @@ Then build Wine with CrossOver Vulkan:
   bash scripts/build-wine.sh --cx 26 --with-vulkan --vulkan-source crossover
 
 Notes:
-  - MoltenVK 1.4.0 is fetched and SHA-256 verified by ensure-moltenvk-source.sh.
+  - MoltenVK 1.4.2 is fetched and SHA-256 verified by ensure-moltenvk-source.sh.
     Set MOLTENVK_SOURCE=crossover-foss only for an explicit legacy comparison.
   - MoltenVK fetchDependencies may download upstream deps (network required).
   - Requires Xcode (xcodebuild). On Apple Silicon, MoltenVK is built under Rosetta
@@ -194,10 +194,7 @@ build_moltenvk() {
 
   ensure_moltenvk_source
   apply_capability_patch
-  apply_source_patch \
-    cyder-moltenvk-timeline-wait-poll.patch \
-    'Cyder: each -[MTLSharedEvent notifyListener' \
-    "$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKSync.mm"
+  # timeline-wait stays in the wait-poll shim (libMoltenVK.dylib), not the real.
   apply_source_patch \
     cyder-moltenvk-present-autoreleasepool.patch \
     'Cyder: Metal scheduled-handler threads' \
@@ -283,8 +280,8 @@ moltenvk ${pinned_mvk:-$MOLTENVK_VERSION}
 arch ${ARCHS}
 source ${MOLTENVK_SOURCE}
 capability-patch cyder-moltenvk-crossover-capability-hacks
-patch cyder-moltenvk-timeline-wait-poll
 patch cyder-moltenvk-present-autoreleasepool
+ports-fix wait-poll-shim
 EOF
   echo "Installed MoltenVK -> $marker"
 }
