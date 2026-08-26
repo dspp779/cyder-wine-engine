@@ -249,6 +249,9 @@ CYDER_ENGINE_VERSION_LABEL="$(head -n 1 config/engine-version.txt)" \
 SIGN_IDENTITY=- bash scripts/pack-engine-artifact.sh --xz --force
 ```
 
+Formal Developer ID / shipping artifacts: use `.agents/skills/engine-release-pack`
+instead of ad-hoc `SIGN_IDENTITY=-` packs.
+
 Deliver the archive, checksum, and manifest. Do not call a raw install tree a
 release. Stage or commit only the requested files.
 
