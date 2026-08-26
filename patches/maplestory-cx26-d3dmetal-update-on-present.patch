@@ -1,0 +1,14 @@
+--- a/dlls/winemac.drv/window.c
++++ b/dlls/winemac.drv/window.c
+@@ -1215,5 +1215,10 @@ static void macdrv_client_surface_present(struct client_surface *client, HDC hdc)
+ 
+     TRACE("%s\n", debugstr_client_surface(client));
+ 
++    /* MapleStoryPort A/B: external D3DMetal calls nextDrawable/present without
++     * going through the generic win32u swapchain path, so the client surface
++     * may retain the size from its initial creation after a window resize. */
++    macdrv_client_surface_update(client);
++
+     if (!(data = get_win_data(surface->client.hwnd))) return;
+     if (data->client_view != surface->cocoa_view)
+     {

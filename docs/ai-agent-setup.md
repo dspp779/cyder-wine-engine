@@ -18,7 +18,7 @@ Claude Code, and Antigravity/Gemini stay aligned.
 | **Codex** | `AGENTS.md` | Native. Optional personal overrides: gitignored `AGENTS.override.md`. |
 | **Cursor** | `AGENTS.md` + `.cursor/rules/incremental-build-and-patches.mdc` | Rule is `alwaysApply` and points at the guide. |
 | **Claude Code** | `CLAUDE.md` | Imports `@AGENTS.md`; add Claude-only notes under that import. |
-| **Antigravity / Gemini** | `GEMINI.md` + `AGENTS.md` + `.agents/skills/incremental-wine-build/` | Both root md files are read; the skill activates for build/patch/pack tasks. |
+| **Antigravity / Gemini** | `GEMINI.md` + `AGENTS.md` + `.agents/skills/incremental-wine-build/` + `.agents/skills/engine-release-pack/` | Incremental skill for daily build/patch; `engine-release-pack` for Developer ID shipping artifacts. |
 
 Do **not** duplicate long checklists into every stub. Change `AGENTS.md` and the
 incremental guide; stubs only import or summarize.

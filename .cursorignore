@@ -1,0 +1,19 @@
+# Build toolchain and outputs
+.brew-x86/
+build/
+install/
+dist/
+logs/
+
+# Archives and local runtime drops
+tools/archives/
+tools/runtime/
+tools/cyder-mvk-autorelease/
+
+# MapleStory diagnostic prefixes / logs (untracked, huge)
+.maplestory-*
+*.log
+
+# Local credentials
+auth/
+.env

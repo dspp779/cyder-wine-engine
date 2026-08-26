@@ -1,0 +1,47 @@
+--- a/dlls/winemac.drv/d3dmetal.c
++++ b/dlls/winemac.drv/d3dmetal.c
+@@ -99,0 +99,14 @@
++/* MapleStoryPort A/B: CX25 used the normal client view for helper processes
++ * such as DwarfAxe, while CX26 creates a client surface for every D3DMetal
++ * swapchain. Keep the CX26 surface path for MapleStory itself, but allow a
++ * diagnostic run to use the pre-CX26 handoff for auxiliary processes. */
++static BOOL is_maplestory_process(void)
++{
++    WCHAR *path = NtCurrentTeb()->Peb->ProcessParameters->ImagePathName.Buffer;
++    WCHAR *name;
++
++    if (!path) return FALSE;
++    name = wcsrchr(path, '\\');
++    name = name ? name + 1 : path;
++    return !wcsicmp(name, L"MapleStory.exe");
++}
+@@ -105,0 +119,1 @@
++    BOOL use_client_surface;
+@@ -112,1 +127,17 @@
+-    client_surface = macdrv_client_surface_create(hwnd);
++    use_client_surface = !getenv("CYDER_MAPLESTORY_LEGACY_AUX_D3DMETAL") || is_maplestory_process();
++    client_surface = NULL;
++    if (!use_client_surface)
++    {
++        data = get_win_data(hwnd);
++        if (data && !data->client_view)
++        {
++            release_win_data(data);
++            data = NULL;
++            use_client_surface = TRUE;
++        }
++    }
++    if (use_client_surface)
++    {
++        client_surface = macdrv_client_surface_create(hwnd);
++        data = get_win_data(hwnd);
++    }
+@@ -115,6 +146,5 @@
+-    data = get_win_data(hwnd);
+-    if (!data)
++    if (!data || (use_client_surface && !client_surface))
+     {
+-        client_surface_release((struct client_surface *)client_surface);
++        if (client_surface) client_surface_release((struct client_surface *)client_surface);
+         return NULL;
+     }
