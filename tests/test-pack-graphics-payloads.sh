@@ -72,4 +72,27 @@ assert test -f "$output_dir/dxvk-unknown.tar.zst"
 assert test -f "$output_dir/dxvk2-unknown.tar.zst"
 assert test -f "$output_dir/dxmt-unknown.tar.zst"
 
+# Symlink payload source must be rejected
+sym_engine="$tmp/sym-engine"
+mkdir -p "$sym_engine/lib" "$tmp/real-dxvk" "$tmp/real-dxvk2" "$tmp/real-dxmt"
+printf 'x\n' >"$tmp/real-dxvk/f"
+printf 'x\n' >"$tmp/real-dxvk2/f"
+printf 'x\n' >"$tmp/real-dxmt/f"
+ln -s "$tmp/real-dxvk" "$sym_engine/lib/dxvk"
+ln -s "$tmp/real-dxvk2" "$sym_engine/lib/dxvk2"
+ln -s "$tmp/real-dxmt" "$sym_engine/lib/dxmt"
+set +e
+sym_out="$(
+  CYDER_ZSTD="$fake_zstd" bash "$ROOT/scripts/pack-graphics-payloads.sh" \
+    --engine "$sym_engine" --output-dir "$tmp/sym-out" --force 2>&1
+)"
+sym_status=$?
+set -e
+if [[ "$sym_status" -eq 0 ]]; then
+  echo "ASSERT failed: symlink dxvk/dxmt sources must fail" >&2
+  exit 1
+fi
+assert_contains "$sym_out" "Refusing symlinked" \
+  "pack must refuse symlink graphics sources with a clear message"
+
 echo "PASS test-pack-graphics-payloads"
