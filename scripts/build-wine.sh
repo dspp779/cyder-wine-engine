@@ -148,14 +148,15 @@ bootstrap_brew() {
     return 0
   fi
 
-  run mkdir -p "$HOMEBREW_PREFIX"
+  # Clone instead of extracting a tarball: Homebrew's `master` branch is now a
+  # stub bootstrapper, and brew needs its own git repo (inside this checkout a
+  # tarball would make `brew update` fetch the engine repo's origin).
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    echo "+ curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip-components=1 -C $HOMEBREW_PREFIX"
+    echo "+ git clone --depth 1 https://github.com/Homebrew/brew $HOMEBREW_PREFIX"
     return 0
   fi
 
-  curl -L https://github.com/Homebrew/brew/tarball/master \
-    | tar xz --strip-components=1 -C "$HOMEBREW_PREFIX"
+  git clone --depth 1 https://github.com/Homebrew/brew "$HOMEBREW_PREFIX"
   # Ensure brew metadata points at the project prefix, not /opt/homebrew.
   brew_x86 update --force --quiet 2>/dev/null || true
 }
@@ -574,6 +575,9 @@ CONFIGURE_CMD=(
   PKG_CONFIG_PATH="$VULKAN_PKG_PC_PATH"
   LIBRARY_PATH="${LIBRARY_PATH:-}"
   MACOSX_DEPLOYMENT_TARGET="$CYDER_MIN_OS_TARGET"
+  # macOS 27 clang targets arm64 even under `arch -x86_64`; pin the host arch.
+  CC="${CC:-/usr/bin/clang -arch x86_64}"
+  OBJC="${OBJC:-/usr/bin/clang -arch x86_64}"
   CFLAGS="$CYDER_HOST_CFLAGS"
   OBJCFLAGS="$CYDER_HOST_OBJCFLAGS"
   LDFLAGS="$CYDER_HOST_LDFLAGS"
