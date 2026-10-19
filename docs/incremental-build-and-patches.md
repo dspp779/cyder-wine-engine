@@ -168,6 +168,7 @@ otherwise accept an already-patched source tree and duplicate a helper/guard.
 | `cyder-wineserver-macos-timezone-bias.patch` | `get_timezone_bias` in `server/fd.c` |
 | `cyder-wineserver-registry-fsync.patch` | `fsync( fileno( f ) )` in `server/registry.c` |
 | `cyder-winemac-hide-ime-only-klid.patch` | `leaks IME-only HKLs` in `dlls/winemac.drv/keyboard.c` |
+| `cyder-winemac-gl-front-buffer-present.patch` | `if (flags & GL_FLUSH_PRESENT)` in `dlls/winemac.drv/opengl.c` |
 | `cyder-kernelbase-disk-free-space-fallback.patch` | `retry a real mapped volume instead of inventing free space` in `dlls/kernelbase/volume.c` |
 | `maplestory-cx26-no-sched-yield.patch` | `if (is_maplestory_process()) return STATUS_NO_YIELD_PERFORMED;` |
 | `maplestory-cx26-file-cache-adaptive.patch` | `CYDER_MAPLESTORY_FILE_CACHE` in `dlls/ntdll/unix/file.c` |

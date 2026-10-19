@@ -79,6 +79,8 @@ assert_contains "$output" "$ROOT/patches/cyder-wineserver-registry-fsync.patch" 
   "build should fsync registry files before close"
 assert_contains "$output" "$ROOT/patches/cyder-winemac-hide-ime-only-klid.patch" \
   "build should stop exposing IME-only KLIDs from winemac"
+assert_contains "$output" "$ROOT/patches/cyder-winemac-gl-front-buffer-present.patch" \
+  "build should present winemac OpenGL front-buffer flushes"
 assert_contains "$output" "$ROOT/patches/cyder-kernelbase-disk-free-space-fallback.patch" \
   "build should retry GetDiskFreeSpaceExW on a real mapped volume when the device root cannot be opened"
 assert_contains "$output" "$ROOT/patches/cyder-ntdll-query-directory-object-trace.patch" \
