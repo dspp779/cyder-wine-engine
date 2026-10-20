@@ -77,4 +77,35 @@ assert test -f "$artifacts/graphics/dxmt-version.txt"
 assert test -f "$artifacts/graphics/dxvk-artifact-sha256.txt"
 assert test -f "$artifacts/graphics/dxmt-artifact-sha256.txt"
 
+# Exercise the production compression branch with a real zstd binary. Existing
+# tests stop at the archive-present early exit and cannot catch --force failing
+# to reach the compressor's overwrite option.
+source "$ROOT/scripts/engine-common.sh"
+real_zstd="$(cyder_find_zstd)"
+python3 - "$ROOT/scripts/pack-engine-artifact.sh" "$real_zstd" <<'PYTEST'
+import io, os, pathlib, subprocess, sys, tarfile, tempfile
+s = pathlib.Path(sys.argv[1]).read_text()
+a = s.index('case "$FORMAT" in\n  zst)\n    echo "==> Compressing')
+b = s.index('# Verify the archive itself', a)
+branch = s[a:b]
+with tempfile.TemporaryDirectory(prefix='cyder-engine-compress-') as tmp:
+    root = pathlib.Path(tmp)
+    (root / 'wine-x86_64').mkdir()
+    (root / 'wine-x86_64/payload').write_text('new payload\n')
+    archive = root / 'engine.tar.zst'
+    archive.write_bytes(b'keep old archive')
+    env = dict(os.environ, FORMAT='zst', STAGING=str(root), ARCHIVE=str(archive), ZSTD_BIN=sys.argv[2])
+    def run(force):
+        return subprocess.run(['bash', '-c', 'set -euo pipefail\n' + branch],
+                              env=dict(env, FORCE=str(force)), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    denied = run(0)
+    assert denied.returncode != 0 and archive.read_bytes() == b'keep old archive'
+    replaced = run(1)
+    assert replaced.returncode == 0, replaced.stdout.decode()
+    data = subprocess.check_output([sys.argv[2], '-dc', str(archive)])
+    with tarfile.open(fileobj=io.BytesIO(data)) as tf:
+        assert tf.extractfile('wine-x86_64/payload').read() == b'new payload\n'
+print('PASS real zstd: --force replaces existing archive; default preserves it')
+PYTEST
+
 echo "PASS test-pack-engine-dxmt-gate"

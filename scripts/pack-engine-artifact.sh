@@ -315,7 +315,9 @@ case "$FORMAT" in
     echo "==> Compressing with zstd (-22 --ultra)"
     (
       cd "$STAGING"
-      tar -cf - wine-x86_64 | "$ZSTD_BIN" -22 --ultra -T0 -o "$ARCHIVE"
+      zstd_args=(-22 --ultra -T0)
+      if [[ "$FORCE" -eq 1 ]]; then zstd_args+=(--force); fi
+      tar -cf - wine-x86_64 | "$ZSTD_BIN" "${zstd_args[@]}" -o "$ARCHIVE"
     )
     ;;
   xz)
