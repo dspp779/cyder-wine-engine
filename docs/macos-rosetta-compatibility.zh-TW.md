@@ -44,6 +44,20 @@ xcrun --sdk macosx --show-sdk-path
 `minos` 也需分開看：本機 clang 21 可用明確旗標產生 x86_64、minOS 10.15 的
 小型程式與 cxcompatdb，但這不等於完整 engine 已在舊版 macOS 通過執行驗收。
 
+### Xcode 27 的 legacy MoltenVK 限制
+
+本機隔離建置已確認：Xcode 27 會直接拒絕 deployment target 10.15，回報
+允許範圍為 12.0 至 27.0.x。因此 legacy MoltenVK 1.2.10 的 Xcode 專案及
+external dependencies 不能只靠設定 `MACOSX_DEPLOYMENT_TARGET=10.15` 就在
+此主機從零建出。新版 MoltenVK 1.4.2 real 可依專案例外以 12.0 建置；
+Wine／media 直接使用 clang 的 10.15 成功案例不涵蓋 legacy 的 Xcode 專案。
+
+需要完整 dual-variant 封裝時，legacy real 應由可建 10.15 的相容工具鏈產生，
+或使用來源、版本與 patch 組合相符的既有已驗證 artifact。使用既有輸入須核對
+archive checksum、codesign、x86_64 架構與 minOS 10.15，並在建置紀錄標示
+來源與 checksum，不能宣稱該元件在本機重新建出。不要提高全域 minOS、改寫
+Mach-O load command，或把較高 minOS 的 dylib 改名來繞過 pack gate。
+
 一般 Wine host binaries 與 cxcompatdb 維持 `MACOSX_DEPLOYMENT_TARGET=10.15`；
 DXMT 與特定 MoltenVK real 的例外依 `scripts/pack-minos-scan.py`，不向上改動
 全域目標。Apple Silicon 本身從 macOS 11 起，10.15 是產物相容性宣告，並非
