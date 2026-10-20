@@ -104,6 +104,11 @@ configure、make、install 使用相同的 deployment target。完整路徑可�
 須確保它們也產生 macOS x86_64 產物；不要混入 `-arch arm64` 或較高的 minOS。
 獨立的 `build-cyder-cxcompatdb.sh` 同樣明確指定 `-arch x86_64`。
 
+media stack 也透過持久化的 Meson native file 固定 C、C++、Objective-C 與
+Objective-C++ compiler，並保留自訂 `CC`／`CXX`／`OBJC`／`OBJCXX`。舊的或
+工具鏈設定不同的 Meson cache 會停止建置並保留資料；改用新的 `OGOM_BUILD_DIR`
+再建置。安裝前會檢查 build 產物為 thin x86_64，安裝後再檢查架構與 minOS。
+
 Host 依賴使用專案的 `.brew-x86`，不混用 `/opt/homebrew` 的 arm64 libraries。
 更換 compiler、SDK 或 flags 後，保留需要的既有資料，再處理 `build64/config.cache`
 並重新 configure；不要直接對舊 Makefile 執行 make 後宣稱已切換工具鏈。

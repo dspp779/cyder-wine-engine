@@ -50,6 +50,7 @@ esac
 
 export CX_VERSION
 source "$SCRIPT_DIR/env-x86_64.sh"
+source "$SCRIPT_DIR/media-toolchain.sh"
 
 # Keep the existing minimal install untouched.  A full-video build gets its
 # own default prefix unless the caller deliberately supplied MEDIA_INSTALL or
@@ -114,9 +115,11 @@ MESON_CMD=(
   "$SYSTEM_PYTHON" "$MESON"
 )
 
-mkdir -p "$MEDIA_BUILD" "$MEDIA_INSTALL"
+media_prepare_native_file
+mkdir -p "$MEDIA_INSTALL"
 
 GLIB_SETUP_ARGS=(
+  --native-file="$MEDIA_BUILD/cyder-native.ini"
   --prefix="$MEDIA_INSTALL" --libdir=lib --buildtype=release
   -Ddefault_library=shared -Dtests=false -Dinstalled_tests=false -Dnls=disabled
   -Dman=false -Dgtk_doc=false -Dlibmount=disabled -Dselinux=disabled -Dxattr=false
@@ -130,6 +133,7 @@ else
   "${MESON_CMD[@]}" setup "$MEDIA_BUILD/glib-build" "$GLIB_SRC" "${GLIB_SETUP_ARGS[@]}"
 fi
 "${MESON_CMD[@]}" compile -C "$MEDIA_BUILD/glib-build" -j "$JOBS"
+media_verify_x86_64 "$MEDIA_BUILD/glib-build"
 "${MESON_CMD[@]}" install -C "$MEDIA_BUILD/glib-build"
 
 GST_ARGS=(
@@ -185,6 +189,7 @@ case "$MEDIA_PROFILE" in
 esac
 
 GST_SETUP_ARGS=(
+  --native-file="$MEDIA_BUILD/cyder-native.ini"
   --prefix="$MEDIA_INSTALL" --libdir=lib --buildtype=release
   "${GST_ARGS[@]}"
   -Dc_args="$MIN_FLAG" -Dcpp_args="$MIN_FLAG"
@@ -196,6 +201,7 @@ else
   "${MESON_CMD[@]}" setup "$MEDIA_BUILD/gstreamer-build" "$GST_SRC" "${GST_SETUP_ARGS[@]}"
 fi
 "${MESON_CMD[@]}" compile -C "$MEDIA_BUILD/gstreamer-build" -j "$JOBS"
+media_verify_x86_64 "$MEDIA_BUILD/gstreamer-build"
 "${MESON_CMD[@]}" install -C "$MEDIA_BUILD/gstreamer-build"
 
 MEDIA_PC=(gstreamer-1.0 gstreamer-base-1.0 gstreamer-audio-1.0)
@@ -243,5 +249,8 @@ if [[ "$MEDIA_PROFILE" == full-video ]]; then
     exit 1
   }
 fi
+
+media_verify_x86_64 "$MEDIA_INSTALL"
+python3 "$SCRIPT_DIR/pack-minos-scan.py" "$MEDIA_INSTALL" "$MACOSX_DEPLOYMENT_TARGET"
 
 echo "${MEDIA_PROFILE} CX$CX_VERSION media stack installed: $MEDIA_INSTALL"
