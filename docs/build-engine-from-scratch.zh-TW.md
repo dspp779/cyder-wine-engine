@@ -100,8 +100,10 @@ xcode-select -p
 xcodebuild -version
 ```
 
-例如 macOS 15.3–26.1 可使用 Xcode 16.4；macOS Tahoe 26.2 以上可使用
-Xcode 26.x。切換到完整 Xcode：
+Xcode 必須支援目前的建置主機；例如 Xcode 16.4 的主機範圍為 macOS 15.3 至
+26.1.x，不能把 Xcode 26.x 對 macOS 26 的支援直接延伸為 macOS 27 保證。
+版本對照與官方來源見[macOS 與 Rosetta 建置相容性](macos-rosetta-compatibility.zh-TW.md)。
+切換到完整 Xcode：
 
 ```bash
 sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
@@ -109,11 +111,21 @@ sudo xcodebuild -license accept
 sudo xcodebuild -runFirstLaunch
 ```
 
-Apple Silicon 還需要 Rosetta 2：
+### Rosetta 與系統升級後檢查
+
+Intel Mac 原生執行 x86_64；Apple Silicon 在 macOS 27 及以前需要可用的
+Rosetta。新機或系統升級後，先確認實際能執行 x86_64 程式：
 
 ```bash
-softwareupdate --install-rosetta --agree-to-license
+arch -x86_64 /usr/bin/true
+arch -x86_64 /usr/bin/uname -m
 ```
+
+第一個指令應退出 0，第二個應輸出 `x86_64`。Apple Silicon 若出現
+`Bad CPU type in executable`，先用 `/usr/sbin/softwareupdate --install-rosetta`
+依提示完成安裝與授權，再重跑探測；不要因此刪除 `.brew-x86`。
+macOS 28 起不能假設一般 Rosetta 或此 engine 可用。安裝、版本限制、compiler
+架構與 minOS 的完整說明見[相容性指南](macos-rosetta-compatibility.zh-TW.md)。
 
 ### Checkout 與環境
 
@@ -412,6 +424,8 @@ import／release 流程；不要手動解壓覆蓋使用者 runtime。Cyder 應�
 
 | 症狀 | 原因 | 處理 |
 |---|---|---|
+| 系統 x86_64 `true` 出現 `Bad CPU type in executable` | 優先檢查 Rosetta 缺失或執行環境 | 依相容性指南補裝並重新探測，再執行專案測試 |
+| host plugin 變成 arm64／minOS 11.0 | 只指定了 Rosetta process，未固定 compiler target | 使用 `/usr/bin/clang -arch x86_64` 與 10.15 flags；重新 configure／建置並檢查產物 |
 | `xcodebuild requires Xcode` | 只有 Command Line Tools，或 `xcode-select` 指錯 | 安裝完整 Xcode，切到 `/Applications/Xcode.app/Contents/Developer` |
 | `Refusing to replace non-MoltenVK path` | pinned source path 不是 1.4.0 或內容不完整 | 檢查 `build/moltenvk-1.4.0`；非標準路徑請使用 `MOLTENVK_SOURCE=custom` |
 | `Missing graphics payload` | engine install 沒有 `lib/dxvk*`／`lib/dxmt` | 先執行 ogom 的 build/fetch script，再 pack |

@@ -13,7 +13,7 @@ bundle a pinned engine artifact during the first extraction phase.
 
 - Engine: `CX26.3.0-W11-Cyder011`
 - Base: CrossOver 26.3.0 / Wine 11.0
-- Host: macOS x86_64 under Rosetta 2
+- Host: macOS x86_64; native on Intel, Rosetta on Apple Silicon
 - Product deployment floor: macOS 10.15 (`.env` / `MACOSX_DEPLOYMENT_TARGET`, default 10.15)
 - Architectures: x86_64 host with i386 and x86_64 Windows PE support
 - Graphics: MoltenVK 1.4.0, DXVK 1.10.3, DXVK2 2.7.1, DXMT 0.80
@@ -37,6 +37,13 @@ This repository tracks original build automation and patch files; it does not
 publish the CrossOver source archive.
 
 ## Build
+
+Before building or after a macOS upgrade, follow the
+[macOS and Rosetta compatibility guide](docs/macos-rosetta-compatibility.zh-TW.md).
+It covers Intel versus Apple Silicon, macOS 27/28 support boundaries, Rosetta
+installation checks, and explicit x86_64 compiler targets. The 10.15 deployment
+floor describes generated host binaries; it does not make every macOS version
+a supported build host or guarantee every graphics backend works there.
 
 完整的首次建置流程（包括 Xcode、MoltenVK、Wine、graphics payload、測試及封裝）請看
 [`docs/build-engine-from-scratch.zh-TW.md`](docs/build-engine-from-scratch.zh-TW.md)。

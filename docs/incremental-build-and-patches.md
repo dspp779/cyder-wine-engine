@@ -9,6 +9,7 @@ Related:
 - Standard end-to-end workflow: [`engine-development-test-workflow.zh-TW.md`](engine-development-test-workflow.zh-TW.md)
 - MapleStory WZ cache experiment record: [`maplestory-cx26-wz-cache-experiments.zh-TW.md`](maplestory-cx26-wz-cache-experiments.zh-TW.md)
 - Patch order and intent: [`patches/README.md`](../patches/README.md)
+- macOS versions, Rosetta repair, and compiler architecture: [`macos-rosetta-compatibility.zh-TW.md`](macos-rosetta-compatibility.zh-TW.md)
 - Product minOS / `.env`: [`.env.example`](../.env.example)
 - Cyder hand-off: [`integration-with-cyder.md`](integration-with-cyder.md)
 - AI multi-tool setup: [`ai-agent-setup.md`](ai-agent-setup.md)
@@ -49,7 +50,7 @@ and packing from **this** repository.
    **10.15**) plus `CYDER_MACOSX_VERSION_MIN_FLAG`.
 
 3. **Never rely on the SDK default minOS.** On a modern macOS SDK, bare `clang`
-   produces Mach-O `minos 15.0`. That breaks older hosts
+   can produce Mach-O with a minOS above the 10.15 product floor. That breaks older hosts
    (`_os_sync_wait_on_address`, “built for macOS 15.0 which is newer than
    running OS”). Full `build-wine.sh` bakes `-mmacosx-version-min=…` into
    configure. Ad-hoc incremental builds must keep the same flag or env.
@@ -71,6 +72,17 @@ and packing from **this** repository.
 6. **This tree builds CX26 only.** `--cx 25` is retired. Frame-walk and
    wineserver patches apply to the CX26 tree (`tests/test-build-wine.sh`
    asserts `--cx 25` fails with the retired message).
+
+7. **Check Rosetta and compiler targets separately.** On Apple Silicon, run
+   `arch -x86_64 /usr/bin/true` after a macOS upgrade. If the system probe fails,
+   repair Rosetta before touching Wine. Rosetta remains available through macOS
+   27; macOS 28's announced limited functionality does not establish support
+   for this engine. `arch -x86_64` selects the compiler process slice, not its
+   output target: use absolute Apple clang with `-arch x86_64`, preserve the
+   deployment flags, and verify the Mach-O architecture and minOS. Caller
+   `CC`/`OBJC` overrides must satisfy the same contract. Reconfigure after
+   compiler/SDK changes rather than reusing an unverified cached Makefile.
+   See the linked compatibility guide for sources, probes, and recovery steps.
 
 ## When to incremental vs full rebuild
 

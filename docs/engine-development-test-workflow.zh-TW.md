@@ -39,6 +39,20 @@ test -f patches/README.md
 cat config/engine-version.txt
 ```
 
+Apple Silicon 新機或 macOS 升級後，先確認 Rosetta 能實際執行 x86_64：
+
+```bash
+arch -x86_64 /usr/bin/true
+arch -x86_64 /usr/bin/uname -m
+```
+
+若系統程式就出現 `Bad CPU type in executable`，先修復 Rosetta；若 Wine
+已進入 `server_mach_port` 失敗，則檢查 Mach service／session 與沙箱權限，
+不要混為同一原因。版本限制與安裝步驟見
+[macOS 與 Rosetta 建置相容性](macos-rosetta-compatibility.zh-TW.md)。
+macOS 27 的 `arch -x86_64` 也不能保證 clang 輸出架構，需同時檢查 compiler
+的 `-arch x86_64`、產物架構與 10.15 minOS。
+
 接著確認 build tree 的 install prefix：
 
 ```bash
@@ -314,6 +328,8 @@ tree 直接複製到 `~/.cyder/runtime` 後稱為 release；若要交給 Cyder�
 
 | 現象 | 優先檢查 |
 |---|---|
+| 系統 x86_64 `true` 出現 `Bad CPU type in executable` | Apple Silicon 先檢查／補裝 Rosetta，重跑執行探測後再測 Wine |
+| cxcompatdb 是 arm64／minOS 11.0 | compiler 缺少明確 target；重建為 x86_64、minOS 10.15，並重跑 `test-cyder-cxcompatdb.sh` |
 | `version` 不是 Cyder011 | `ENGINE` 指到舊 install；重新指定 `WINE_INSTALL` |
 | `prefix` 指到 `/tmp` | build64 configure state 錯；重新 configure 或完整建置 |
 | patch 重複 helper／guard | marker 檢查不在 forward patch 前；恢復乾淨 source 後重建 |
