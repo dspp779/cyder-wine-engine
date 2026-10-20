@@ -166,8 +166,9 @@ otool -l "$ENGINE/bin/wineserver" | rg minos
 otool -l "$ENGINE/lib/wine/x86_64-unix/ntdll.so" | rg minos
 ```
 
-產品 host binaries 與 dylibs 的 `minos` 不得高於 10.15；DXMT 是明確的 macOS
-15+ 例外，依 `scripts/pack-minos-scan.py` 的既有規則處理。此階段也要確認
+產品 host binaries 與 dylibs 的 `minos` 不得高於 10.15；DXMT 可到 15.0，
+兩個具名 MoltenVK reals 可到 12.0，Vulkan 要求 macOS 12+；wait-poll shim
+仍維持 10.15，依 `scripts/pack-minos-scan.py` 的規則處理。此階段也要確認
 `strings` 能在 ntdll 找到需要的 MapleStory file-cache marker，避免測到舊的
 install：
 

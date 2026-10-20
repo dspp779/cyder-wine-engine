@@ -29,8 +29,9 @@ manual host command needs to source `scripts/env-x86_64.sh`.
   not exceed 10.15 on shipped host binaries (`wine`, `wineserver`, `*.so`,
   bundled dylibs) — **except**:
   - bundled DXMT under `lib/dxmt/**` (minos up to **15.0**);
-  - `libMoltenVK-1.4.2.dylib` (minos up to **12.0**; dual-variant real activated
-    only on macOS 12+).
+  - versioned MoltenVK reals `libMoltenVK-1.4.2.dylib` and
+    `libMoltenVK-1.2.10.dylib` (minos up to **12.0**; Vulkan requires macOS 12+).
+    The unversioned wait-poll shim still must not exceed 10.15.
   See `scripts/pack-minos-scan.py`.
 - Prefer `scripts/rebuild-wine-host-unix.sh` after a contaminated incremental
   host build.

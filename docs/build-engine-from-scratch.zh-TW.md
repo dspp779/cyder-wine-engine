@@ -17,7 +17,7 @@ Engine repo 不會把 CrossOver source archive 或第三方 binary source 放進
 | CrossOver / Wine | CrossOver 26.3.0 / Wine 11.0 |
 | Engine label | `CX26.3.0-W11-Cyder011` |
 | Host | macOS x86_64，Apple Silicon 以 Rosetta 2 執行 |
-| Host minOS | 10.15（所有 engine host Mach-O；DXMT 是明確例外） |
+| Host minOS | 10.15；DXMT 可到 15.0，MoltenVK 1.4.2／1.2.10 reals 可到 12.0 |
 | MapleStory | CX26 MapleStory compatibility stack；D3DMetal / Apple GPTK 為主要路徑 |
 | MoltenVK | 上游 1.4.0 + 3 個 Cyder source patch |
 | DXVK | 1.10.3，獨立 `lib/dxvk` payload |
@@ -255,7 +255,8 @@ install/graphics-cx26-x86_64/version
 ```
 
 確認 `version` 顯示 `moltenvk 1.4.0`、`source upstream`，且 `otool -l` 的
-`minos` 不高於 10.15：
+`minos` 不高於 12.0。兩個 versioned reals 的建置目標預設為 12.0，Vulkan 要求 macOS 12+；
+其他 host binaries 與 shim 仍不得高於 10.15：
 
 ```bash
 cat install/graphics-cx26-x86_64/version
@@ -266,11 +267,11 @@ Cyder012+ 使用 dual-variant MoltenVK（versioned reals + `.real` symlink +
 wait-poll shim）。以 `scripts/install-moltenvk-dual-variant.sh` 組裝；不要只留
 單一 `libMoltenVK.dylib` 而無 versioned reals。
 
-若新版 real 的 minOS 為 12.0，在啟用 Vulkan 的完整 Wine build **之前**，
+若任一 MoltenVK real 的 minOS 為 12.0，在啟用 Vulkan 的完整 Wine build **之前**，
 先把兩個 reals 與 10.15 shim 組裝到另一個 graphics prefix 的 `lib/`，並將
 `GRAPHICS_INSTALL` 指向該 prefix。不要直接讓 Wine bundler 把 12.0 real 當成
 未版本化的 `libMoltenVK.dylib`；這會被一般 10.15 gate 拒絕。組裝順序與
-Xcode 27 無法從零建出 10.15 legacy real 的限制，見
+MoltenVK target 與 Xcode 27 的設定方式，見
 [macOS 與 Rosetta 建置相容性](macos-rosetta-compatibility.zh-TW.md)。
 
 ## 6. 編譯並安裝 Wine engine

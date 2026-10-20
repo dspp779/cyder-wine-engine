@@ -96,6 +96,12 @@ The packaged engine stores GStreamer plugins under
 their relocatable runtime dylibs beside the Unix Wine modules. Graphics
 payloads remain separate as DXMT/DXVK artifacts.
 
+Graphics builds default to `MOLTENVK_DEPLOYMENT_TARGET=12.0` for both versioned
+MoltenVK reals, independently of the Wine/media host floor (10.15). Vulkan
+therefore requires macOS 12+; choosing the legacy version does not restore
+Vulkan on macOS 10.15/11. See the
+[compatibility guide](docs/macos-rosetta-compatibility.zh-TW.md).
+
 For the Cyder MoltenVK path (upstream 1.4.0 with Cyder patches):
 
 ```sh

@@ -44,30 +44,47 @@ xcrun --sdk macosx --show-sdk-path
 `minos` 也需分開看：本機 clang 21 可用明確旗標產生 x86_64、minOS 10.15 的
 小型程式與 cxcompatdb，但這不等於完整 engine 已在舊版 macOS 通過執行驗收。
 
-### Xcode 27 的 legacy MoltenVK 限制
+### Xcode 27 與 MoltenVK 的 macOS 12 目標
 
 本機隔離建置已確認：Xcode 27 會直接拒絕 deployment target 10.15，回報
-允許範圍為 12.0 至 27.0.x。因此 legacy MoltenVK 1.2.10 的 Xcode 專案及
-external dependencies 不能只靠設定 `MACOSX_DEPLOYMENT_TARGET=10.15` 就在
-此主機從零建出。新版 MoltenVK 1.4.2 real 可依專案例外以 12.0 建置；
-Wine／media 直接使用 clang 的 10.15 成功案例不涵蓋 legacy 的 Xcode 專案。
+允許範圍為 12.0 至 27.0.x。已在 macOS 27.0.1／Xcode 27 從 CrossOver FOSS
+實際建成 legacy MoltenVK 1.2.10：x86_64、minOS 12.0、SDK 27.0。
+這是編譯與 Mach-O 檢查結果，尚非 macOS 12 實機或遊戲驗收。
 
-需要完整 dual-variant 封裝時，legacy real 應由可建 10.15 的相容工具鏈產生，
-或使用來源、版本與 patch 組合相符的既有已驗證 artifact。使用既有輸入須核對
-archive checksum、codesign、x86_64 架構與 minOS 10.15，並在建置紀錄標示
-來源與 checksum，不能宣稱該元件在本機重新建出。不要提高全域 minOS、改寫
-Mach-O load command，或把較高 minOS 的 dylib 改名來繞過 pack gate。
+`build-graphics-stack.sh` 對兩個 MoltenVK reals 都預設
+`MOLTENVK_DEPLOYMENT_TARGET=12.0`，與 Wine／media 的
+`MACOSX_DEPLOYMENT_TARGET=10.15` 分開。腳本產生 xcconfig，透過
+`XCODE_XCCONFIG_FILE` 傳給 dependency 與本體的 Xcode 建置，以覆寫舊專案
+寫死的 10.15；僅設定 deployment-target 環境變數無法保證覆寫成功。
+呼叫端既有 xcconfig 會被 include，目標與架構則以本腳本明確設定為準。
+變更 MoltenVK target 後，舊 install manifest 不會被當作相同建置而跳過。
+
+```bash
+MOLTENVK_SOURCE=crossover-foss MOLTENVK_VERSION=1.2.10 \
+MOLTENVK_DEPLOYMENT_TARGET=12.0 \
+GRAPHICS_INSTALL="$PWD/install/graphics-cx26-legacy-x86_64" \
+  bash scripts/build-graphics-stack.sh --cx 26 --moltenvk-source crossover-foss
+```
+
+封裝允許兩個具名 reals 的 minOS 到 12.0；一般 Wine host、其他 bundled
+libraries 與未版本化 wait-poll shim 仍維持 10.15。因此這套 Vulkan 後端
+要求 macOS 12+；在 macOS 10.15／11 選擇 legacy 1.2.10 並不能恢復 Vulkan
+支援。`legacy` 現在表示 MoltenVK 程式版本，並非舊 macOS 相容性承諾。
+
+若另有支援 10.15 的工具鏈，可明確設定 `MOLTENVK_DEPLOYMENT_TARGET=10.15`
+另建並驗證；Xcode 27 不支援這個目標。不要提高 Wine 的全域 minOS、改寫
+Mach-O load command，或把其他 dylib 改名來繞過 pack gate。
 
 ### Vulkan 建置前的 dual layout
 
-若 1.4.2 real 以 minOS 12.0 建出，先用
+若任一 MoltenVK real 以 minOS 12.0 建出，先用
 `scripts/install-moltenvk-dual-variant.sh` 在獨立的 graphics prefix 的 `lib/`
 組裝 versioned reals、`.real` symlink 與 10.15 shim，再將 `GRAPHICS_INSTALL`
 指向這個 prefix 執行 `build-wine.sh --with-vulkan --vulkan-source crossover`。
-1.4.2 的原始輸出與已驗證的 legacy real 都作為輸入保留。
+兩個 reals 的原始輸出都作為輸入保留。
 
 不要先把 minOS 12.0 的 real 當成未版本化的 `libMoltenVK.dylib` 直接交給 Wine
-bundler；該檔名必須維持 10.15，12.0 例外只適用於 `libMoltenVK-1.4.2.dylib`。
+bundler；該檔名必須維持 10.15，12.0 例外只適用於具名的 1.4.2／1.2.10 reals。
 這個順序讓完整 build/install/bundling 與後續 pack 都能使用同一套 minOS gate。
 
 一般 Wine host binaries 與 cxcompatdb 維持 `MACOSX_DEPLOYMENT_TARGET=10.15`；
