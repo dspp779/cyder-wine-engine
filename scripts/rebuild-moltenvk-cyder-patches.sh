@@ -23,7 +23,8 @@ while [[ $# -gt 0 ]]; do
 Usage: $(basename "$0") [--force] [--install-runtime] [--apply-patches]
 
 Rebuild MoltenVK from \$MOLTENVK_SRC after Cyder source patches, install into
-GRAPHICS_INSTALL and WINE_INSTALL (minOS floor from .env).
+GRAPHICS_INSTALL and WINE_INSTALL (MOLTENVK_DEPLOYMENT_TARGET defaults to 12.0).
+Assemble versioned reals and the 10.15 shim before engine bundling/packing.
 
   --force            Remove prior Package/Latest output and rebuild
   --install-runtime  Also copy into ~/.cyder/runtime and Application Support engines
@@ -91,17 +92,17 @@ if (( FORCE )); then
   rm -rf "$MOLTENVK_SRC/Package/Latest"
 fi
 
-echo "Building MoltenVK (arch=x86_64, MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET)..."
+echo "Building MoltenVK (arch=x86_64, MOLTENVK_DEPLOYMENT_TARGET=$MOLTENVK_DEPLOYMENT_TARGET)..."
 arch -x86_64 env \
   DEVELOPER_DIR="$(xcode-select -p)" \
-  MACOSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET" \
+  MACOSX_DEPLOYMENT_TARGET="$MOLTENVK_DEPLOYMENT_TARGET" \
   xcodebuild build \
     -project "$MOLTENVK_SRC/MoltenVKPackaging.xcodeproj" \
     -scheme "MoltenVK Package (macOS only)" \
     -destination "generic/platform=macOS" \
     ARCHS=x86_64 \
     ONLY_ACTIVE_ARCH=NO \
-    MACOSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET" \
+    MACOSX_DEPLOYMENT_TARGET="$MOLTENVK_DEPLOYMENT_TARGET" \
     -quiet
 
 [[ -f "$dylib_out" ]] || {
@@ -112,7 +113,7 @@ arch -x86_64 env \
 minos="$(otool -l "$dylib_out" | awk '/minos/{print $2; exit}')"
 echo "Built $dylib_out (minos=${minos:-unknown})"
 if [[ -n "${minos:-}" ]]; then
-  python3 - "$minos" "$MACOSX_DEPLOYMENT_TARGET" <<'PY'
+  python3 - "$minos" "$MOLTENVK_DEPLOYMENT_TARGET" <<'PY'
 import sys
 built, floor = sys.argv[1], sys.argv[2]
 def parts(v):

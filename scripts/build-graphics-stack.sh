@@ -55,6 +55,8 @@ Notes:
   - MoltenVK 1.4.2 is fetched and SHA-256 verified by ensure-moltenvk-source.sh.
     Set MOLTENVK_SOURCE=crossover-foss only for an explicit legacy comparison.
   - MoltenVK fetchDependencies may download upstream deps (network required).
+  - Both MoltenVK reals default to macOS 12.0, independently of the Wine floor.
+    Set MOLTENVK_DEPLOYMENT_TARGET explicitly for another compatible toolchain.
   - Requires Xcode (xcodebuild). On Apple Silicon, MoltenVK is built under Rosetta
     as x86_64 to match the x86_64 Wine prefix.
   - VKD3D needs Wine PE toolchain integration; use --with-vkd3d only when phase 2 lands.
@@ -107,6 +109,14 @@ esac
 export CX_VERSION
 export MOLTENVK_SOURCE="${MOLTENVK_SOURCE:-upstream}"
 source "$SCRIPT_DIR/env-x86_64.sh"
+[[ "$MOLTENVK_DEPLOYMENT_TARGET" =~ ^[0-9]+(\.[0-9]+)*$ ]] || {
+  echo "Invalid MOLTENVK_DEPLOYMENT_TARGET: $MOLTENVK_DEPLOYMENT_TARGET" >&2
+  exit 1
+}
+[[ "$ARCHS" =~ ^(x86_64|arm64)(\ (x86_64|arm64))*$ ]] || {
+  echo "Unsupported MoltenVK ARCHS: $ARCHS" >&2
+  exit 1
+}
 
 PREPARE_ARGS=(--cx "$CX_VERSION")
 [[ "$DRY_RUN" -eq 1 ]] && PREPARE_ARGS+=(--dry-run)
@@ -176,12 +186,14 @@ apply_source_patch() {
 }
 
 build_moltenvk() {
-  local dylib marker
+  local dylib marker xcode_config config_dir inherited_config
   dylib="$(moltenvk_dylib_path)"
   marker="$GRAPHICS_INSTALL/lib/libMoltenVK.dylib"
 
   if [[ -f "$marker" && -f "$GRAPHICS_INSTALL/version" \
       && "$(grep -F "source $MOLTENVK_SOURCE" "$GRAPHICS_INSTALL/version" 2>/dev/null || true)" == "source $MOLTENVK_SOURCE" \
+      && "$(grep -Fx "arch $ARCHS" "$GRAPHICS_INSTALL/version" 2>/dev/null || true)" == "arch $ARCHS" \
+      && "$(grep -Fx "deployment-target $MOLTENVK_DEPLOYMENT_TARGET" "$GRAPHICS_INSTALL/version" 2>/dev/null || true)" == "deployment-target $MOLTENVK_DEPLOYMENT_TARGET" \
       && ("$MOLTENVK_SOURCE" != "upstream" || "$(grep -F "moltenvk $MOLTENVK_VERSION" "$GRAPHICS_INSTALL/version" 2>/dev/null || true)" == "moltenvk $MOLTENVK_VERSION") \
       && "$DRY_RUN" -eq 0 ]]; then
     echo "MoltenVK already installed at $marker"
@@ -211,6 +223,31 @@ build_moltenvk() {
   fi
 
   require_xcode
+
+  # Project settings override the deployment-target environment variable.
+  # An xcconfig environment override also reaches fetchDependencies' nested
+  # xcodebuild invocations, so dependencies and the real use the same target.
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    xcode_config="$BUILD_DIR/moltenvk-toolchain-<generated>.xcconfig"
+    echo "+ MoltenVK xcconfig: MACOSX_DEPLOYMENT_TARGET=$MOLTENVK_DEPLOYMENT_TARGET ARCHS=$ARCHS ONLY_ACTIVE_ARCH=NO"
+  else
+    run mkdir -p "$BUILD_DIR"
+    config_dir="$(mktemp -d "$BUILD_DIR/moltenvk-toolchain.XXXXXX")"
+    xcode_config="$config_dir/build.xcconfig"
+    if [[ -n "${XCODE_XCCONFIG_FILE:-}" ]]; then
+      [[ -f "$XCODE_XCCONFIG_FILE" ]] || {
+        echo "Missing XCODE_XCCONFIG_FILE: $XCODE_XCCONFIG_FILE" >&2
+        return 1
+      }
+      inherited_config="$(cd "$(dirname "$XCODE_XCCONFIG_FILE")" && pwd)/$(basename "$XCODE_XCCONFIG_FILE")"
+      case "$inherited_config" in
+        *\"* | *$'\n'*) echo "Unsupported xcconfig path: $inherited_config" >&2; return 1 ;;
+      esac
+      printf '#include "%s"\n' "$inherited_config" > "$xcode_config"
+    fi
+    printf 'MACOSX_DEPLOYMENT_TARGET = %s\nARCHS = %s\nONLY_ACTIVE_ARCH = NO\n' \
+      "$MOLTENVK_DEPLOYMENT_TARGET" "$ARCHS" >> "$xcode_config"
+  fi
 
   # Release archives do not vendor External/SPIRV-Cross; CrossOver FOSS
   # archives sometimes do. Cache either copy before fetchDependencies runs —
@@ -246,7 +283,9 @@ build_moltenvk() {
   fi
 
   echo "Fetching MoltenVK external dependencies (may need network)..."
-  run bash -c "cd '$MOLTENVK_SRC' && ./fetchDependencies --macos --spirv-cross-root '$spirv_cross_cache'"
+  run env XCODE_XCCONFIG_FILE="$xcode_config" bash -c \
+    'cd "$1" && ./fetchDependencies --macos --spirv-cross-root "$2"' \
+    bash "$MOLTENVK_SRC" "$spirv_cross_cache"
 
   # Release archives and CX tarballs have no moltenvk .git;
   # gen_moltenvk_rev_hdr.sh would otherwise bake the parent Cyder/engine
@@ -262,6 +301,7 @@ build_moltenvk() {
   echo "Building MoltenVK $MOLTENVK_VERSION (arch=$ARCHS, source=$MOLTENVK_SOURCE)..."
   run arch -x86_64 env \
     DEVELOPER_DIR="$(xcode-select -p 2>/dev/null || true)" \
+    XCODE_XCCONFIG_FILE="$xcode_config" \
     xcodebuild build \
       -project "$MOLTENVK_SRC/MoltenVKPackaging.xcodeproj" \
       -scheme "MoltenVK Package (macOS only)" \
@@ -288,6 +328,7 @@ build_moltenvk() {
 graphics moltenvk-cyder
 moltenvk ${pinned_mvk:-$MOLTENVK_VERSION}
 arch ${ARCHS}
+deployment-target ${MOLTENVK_DEPLOYMENT_TARGET}
 source ${MOLTENVK_SOURCE}
 capability-patch ${capability_stamp}
 patch ${present_stamp}

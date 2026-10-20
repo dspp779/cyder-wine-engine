@@ -26,12 +26,15 @@ cp "$ROOT/scripts/env-x86_64.sh" "$TMP/scripts/env-x86_64.sh"
 (
   set -euo pipefail
   OGOM="$TMP"
+  unset MOLTENVK_DEPLOYMENT_TARGET
   # shellcheck disable=SC1091
   source "$ROOT/scripts/env-x86_64.sh"
   assert_eq "$MACOSX_DEPLOYMENT_TARGET" "10.15" \
     "without .env, MACOSX_DEPLOYMENT_TARGET must default to 10.15"
   assert_eq "$CYDER_MACOSX_VERSION_MIN_FLAG" "-mmacosx-version-min=10.15" \
     "without .env, min flag must target 10.15"
+  assert_eq "$MOLTENVK_DEPLOYMENT_TARGET" "12.0" \
+    "MoltenVK target must default separately to macOS 12.0"
 )
 
 mkdir -p "$TMP/with-env"

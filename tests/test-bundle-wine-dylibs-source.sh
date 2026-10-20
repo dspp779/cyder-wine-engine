@@ -84,4 +84,33 @@ assert_contains "$out" "minos exceeds product floor" \
 assert_contains "$out" "libffi.8.dylib" \
   "failure should name the high-minos dylib"
 
+# The same exceptions must apply during bundling and final archive scanning.
+rm "$TMP/brew/lib/libffi.8.dylib" "$TMP/wine/lib/wine/x86_64-unix/libffi.8.dylib"
+unix="$TMP/wine/lib/wine/x86_64-unix"
+for version in 1.4.2 1.2.10; do
+  /usr/bin/clang -arch x86_64 -dynamiclib -mmacosx-version-min=12.0 \
+    "$TMP/probe.c" -o "$unix/libMoltenVK-$version.dylib"
+done
+"$TMP/run.sh" "$ROOT" "$TMP/wine" "$TMP/brew" \
+  "$TMP/empty-graphics" "$TMP/empty-media" > "$TMP/reals.out" 2>&1
+
+/usr/bin/clang -arch x86_64 -dynamiclib -mmacosx-version-min=12.1 \
+  "$TMP/probe.c" -o "$unix/libMoltenVK-1.2.10.dylib"
+if "$TMP/run.sh" "$ROOT" "$TMP/wine" "$TMP/brew" \
+  "$TMP/empty-graphics" "$TMP/empty-media" > "$TMP/legacy-high.out" 2>&1; then
+  echo 'expected legacy above macOS 12.0 to fail bundling' >&2
+  exit 1
+fi
+assert_contains "$(cat "$TMP/legacy-high.out")" 'libMoltenVK-1.2.10.dylib minos=12.1' \
+  'bundler must enforce the legacy real ceiling'
+rm "$unix/libMoltenVK-1.2.10.dylib"
+cp "$unix/libMoltenVK-1.4.2.dylib" "$unix/libMoltenVK.dylib"
+if "$TMP/run.sh" "$ROOT" "$TMP/wine" "$TMP/brew" \
+  "$TMP/empty-graphics" "$TMP/empty-media" > "$TMP/shim-high.out" 2>&1; then
+  echo 'expected minos 12.0 shim to fail bundling' >&2
+  exit 1
+fi
+assert_contains "$(cat "$TMP/shim-high.out")" 'libMoltenVK.dylib minos=12.0' \
+  'unversioned MoltenVK keeps the general product floor'
+
 echo "PASS test-bundle-wine-dylibs-source"

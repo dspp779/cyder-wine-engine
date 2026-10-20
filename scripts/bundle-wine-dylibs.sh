@@ -447,8 +447,8 @@ MOLTENVK_DUAL_KEEP = {
     "libMoltenVK-1.4.2.dylib",
     "libMoltenVK-1.2.10.dylib",
 }
-MOLTENVK_142_NAME = "libMoltenVK-1.4.2.dylib"
-MOLTENVK_142_CEILING = (12, 0, 0)
+MOLTENVK_REAL_NAMES = {"libMoltenVK-1.4.2.dylib", "libMoltenVK-1.2.10.dylib"}
+MOLTENVK_REAL_CEILING = (12, 0, 0)
 
 # Drop orphaned third-party dylibs left from a previous (broader) seed graph —
 # e.g. media/gnutls deps that are no longer reachable after a rebuild/drop.
@@ -462,7 +462,8 @@ for p in sorted(unix_lib.iterdir()):
 
 # Product floor gate: every remaining bundled .dylib must have Mach-O minos
 # ≤ MACOSX_DEPLOYMENT_TARGET (default 10.15). Bottles built for 14/15 fail here.
-# Exception: libMoltenVK-1.4.2.dylib may declare up to 12.0 (macOS 12+ only).
+# Exception: the two versioned MoltenVK reals may declare up to 12.0.
+# The unversioned shim keeps the product floor; Vulkan requires macOS 12+.
 def parse_version(v: str):
     parts = []
     for p in v.split("."):
@@ -494,8 +495,8 @@ def macho_minos(path: Path):
 
 
 def minos_limit_for(name: str, floor_v: tuple) -> tuple:
-    if name == MOLTENVK_142_NAME:
-        return max(floor_v, MOLTENVK_142_CEILING)
+    if name in MOLTENVK_REAL_NAMES:
+        return max(floor_v, MOLTENVK_REAL_CEILING)
     return floor_v
 
 
@@ -533,5 +534,5 @@ if high:
     sys.exit(1)
 
 print("OK: runtime dylibs are relocatable under", unix_lib)
-print(f"OK: all bundled dylibs have minos ≤ {floor} (MoltenVK 1.4.2 ≤ 12.0)")
+print(f"OK: all bundled dylibs have minos ≤ {floor} (MoltenVK 1.4.2 / 1.2.10 reals ≤ 12.0)")
 PY
