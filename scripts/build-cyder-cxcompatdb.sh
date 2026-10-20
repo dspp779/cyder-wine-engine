@@ -27,7 +27,10 @@ CONFIG_DIR="${CYDER_CXCOMPATDB_CONFIG_DIR:-$WINE_SRC/build64/include}"
 }
 
 mkdir -p "$(dirname "$OUTPUT")"
+# Rosetta controls the compiler process, not its default output architecture.
+# macOS 27 Apple clang still needs an explicit x86_64 target.
 clang_args=(
+  -arch x86_64
   -dynamiclib -O2 -Wall -Wextra -Werror
   -mmacosx-version-min="$TARGET"
   -DWINE_UNIX_LIB

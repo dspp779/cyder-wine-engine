@@ -46,8 +46,10 @@ mkdir -p "$TMP/wine/lib/wine/x86_64-unix" "$TMP/brew/lib" \
   "$TMP/empty-graphics/lib" "$TMP/empty-media/lib"
 # Build a tiny x86_64 dylib with minos 14.0 (above the 10.15 floor).
 echo 'int ogom_bundle_minos_probe=1;' > "$TMP/probe.c"
-arch -x86_64 clang -dynamiclib -mmacosx-version-min=14.0 \
+arch -x86_64 /usr/bin/clang -arch x86_64 -dynamiclib -mmacosx-version-min=14.0 \
   "$TMP/probe.c" -o "$TMP/brew/lib/libffi.8.dylib"
+assert_eq "$(lipo -archs "$TMP/brew/lib/libffi.8.dylib")" "x86_64" \
+  "the high-minos fixture must exercise the x86_64 runtime library path"
 cp "$TMP/brew/lib/libffi.8.dylib" "$TMP/wine/lib/wine/x86_64-unix/libffi.8.dylib"
 
 cat > "$TMP/run.sh" <<'EOF'

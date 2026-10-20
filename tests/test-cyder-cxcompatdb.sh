@@ -33,7 +33,8 @@ tmp="$(mktemp -d "${TMPDIR:-/tmp}/cyder-cxcompatdb-test.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 CYDER_CXCOMPATDB_OUTPUT="$tmp/cxcompatdb.so" \
   bash "$ROOT/scripts/build-cyder-cxcompatdb.sh" >/dev/null
-file "$tmp/cxcompatdb.so" | grep -Fq 'Mach-O 64-bit'
+assert_eq "$(lipo -archs "$tmp/cxcompatdb.so")" "x86_64" \
+  "cxcompatdb must be a thin x86_64 plugin, even with macOS 27 clang"
 nm -u "$tmp/cxcompatdb.so" | grep -Fq '_prepend_dll_path'
 nm -u "$tmp/cxcompatdb.so" | grep -Fq '_add_load_order_override'
 nm -u "$tmp/cxcompatdb.so" | grep -Fq '_NtCurrentTeb'
