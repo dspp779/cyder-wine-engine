@@ -143,21 +143,47 @@ if [[ "$PREPARE_ONLY" -eq 1 ]]; then
 fi
 
 bootstrap_brew() {
-  if [[ -x "$HOMEBREW_PREFIX/bin/brew" ]]; then
+  local repository="${HOMEBREW_REPOSITORY:-$HOMEBREW_PREFIX}"
+  # A tarball stub can have bin/brew but no repository/runtime. Never let brew
+  # discover this engine checkout as its repository, or overwrite partial data.
+  if [[ -x "$HOMEBREW_PREFIX/bin/brew" &&
+        -e "$repository/.git" &&
+        -f "$repository/Library/Homebrew/brew.sh" ]]; then
     echo "Homebrew already present at $HOMEBREW_PREFIX"
     return 0
   fi
 
-  run mkdir -p "$HOMEBREW_PREFIX"
-  if [[ "$DRY_RUN" -eq 1 ]]; then
-    echo "+ curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip-components=1 -C $HOMEBREW_PREFIX"
-    return 0
+  if [[ -e "$HOMEBREW_PREFIX" || -L "$HOMEBREW_PREFIX" ]]; then
+    if [[ ! -d "$HOMEBREW_PREFIX" || -L "$HOMEBREW_PREFIX" ||
+          -n "$(ls -A "$HOMEBREW_PREFIX")" ]]; then
+      echo "Incomplete Homebrew prefix: $HOMEBREW_PREFIX" >&2
+      echo "No data removed. Inspect and move it aside manually, or choose a new HOMEBREW_PREFIX, then retry --bootstrap-brew." >&2
+      return 1
+    fi
   fi
 
-  curl -L https://github.com/Homebrew/brew/tarball/master \
-    | tar xz --strip-components=1 -C "$HOMEBREW_PREFIX"
-  # Ensure brew metadata points at the project prefix, not /opt/homebrew.
-  brew_x86 update --force --quiet 2>/dev/null || true
+  if [[ "$repository" != "$HOMEBREW_PREFIX" ]]; then
+    echo "Cannot bootstrap with HOMEBREW_REPOSITORY=$repository; set it to HOMEBREW_PREFIX=$HOMEBREW_PREFIX or use an existing complete installation. No data removed." >&2
+    return 1
+  fi
+
+  # Homebrew's master tarball is a stub; a clone owns its Git metadata.
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    run git clone --depth 1 https://github.com/Homebrew/brew "$HOMEBREW_PREFIX"
+    return 0
+  fi
+  mkdir -p "$(dirname "$HOMEBREW_PREFIX")"
+  if ! git clone --depth 1 https://github.com/Homebrew/brew "$HOMEBREW_PREFIX"; then
+    echo "Homebrew clone failed at $HOMEBREW_PREFIX; any remaining data was preserved. Inspect it before retrying, or choose a new HOMEBREW_PREFIX." >&2
+    return 1
+  fi
+  if [[ ! -x "$HOMEBREW_PREFIX/bin/brew" ||
+        ! -e "$HOMEBREW_PREFIX/.git" ||
+        ! -f "$HOMEBREW_PREFIX/Library/Homebrew/brew.sh" ]]; then
+    echo "Homebrew clone is incomplete at $HOMEBREW_PREFIX; data preserved for inspection." >&2
+    return 1
+  fi
+  # A fresh clone already has current metadata; no hidden, best-effort update.
 }
 
 if [[ "$BOOTSTRAP_BREW" -eq 1 ]]; then
@@ -574,6 +600,8 @@ CONFIGURE_CMD=(
   PKG_CONFIG_PATH="$VULKAN_PKG_PC_PATH"
   LIBRARY_PATH="${LIBRARY_PATH:-}"
   MACOSX_DEPLOYMENT_TARGET="$CYDER_MIN_OS_TARGET"
+  CC="${CC:-/usr/bin/clang -arch x86_64}"
+  OBJC="${OBJC:-/usr/bin/clang -arch x86_64}"
   CFLAGS="$CYDER_HOST_CFLAGS"
   OBJCFLAGS="$CYDER_HOST_OBJCFLAGS"
   LDFLAGS="$CYDER_HOST_LDFLAGS"
@@ -604,10 +632,12 @@ run "${CONFIGURE_CMD[@]}"
 if [[ "$CONFIGURE_ONLY" -eq 0 ]]; then
   run arch -x86_64 env PATH="$BUILD_PATH" PKG_CONFIG_PATH="$VULKAN_PKG_PC_PATH" \
     LIBRARY_PATH="${LIBRARY_PATH:-}" MACOSX_DEPLOYMENT_TARGET="$CYDER_MIN_OS_TARGET" \
+    CC="${CC:-/usr/bin/clang -arch x86_64}" OBJC="${OBJC:-/usr/bin/clang -arch x86_64}" \
     CFLAGS="$CYDER_HOST_CFLAGS" OBJCFLAGS="$CYDER_HOST_OBJCFLAGS" LDFLAGS="$CYDER_HOST_LDFLAGS" \
     make -j"$JOBS"
   run arch -x86_64 env PATH="$BUILD_PATH" PKG_CONFIG_PATH="$VULKAN_PKG_PC_PATH" \
     LIBRARY_PATH="${LIBRARY_PATH:-}" MACOSX_DEPLOYMENT_TARGET="$CYDER_MIN_OS_TARGET" \
+    CC="${CC:-/usr/bin/clang -arch x86_64}" OBJC="${OBJC:-/usr/bin/clang -arch x86_64}" \
     CFLAGS="$CYDER_HOST_CFLAGS" OBJCFLAGS="$CYDER_HOST_OBJCFLAGS" LDFLAGS="$CYDER_HOST_LDFLAGS" \
     make install
   if [[ "$DRY_RUN" -eq 1 ]]; then

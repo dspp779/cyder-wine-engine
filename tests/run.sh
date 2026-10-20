@@ -6,6 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tests=(
   test-engine-development-workflow.sh
   test-build-wine.sh
+  test-build-bootstrap.sh
   test-maplestory-patch-stack.sh
   test-maplestory-file-cache-patch.sh
   test-maplestory-io-ring-patch.sh
