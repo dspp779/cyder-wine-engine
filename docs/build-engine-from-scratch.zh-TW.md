@@ -266,6 +266,13 @@ Cyder012+ 使用 dual-variant MoltenVK（versioned reals + `.real` symlink +
 wait-poll shim）。以 `scripts/install-moltenvk-dual-variant.sh` 組裝；不要只留
 單一 `libMoltenVK.dylib` 而無 versioned reals。
 
+若新版 real 的 minOS 為 12.0，在啟用 Vulkan 的完整 Wine build **之前**，
+先把兩個 reals 與 10.15 shim 組裝到另一個 graphics prefix 的 `lib/`，並將
+`GRAPHICS_INSTALL` 指向該 prefix。不要直接讓 Wine bundler 把 12.0 real 當成
+未版本化的 `libMoltenVK.dylib`；這會被一般 10.15 gate 拒絕。組裝順序與
+Xcode 27 無法從零建出 10.15 legacy real 的限制，見
+[macOS 與 Rosetta 建置相容性](macos-rosetta-compatibility.zh-TW.md)。
+
 ## 6. 編譯並安裝 Wine engine
 
 若目標是新楓之谷 D3DMetal candidate，先建隔離的 media stack，再使用下列單一

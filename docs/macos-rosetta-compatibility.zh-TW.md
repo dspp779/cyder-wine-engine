@@ -58,6 +58,18 @@ archive checksum、codesign、x86_64 架構與 minOS 10.15，並在建置紀錄�
 來源與 checksum，不能宣稱該元件在本機重新建出。不要提高全域 minOS、改寫
 Mach-O load command，或把較高 minOS 的 dylib 改名來繞過 pack gate。
 
+### Vulkan 建置前的 dual layout
+
+若 1.4.2 real 以 minOS 12.0 建出，先用
+`scripts/install-moltenvk-dual-variant.sh` 在獨立的 graphics prefix 的 `lib/`
+組裝 versioned reals、`.real` symlink 與 10.15 shim，再將 `GRAPHICS_INSTALL`
+指向這個 prefix 執行 `build-wine.sh --with-vulkan --vulkan-source crossover`。
+1.4.2 的原始輸出與已驗證的 legacy real 都作為輸入保留。
+
+不要先把 minOS 12.0 的 real 當成未版本化的 `libMoltenVK.dylib` 直接交給 Wine
+bundler；該檔名必須維持 10.15，12.0 例外只適用於 `libMoltenVK-1.4.2.dylib`。
+這個順序讓完整 build/install/bundling 與後續 pack 都能使用同一套 minOS gate。
+
 一般 Wine host binaries 與 cxcompatdb 維持 `MACOSX_DEPLOYMENT_TARGET=10.15`；
 DXMT 與特定 MoltenVK real 的例外依 `scripts/pack-minos-scan.py`，不向上改動
 全域目標。Apple Silicon 本身從 macOS 11 起，10.15 是產物相容性宣告，並非
