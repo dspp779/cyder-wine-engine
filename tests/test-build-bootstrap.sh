@@ -172,6 +172,16 @@ git() {
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     assert result.returncode == 97 and 'BREW_INSTALL_REACHED' in result.stdout, result.stdout
 
+    # Media/graphics and manual callers share these helpers; they must not
+    # bypass validation or write compiler wrappers into an invalid prefix.
+    set_prefix('stub')
+    for command in ('brew_x86 --version', 'brew_x86_install_runtime zlib'):
+        result = subprocess.run(['bash', '-c', 'set -euo pipefail\n' +
+                                 f'source "{root}/scripts/env-x86_64.sh"\n' + command],
+                                env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        assert result.returncode != 0 and 'Incomplete Homebrew installation' in result.stdout, result.stdout
+        assert not (prefix / 'opt').exists()
+
     # Execute the production command arrays with a recorder instead of Wine/make.
     # Preserve argument boundaries so a compiler plus flags must remain one env value.
     start = script.index('# Bake -mmacosx-version-min')

@@ -182,6 +182,7 @@ brew_x86_validate_install() {
 
 # Run Homebrew under Rosetta with an isolated prefix (never /opt/homebrew).
 brew_x86() {
+  brew_x86_validate_install || return
   arch -x86_64 env \
     HOMEBREW_PREFIX="$HOMEBREW_PREFIX" \
     HOMEBREW_REPOSITORY="$HOMEBREW_REPOSITORY" \
@@ -241,6 +242,7 @@ brew_x86_runtime_formula_leaf() {
 # Set OGOM_BREW_RUNTIME_FORCE=1 to rebuild even when cellar dylibs already
 # report minos ≤ the product floor.
 brew_x86_install_runtime() {
+  brew_x86_validate_install || return
   local target="${MACOSX_DEPLOYMENT_TARGET:-10.15}"
   local wrap_bin="$HOMEBREW_PREFIX/opt/llvm/bin"
   local marker="# ogom-macos-deployment-wrapper target=${target}"
