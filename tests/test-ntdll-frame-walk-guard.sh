@@ -18,7 +18,18 @@ if [[ ! -x "$WINE" ]]; then
 fi
 
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/cyder-frame-walk.XXXXXX")"
-trap 'rm -rf "$TMP_DIR"' EXIT
+cleanup() {
+  local result=$?
+  if [[ -d "$TMP_DIR/prefix" && -x "$WINE_RUNTIME/bin/wineserver" ]]; then
+    # Only the disposable test prefix: let its server flush registry state
+    # before deleting the directory. Never kill another Wine session.
+    WINEPREFIX="$TMP_DIR/prefix" arch -x86_64 "$WINE_RUNTIME/bin/wineserver" -k >/dev/null 2>&1 || true
+    sleep 3
+  fi
+  rm -rf "$TMP_DIR"
+  return "$result"
+}
+trap cleanup EXIT
 
 "$CC" -O2 -Wall -Wextra -Werror \
   "$FIXTURE" -o "$TMP_DIR/ntdll-frame-walk-guard.exe"
