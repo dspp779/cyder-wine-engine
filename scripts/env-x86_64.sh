@@ -150,6 +150,28 @@ if [[ -d "$HOMEBREW_PREFIX" ]]; then
   unset _d _brew_lib_path _candidate
 fi
 
+# Validate without invoking brew: an invalid .git can otherwise make Git walk
+# up into the engine checkout. A separate explicit Intel Homebrew repository
+# and Git worktrees are supported, but both must resolve to their own root.
+brew_x86_validate_install() {
+  local repository="${HOMEBREW_REPOSITORY:-$HOMEBREW_PREFIX}"
+  local expected actual
+  local -a git_cmd=(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE git)
+  if [[ ! -x "$HOMEBREW_PREFIX/bin/brew" ||
+        ! -e "$repository/.git" ||
+        ! -f "$repository/Library/Homebrew/brew.sh" ]]; then
+    echo "Incomplete Homebrew installation: prefix=$HOMEBREW_PREFIX repository=$repository (missing executable, Git metadata, or runtime)." >&2
+    return 1
+  fi
+  expected="$(cd "$repository" && pwd -P)" || return 1
+  actual="$("${git_cmd[@]}" -C "$repository" rev-parse --show-toplevel 2>/dev/null)" || actual=""
+  if [[ "$actual" != "$expected" ]] ||
+     ! "${git_cmd[@]}" -C "$repository" rev-parse --verify 'HEAD^{commit}' >/dev/null 2>&1; then
+    echo "Invalid Homebrew Git repository at $repository (expected root: $expected; actual: ${actual:-unavailable})." >&2
+    return 1
+  fi
+}
+
 # Run Homebrew under Rosetta with an isolated prefix (never /opt/homebrew).
 brew_x86() {
   arch -x86_64 env \

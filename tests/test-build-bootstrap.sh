@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-python3 - "$ROOT" <<'PY'
+python3 - "$ROOT" <<'PYTEST'
 import os
 import pathlib
 import subprocess
@@ -13,67 +13,80 @@ script = (root / 'scripts/build-wine.sh').read_text()
 bootstrap = script[script.index('bootstrap_brew() {'):script.index('\nif [[ "$BOOTSTRAP_BREW"')]
 with tempfile.TemporaryDirectory(prefix='cyder-bootstrap-') as tmp:
     base = pathlib.Path(tmp)
-    prefix = base / 'prefix with spaces'
     log = base / 'calls'
+    fixture = base / 'brew-source'
+    fixture.mkdir()
+    def git(*args):
+        return subprocess.run(['git', *map(str, args)], check=True, text=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    def commit(repo):
+        git('-C', repo, 'add', '.')
+        git('-C', repo, '-c', 'user.name=Bootstrap Test', '-c', 'user.email=test@example.invalid',
+            '-c', 'commit.gpgsign=false', 'commit', '-qm', 'Offline fixture')
+    def layout(repo):
+        (repo / 'bin').mkdir(parents=True, exist_ok=True)
+        (repo / 'Library/Homebrew').mkdir(parents=True, exist_ok=True)
+        (repo / 'bin/brew').write_text('#!/bin/sh\nexit 0\n')
+        (repo / 'bin/brew').chmod(0o755)
+        (repo / 'Library/Homebrew/brew.sh').write_text('# fixture\n')
+    layout(fixture)
+    git('init', '-q', fixture)
+    commit(fixture)
+    prefix = base / 'prefix with spaces'
     env = dict(os.environ, OGOM=str(base), HOMEBREW_PREFIX=str(prefix),
                HOMEBREW_REPOSITORY=str(prefix), HOMEBREW_CELLAR=str(prefix / 'Cellar'),
-               CALLS=str(log), MACOSX_DEPLOYMENT_TARGET='10.15')
+               CALLS=str(log), MACOSX_DEPLOYMENT_TARGET='10.15', LOCAL_BREW_REPO=fixture.as_uri())
+    for key in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE'):
+        env.pop(key, None)
     helpers = r'''
 run() { if [[ "$DRY_RUN" == 1 ]]; then printf '%s\n' "$*"; else "$@"; fi; }
 git() {
   printf '%s\n' "$*" >> "$CALLS"
   [[ "$*" == "clone --depth 1 https://github.com/Homebrew/brew $HOMEBREW_PREFIX" ]] || return 90
-  if [[ -n "${LOCAL_BREW_REPO:-}" ]]; then
-    command git clone --depth 1 "$LOCAL_BREW_REPO" "$HOMEBREW_PREFIX"
-    return
-  fi
-  mkdir -p "$HOMEBREW_PREFIX"
   if [[ "${FAIL_CLONE:-0}" == 1 ]]; then
+    mkdir -p "$HOMEBREW_PREFIX"
     echo retained > "$HOMEBREW_PREFIX/partial"
     echo 'mock network failure' >&2
     return 42
   fi
-  mkdir -p "$HOMEBREW_PREFIX/Library/Homebrew" "$HOMEBREW_PREFIX/bin" "$HOMEBREW_PREFIX/.git"
-  touch "$HOMEBREW_PREFIX/Library/Homebrew/brew.sh" "$HOMEBREW_PREFIX/bin/brew"
-  chmod +x "$HOMEBREW_PREFIX/bin/brew"
+  command git clone --depth 1 "$LOCAL_BREW_REPO" "$HOMEBREW_PREFIX"
 }
 '''
-    def boot(dry=False, fail=False):
+    def set_prefix(name, repository=None):
+        global prefix
+        prefix = base / name
+        env.update(HOMEBREW_PREFIX=str(prefix), HOMEBREW_REPOSITORY=str(repository or prefix),
+                   HOMEBREW_CELLAR=str(prefix / 'Cellar'))
+    def boot(dry=False, fail=False, extra=None):
         return subprocess.run(['bash', '-c', 'set -euo pipefail\n' +
-            f'source "{root}/scripts/env-x86_64.sh"\n' +
-            helpers + bootstrap + '\nbootstrap_brew'],
-            env=dict(env, DRY_RUN=str(int(dry)), FAIL_CLONE=str(int(fail))),
+            f'source "{root}/scripts/env-x86_64.sh"\n' + helpers + bootstrap + '\nbootstrap_brew'],
+            env=dict(env, DRY_RUN=str(int(dry)), FAIL_CLONE=str(int(fail)), **(extra or {})),
             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     assert boot(dry=True).returncode == 0 and not prefix.exists() and not log.exists()
     result = boot()
     assert result.returncode == 0, result.stdout
     assert boot().returncode == 0 and len(log.read_text().splitlines()) == 1
-    # Each independent destination is isolated; never remove test subject data.
+    # Valid repository roots must also work when Git redirect variables leak in.
+    assert boot(extra={'GIT_DIR': str(base / 'missing'), 'GIT_WORK_TREE': str(base),
+                       'GIT_COMMON_DIR': str(base / 'missing'), 'GIT_INDEX_FILE': str(base / 'missing')}).returncode == 0
     for name, kind in [('empty', 'empty'), ('partial', 'partial'), ('stub', 'stub'),
                        ('failed', 'fail'), ('regular', 'file'), ('link', 'link'),
-                       ('hidden', 'hidden')]:
-        prefix = base / name
-        env['HOMEBREW_PREFIX'] = str(prefix)
-        env['HOMEBREW_REPOSITORY'] = str(prefix)
-        env['HOMEBREW_CELLAR'] = str(prefix / 'Cellar')
-        if kind == 'empty':
-            prefix.mkdir()
+                       ('hidden', 'hidden'), ('corrupt', 'corrupt'), ('unborn', 'unborn')]:
+        set_prefix(name)
+        if kind == 'empty': prefix.mkdir()
         elif kind == 'partial':
             prefix.mkdir(); (prefix / 'keep').write_text('user data')
         elif kind == 'hidden':
             prefix.mkdir(); (prefix / '.keep').write_text('hidden data')
-        elif kind == 'stub':
-            (prefix / 'bin').mkdir(parents=True)
-            (prefix / 'bin/brew').write_text('#!/bin/sh\nexit 99\n')
-            (prefix / 'bin/brew').chmod(0o755)
-        elif kind == 'file':
-            prefix.write_text('user file')
-        elif kind == 'link':
-            prefix.symlink_to(base / 'missing')
+        elif kind in ('stub', 'corrupt', 'unborn'):
+            layout(prefix)
+            if kind == 'corrupt': (prefix / '.git').mkdir()
+            if kind == 'unborn': git('init', '-q', prefix)
+        elif kind == 'file': prefix.write_text('user file')
+        elif kind == 'link': prefix.symlink_to(base / 'missing')
         before = log.read_text()
         result = boot(fail=kind == 'fail')
-        if kind == 'empty':
-            assert result.returncode == 0, result.stdout
+        if kind == 'empty': assert result.returncode == 0, result.stdout
         elif kind == 'fail':
             assert result.returncode != 0 and 'mock network failure' in result.stdout
             assert 'preserved' in result.stdout and (prefix / 'partial').read_text().strip() == 'retained'
@@ -87,66 +100,61 @@ git() {
             if kind == 'hidden': assert (prefix / '.keep').read_text() == 'hidden data'
             if kind == 'file': assert prefix.read_text() == 'user file'
             if kind == 'link': assert prefix.is_symlink()
-
-    # Exercise real Git destination/clone behavior offline, including a nested
-    # prefix that does not yet have a parent and an already empty destination.
-    fixture = base / 'brew-source'
-    (fixture / 'bin').mkdir(parents=True)
-    (fixture / 'Library/Homebrew').mkdir(parents=True)
-    (fixture / 'bin/brew').write_text('#!/bin/sh\nexit 0\n')
-    (fixture / 'bin/brew').chmod(0o755)
-    (fixture / 'Library/Homebrew/brew.sh').write_text('# fixture\n')
-    def git_fixture(*args):
-        subprocess.run(['git', '-C', str(fixture), *args], check=True,
-                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    git_fixture('init', '-q')
-    git_fixture('add', '.')
-    git_fixture('-c', 'user.name=Bootstrap Test', '-c', 'user.email=test@example.invalid',
-                '-c', 'commit.gpgsign=false', 'commit', '-qm', 'Offline fixture')
-    env['LOCAL_BREW_REPO'] = fixture.as_uri()
-    for name in ('nested/new/prefix with spaces', 'real-empty'):
-        prefix = base / name
-        if name == 'real-empty': prefix.mkdir()
-        env.update(HOMEBREW_PREFIX=str(prefix), HOMEBREW_REPOSITORY=str(prefix),
-                   HOMEBREW_CELLAR=str(prefix / 'Cellar'))
-        result = boot()
-        assert result.returncode == 0, result.stdout
-        head = subprocess.check_output(['git', '-C', str(prefix), 'rev-parse', '--show-toplevel'], text=True).strip()
-        assert pathlib.Path(head).resolve() == prefix.resolve()
-        after = log.read_text()
-        assert boot().returncode == 0 and log.read_text() == after
-    # A zero exit status without a usable Homebrew tree is still a failure.
-    (fixture / 'Library/Homebrew/brew.sh').unlink()
-    git_fixture('add', '-u')
-    git_fixture('-c', 'user.name=Bootstrap Test', '-c', 'user.email=test@example.invalid',
-                '-c', 'commit.gpgsign=false', 'commit', '-qm', 'Incomplete fixture')
-    prefix = base / 'incomplete-clone'
-    env.update(HOMEBREW_PREFIX=str(prefix), HOMEBREW_REPOSITORY=str(prefix),
-               HOMEBREW_CELLAR=str(prefix / 'Cellar'))
+    # Regression: invalid .git must not be mistaken for the valid parent repo.
+    parent = base / 'parent-repo'
+    git('init', '-q', parent)
+    (parent / 'keep').write_text('parent data'); commit(parent)
+    set_prefix('parent-repo/brew')
+    layout(prefix); (prefix / '.git').mkdir()
+    assert pathlib.Path(git('-C', prefix, 'rev-parse', '--show-toplevel').stdout.strip()) == parent.resolve()
     result = boot()
-    assert result.returncode != 0 and 'clone is incomplete' in result.stdout, result.stdout
-    assert (prefix / '.git').is_dir() and (prefix / 'bin/brew').exists()
-    env.pop('LOCAL_BREW_REPO')
-
-    # Existing Intel Homebrew may keep its repository separate from the prefix.
-    # Accept a complete explicit repository without cloning over either tree.
-    prefix = base / 'split-prefix'
-    repository = base / 'split-repository'
-    (prefix / 'bin').mkdir(parents=True)
-    (prefix / 'bin/brew').write_text('#!/bin/sh\nexit 0\n')
-    (prefix / 'bin/brew').chmod(0o755)
-    (repository / '.git').mkdir(parents=True)
-    (repository / 'Library/Homebrew').mkdir(parents=True)
-    (repository / 'Library/Homebrew/brew.sh').touch()
-    env.update(HOMEBREW_PREFIX=str(prefix), HOMEBREW_REPOSITORY=str(repository),
-               HOMEBREW_CELLAR=str(prefix / 'Cellar'))
-    before = log.read_text()
-    assert boot().returncode == 0 and log.read_text() == before
-    prefix = base / 'new-split-prefix'
-    env['HOMEBREW_PREFIX'] = str(prefix)
+    assert result.returncode != 0 and 'Invalid Homebrew Git repository' in result.stdout
+    assert (parent / 'keep').read_text() == 'parent data'
+    for name in ('nested/new/prefix with spaces', 'real-empty'):
+        set_prefix(name)
+        if name == 'real-empty': prefix.mkdir()
+        result = boot(); assert result.returncode == 0, result.stdout
+        assert pathlib.Path(git('-C', prefix, 'rev-parse', '--show-toplevel').stdout.strip()) == prefix.resolve()
+    # Git worktrees and explicit split Intel prefixes remain supported.
+    worktree = base / 'brew-worktree'
+    git('-C', fixture, 'worktree', 'add', '-qb', 'test-worktree', worktree)
+    set_prefix('brew-worktree'); assert boot().returncode == 0
+    set_prefix('split-prefix', repository=fixture)
+    layout(prefix); assert boot().returncode == 0
+    set_prefix('new-split-prefix', repository=fixture)
     result = boot()
     assert result.returncode != 0 and 'Cannot bootstrap with HOMEBREW_REPOSITORY=' in result.stdout
-    assert not prefix.exists() and log.read_text() == before
+    assert not prefix.exists()
+    # A successful clone with a missing runtime must still fail, preserving data.
+    (fixture / 'Library/Homebrew/brew.sh').unlink(); git('-C', fixture, 'add', '-u'); commit(fixture)
+    set_prefix('incomplete-clone')
+    result = boot()
+    assert result.returncode != 0 and 'clone is incomplete' in result.stdout, result.stdout
+    assert (prefix / '.git').is_dir()
+
+    # Execute the real --install-deps entry point with isolated preparer/brew
+    # recorders. Invalid metadata must fail before any dependency installation.
+    scripts = base / 'entry/scripts'; scripts.mkdir(parents=True)
+    (scripts / 'build-wine.sh').write_text(script)
+    (scripts / 'prepare-build-deps.sh').write_text('#!/bin/bash\nexit 0\n')
+    (scripts / 'prepare-build-deps.sh').chmod(0o755)
+    (scripts / 'env-x86_64.sh').write_text(
+        f'source "{root}/scripts/env-x86_64.sh"\nSCRIPT_DIR="{scripts}"\n' +
+        'brew_x86() { echo "BREW_INSTALL_REACHED"; exit 97; }\n')
+    for name in ('stub', 'parent-repo/brew', 'unborn', 'missing-prefix', 'split-prefix'):
+        set_prefix(name, repository=fixture if name == 'split-prefix' else None)
+        result = subprocess.run(['bash', str(scripts / 'build-wine.sh'), '--install-deps',
+                                 '--configure-only', '--without-vulkan'], env=env,
+                                text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        if name == 'split-prefix':
+            # The split fixture now lacks its runtime, so it too must fail closed.
+            assert result.returncode != 0 and 'BREW_INSTALL_REACHED' not in result.stdout
+        else:
+            assert result.returncode != 0 and 'BREW_INSTALL_REACHED' not in result.stdout, result.stdout
+    set_prefix('real-empty')
+    result = subprocess.run(['bash', str(scripts / 'build-wine.sh'), '--install-deps'], env=env,
+                            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    assert result.returncode == 97 and 'BREW_INSTALL_REACHED' in result.stdout, result.stdout
 
     # Execute the production command arrays with a recorder instead of Wine/make.
     # Preserve argument boundaries so a compiler plus flags must remain one env value.
@@ -191,4 +199,4 @@ CONFIGURE_VULKAN_FLAG=(--without-vulkan)
         assert calls[1][-2:] == [b'make', b'-j2']
         assert calls[2][-2:] == [b'make', b'install']
 print('PASS test-build-bootstrap (offline bootstrap and configure/make/install compiler contracts)')
-PY
+PYTEST

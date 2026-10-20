@@ -144,11 +144,11 @@ fi
 
 bootstrap_brew() {
   local repository="${HOMEBREW_REPOSITORY:-$HOMEBREW_PREFIX}"
-  # A tarball stub can have bin/brew but no repository/runtime. Never let brew
-  # discover this engine checkout as its repository, or overwrite partial data.
-  if [[ -x "$HOMEBREW_PREFIX/bin/brew" &&
-        -e "$repository/.git" &&
-        -f "$repository/Library/Homebrew/brew.sh" ]]; then
+  if [[ -x "$HOMEBREW_PREFIX/bin/brew" ]]; then
+    if ! brew_x86_validate_install; then
+      echo "No data removed. Inspect the installation, or choose a new HOMEBREW_PREFIX and HOMEBREW_REPOSITORY, then retry." >&2
+      return 1
+    fi
     echo "Homebrew already present at $HOMEBREW_PREFIX"
     return 0
   fi
@@ -177,9 +177,7 @@ bootstrap_brew() {
     echo "Homebrew clone failed at $HOMEBREW_PREFIX; any remaining data was preserved. Inspect it before retrying, or choose a new HOMEBREW_PREFIX." >&2
     return 1
   fi
-  if [[ ! -x "$HOMEBREW_PREFIX/bin/brew" ||
-        ! -e "$HOMEBREW_PREFIX/.git" ||
-        ! -f "$HOMEBREW_PREFIX/Library/Homebrew/brew.sh" ]]; then
+  if ! brew_x86_validate_install; then
     echo "Homebrew clone is incomplete at $HOMEBREW_PREFIX; data preserved for inspection." >&2
     return 1
   fi
@@ -191,10 +189,11 @@ if [[ "$BOOTSTRAP_BREW" -eq 1 ]]; then
 fi
 
 if [[ "$INSTALL_DEPS" -eq 1 ]]; then
-  if [[ ! -x "$HOMEBREW_PREFIX/bin/brew" && "$DRY_RUN" -eq 0 ]]; then
-    echo "Missing $HOMEBREW_PREFIX/bin/brew; run with --bootstrap-brew first" >&2
+  if [[ "$DRY_RUN" -eq 0 ]] && ! brew_x86_validate_install; then
+    echo "No data removed. Repair the existing installation or select a fresh prefix and run --bootstrap-brew first." >&2
     exit 1
   fi
+
   # Build tools may use bottles (host minos OK — not shipped in the engine).
   BUILD_TOOL_DEPS=(autoconf bison flex pkgconf)
   # Runtime libs are copied into lib/wine/x86_64-unix and must be ≤ product floor.
