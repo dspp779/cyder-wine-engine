@@ -120,11 +120,27 @@ git() {
     git('-C', fixture, 'worktree', 'add', '-qb', 'test-worktree', worktree)
     set_prefix('brew-worktree'); assert boot().returncode == 0
     set_prefix('split-prefix', repository=fixture)
-    layout(prefix); assert boot().returncode == 0
+    (prefix / 'bin').mkdir(parents=True)
+    (prefix / 'bin/brew').symlink_to(fixture / 'bin/brew')
+    assert boot().returncode == 0
     set_prefix('new-split-prefix', repository=fixture)
     result = boot()
     assert result.returncode != 0 and 'Cannot bootstrap with HOMEBREW_REPOSITORY=' in result.stdout
     assert not prefix.exists()
+    # A valid but unrelated repository must not conceal the prefix's bad Git
+    # metadata (for example an inherited /opt/homebrew from the arm64 profile).
+    set_prefix('corrupt', repository=fixture)
+    result = boot()
+    assert result.returncode != 0 and 'does not belong' in result.stdout, result.stdout
+    profile = subprocess.run(['bash', '-c', f'source "{root}/scripts/env-x86_64.sh"; '
+                              'printf "%s\\n" "$HOMEBREW_PREFIX" "$HOMEBREW_REPOSITORY" "$HOMEBREW_CELLAR"'],
+                             env=dict(env, HOMEBREW_PREFIX='/opt/homebrew', HOMEBREW_REPOSITORY='/opt/homebrew',
+                                      HOMEBREW_CELLAR='/opt/homebrew/Cellar'),
+                             text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    assert profile.returncode == 0, profile.stderr
+    assert profile.stdout.splitlines() == [str(base / '.brew-x86'), str(base / '.brew-x86'),
+                                            str(base / '.brew-x86/Cellar')], profile.stdout
+
     # A successful clone with a missing runtime must still fail, preserving data.
     (fixture / 'Library/Homebrew/brew.sh').unlink(); git('-C', fixture, 'add', '-u'); commit(fixture)
     set_prefix('incomplete-clone')

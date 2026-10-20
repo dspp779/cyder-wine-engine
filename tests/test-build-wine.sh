@@ -4,6 +4,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/tests/assert.sh"
 
+# Dry-run assertions must not depend on the developer's existing Homebrew or
+# shell-profile arm64 coordinates. Functional install states are tested apart.
+brew_fixture="$(mktemp -d "${TMPDIR:-/tmp}/cyder-build-wine-brew.XXXXXX")"
+trap 'rm -rf "$brew_fixture"' EXIT
+export HOMEBREW_PREFIX="$brew_fixture/new-prefix"
+export HOMEBREW_REPOSITORY="$HOMEBREW_PREFIX"
+export HOMEBREW_CELLAR="$HOMEBREW_PREFIX/Cellar"
+
 build_script="$(<"$ROOT/scripts/build-wine.sh")"
 assert_contains "$build_script" "if (!func) break;" \
   "build should recognize the upstream frame-walk guard after the Cyder page-fault patch rewrites its context"

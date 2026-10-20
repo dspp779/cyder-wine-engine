@@ -51,6 +51,10 @@ export CX_VERSION="${CX_VERSION:-26}"
 # (arm64); Rosetta brew cannot install into that prefix.
 if [[ -z "${HOMEBREW_PREFIX:-}" || "$HOMEBREW_PREFIX" == "/opt/homebrew" ]]; then
   export HOMEBREW_PREFIX="$OGOM/.brew-x86"
+  # Shell profiles export these alongside the arm64 prefix. Keep the three
+  # coordinates together when switching to the project x86_64 installation.
+  [[ "${HOMEBREW_REPOSITORY:-}" == /opt/homebrew ]] && unset HOMEBREW_REPOSITORY
+  [[ "${HOMEBREW_CELLAR:-}" == /opt/homebrew/Cellar ]] && unset HOMEBREW_CELLAR
 fi
 export HOMEBREW_REPOSITORY="${HOMEBREW_REPOSITORY:-$HOMEBREW_PREFIX}"
 export HOMEBREW_CELLAR="${HOMEBREW_CELLAR:-$HOMEBREW_PREFIX/Cellar}"
@@ -161,6 +165,10 @@ brew_x86_validate_install() {
         ! -e "$repository/.git" ||
         ! -f "$repository/Library/Homebrew/brew.sh" ]]; then
     echo "Incomplete Homebrew installation: prefix=$HOMEBREW_PREFIX repository=$repository (missing executable, Git metadata, or runtime)." >&2
+    return 1
+  fi
+  if [[ ! "$HOMEBREW_PREFIX/bin/brew" -ef "$repository/bin/brew" ]]; then
+    echo "Homebrew executable does not belong to the configured repository: $HOMEBREW_PREFIX/bin/brew vs $repository/bin/brew." >&2
     return 1
   fi
   expected="$(cd "$repository" && pwd -P)" || return 1

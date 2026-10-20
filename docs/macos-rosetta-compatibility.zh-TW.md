@@ -124,6 +124,12 @@ Objective-C++ compiler，並保留自訂 `CC`／`CXX`／`OBJC`／`OBJCXX`。舊�
 再建置。安裝前會檢查 build 產物為 thin x86_64，安裝後再檢查架構與 minOS。
 
 Host 依賴使用專案的 `.brew-x86`，不混用 `/opt/homebrew` 的 arm64 libraries。
+切換 prefix 時也要一起核對 `HOMEBREW_REPOSITORY` 與 `HOMEBREW_CELLAR`，避免
+shell profile 殘留 arm64 路徑。完整性驗證會要求 `bin/brew` 屬於指定 repository，
+且 Git 的實際根目錄與有效 HEAD 都正確；只有 prefix 目錄或 `.git` 存在不夠。
+驗證失敗時保留舊 prefix，先檢查資料，或選擇一致的新 prefix／repository／Cellar
+重新 bootstrap。Intel 的分離安裝可使用指向該 repository 的 brew symlink。
+
 更換 compiler、SDK 或 flags 後，保留需要的既有資料，再處理 `build64/config.cache`
 並重新 configure；不要直接對舊 Makefile 執行 make 後宣稱已切換工具鏈。
 
