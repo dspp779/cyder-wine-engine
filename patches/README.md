@@ -18,28 +18,29 @@ Patch order for the CX26.3 / Wine 11.0 Cyder engine:
 14. `cyder-wineserver-macos-timezone-bias.patch`
 15. `cyder-wineserver-registry-fsync.patch`
 16. `cyder-winemac-hide-ime-only-klid.patch`
-17. `cyder-kernelbase-disk-free-space-fallback.patch`
-18. `maplestory-cx26-message-wait-handoff.patch`
-19. `maplestory-cx26-core.patch`
-20. `maplestory-cx26-window-resizable-flag.patch`
-21. `maplestory-cx26-tmp-module-name.patch`
-22. `maplestory-cx26-dbghelp-dwarf-guard.patch`
-23. `maplestory-cx26-d3d11-shared-texture-test.patch`
-24. `maplestory-cx26-d3dmetal-legacy-surface.patch`
-25. `maplestory-cx26-plain-metal-layer.patch`
-26. `maplestory-cx26-d3d11-full-clear.patch`
-27. `maplestory-cx26-dxgi-shared-handle.patch`
-28. `maplestory-cx26-texture-user-memory-reload.patch`
-29. `maplestory-cx26-blackxchg-foreground.patch`
-30. `maplestory-cx26-fullscreen-restore.patch`
-31. `maplestory-cx26-no-sched-yield.patch`
-32. `maplestory-cx26-file-cache-adaptive.patch`
-33. `maplestory-cx26-io-ring.patch`
-34. `maplestory-cx26-io-ring-arm.patch`
-35. `maplestory-cx26-io-summary.patch`
-36. `maplestory-cx26-io-timeline.patch`
-37. `maplestory-cx26-io-cache-stats.patch`
-38. `maplestory-cx26-section-map-summary.patch`
+17. `cyder-winemac-gl-front-buffer-present.patch`
+18. `cyder-kernelbase-disk-free-space-fallback.patch`
+19. `maplestory-cx26-message-wait-handoff.patch`
+20. `maplestory-cx26-core.patch`
+21. `maplestory-cx26-window-resizable-flag.patch`
+22. `maplestory-cx26-tmp-module-name.patch`
+23. `maplestory-cx26-dbghelp-dwarf-guard.patch`
+24. `maplestory-cx26-d3d11-shared-texture-test.patch`
+25. `maplestory-cx26-d3dmetal-legacy-surface.patch`
+26. `maplestory-cx26-plain-metal-layer.patch`
+27. `maplestory-cx26-d3d11-full-clear.patch`
+28. `maplestory-cx26-dxgi-shared-handle.patch`
+29. `maplestory-cx26-texture-user-memory-reload.patch`
+30. `maplestory-cx26-blackxchg-foreground.patch`
+31. `maplestory-cx26-fullscreen-restore.patch`
+32. `maplestory-cx26-no-sched-yield.patch`
+33. `maplestory-cx26-file-cache-adaptive.patch`
+34. `maplestory-cx26-io-ring.patch`
+35. `maplestory-cx26-io-ring-arm.patch`
+36. `maplestory-cx26-io-summary.patch`
+37. `maplestory-cx26-io-timeline.patch`
+38. `maplestory-cx26-io-cache-stats.patch`
+39. `maplestory-cx26-section-map-summary.patch`
 
 `w1-win32u-vulkan-soname.patch` is not part of the default patch set. It is a
 special-case build-only fallback for CX26 source trees where `win32u/vulkan.c`
@@ -271,6 +272,12 @@ a process-lifetime cache, so DST can still refresh on the next second.
 before `fclose` in `save_branch()`, so `user.reg` / `system.reg` are less
 likely to stay in the libc buffer across an abnormal wineserver exit.
 
+`cyder-winemac-gl-front-buffer-present.patch` backports upstream Wine b5ab3b15: winemac now handles
+`GL_FLUSH_PRESENT` by flushing the NSOpenGLContext and calling
+`client_surface_present`. Without it, OpenGL front-buffer rendering never reaches
+the screen, so windowed DirectDraw games that also create a D3D device (wined3d
+blits the primary surface into the GL front buffer) stay black.
+
 `cyder-winemac-hide-ime-only-klid.patch` stops encoding IME-only TIS sources as
 KLID `0xe0000000`. `GetKeyboardLayoutNameW` otherwise leaks those values into
 games that parse the layout id as a keyboard layout.
@@ -310,6 +317,7 @@ strings as “already applied”:
 | `cyder-wineserver-macos-timezone-bias.patch` | `get_timezone_bias` (`server/fd.c`) |
 | `cyder-wineserver-registry-fsync.patch` | `fsync( fileno( f ) )` (`server/registry.c`) |
 | `cyder-winemac-hide-ime-only-klid.patch` | `leaks IME-only HKLs` (`dlls/winemac.drv/keyboard.c`) |
+| `cyder-winemac-gl-front-buffer-present.patch` | `if (flags & GL_FLUSH_PRESENT)` (`dlls/winemac.drv/opengl.c`) |
 | `cyder-kernelbase-disk-free-space-fallback.patch` | `retry a real mapped volume instead of inventing free space` (`dlls/kernelbase/volume.c`) |
 | `maplestory-cx26-message-wait-handoff.patch` | `MapleStoryPort: preserve one driver wait result` (`dlls/win32u/message.c`) |
 | `maplestory-cx26-no-sched-yield.patch` | `if (is_maplestory_process()) return STATUS_NO_YIELD_PERFORMED;` (`dlls/ntdll/unix/sync.c`) |

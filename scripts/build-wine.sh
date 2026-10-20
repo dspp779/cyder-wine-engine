@@ -430,6 +430,9 @@ apply_cyder_patch() {
   elif [[ "$(basename "$patch_file")" == "cyder-wineserver-registry-fsync.patch" ]] &&
        grep -Fq 'fsync( fileno( f ) )' "$WINE_SRC/server/registry.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-winemac-gl-front-buffer-present.patch" ]] &&
+       grep -Fq 'if (flags & GL_FLUSH_PRESENT)' "$WINE_SRC/dlls/winemac.drv/opengl.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
   elif [[ "$(basename "$patch_file")" == "cyder-winemac-hide-ime-only-klid.patch" ]] &&
        grep -Fq 'leaks IME-only HKLs' "$WINE_SRC/dlls/winemac.drv/keyboard.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
@@ -499,6 +502,7 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-macos-timezone-bias.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-registry-fsync.patch"
   apply_cyder_patch "$OGOM/patches/cyder-winemac-hide-ime-only-klid.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-winemac-gl-front-buffer-present.patch"
   apply_cyder_patch "$OGOM/patches/cyder-kernelbase-disk-free-space-fallback.patch"
 
   apply_maplestory_patch() {
