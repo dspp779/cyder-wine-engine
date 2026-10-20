@@ -148,6 +148,12 @@ otool -l "$ENGINE/lib/wine/x86_64-unix/cxcompatdb.so" \
 | 系統探測成功，plugin 卻是 arm64 或 minOS 11.0 | 檢查 compiler 的 `-arch x86_64` 與 10.15 flags，重新建置受影響產物 |
 | Wine 已啟動，出現 `Can't check in server_mach_port` | 屬於 Mach service／session 或沙箱問題；保留原測試設定，在具有 Mach 存取權的桌面環境重跑 |
 | x86_64 連結器拒絕 arm64 library | 檢查依賴與 search paths；不要移除架構旗標來繞過錯誤 |
+| CX26 完整 make 出現未定義的 `SONAME_LIBVULKAN` | 無 Vulkan configure 成功仍可能在 `win32u/vulkan.c` 編譯失敗；此來源組合可明確使用既有 `--without-vulkan --vulkan-soname-fallback` 選項，或完成 graphics 輸入後驗證 `--with-vulkan` 路徑 |
+
+`--vulkan-soname-fallback` 是明確選用的建置修補，提供缺少 SONAME 巨集時的
+預設 library 名稱；它不會安裝 Vulkan runtime，也不表示無 Vulkan 的 build
+能執行 Vulkan 遊戲。完整 make 與 install 都要驗證，不能以 configure 成功
+代替。此選項不改變 repository 的預設 patch policy。
 
 2026-10-20 本機修復 Rosetta 並補上 cxcompatdb 架構旗標後，原先 7 項失敗
 測試均通過；完整 `bash tests/run.sh` 退出碼為 0。Wine
