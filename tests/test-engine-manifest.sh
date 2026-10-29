@@ -66,4 +66,6 @@ if [[ "$(cat "$TMP/engine-manifest.json")" == *"maplestory-cx26-io-cache-stats.p
   exit 1
 fi
 
+assert_contains "$(cat "$TMP/engine-manifest.json")" "wine-win32u-full-client-visible-rect.patch" "manifest records visible-rect backport"
+
 echo "PASS test-engine-manifest"

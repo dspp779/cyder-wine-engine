@@ -500,6 +500,8 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-registry-fsync.patch"
   apply_cyder_patch "$OGOM/patches/cyder-winemac-hide-ime-only-klid.patch"
   apply_cyder_patch "$OGOM/patches/cyder-kernelbase-disk-free-space-fallback.patch"
+  apply_cyder_patch "$OGOM/patches/wine-winemac-initialize-style-masks.patch"
+  apply_cyder_patch "$OGOM/patches/wine-win32u-full-client-visible-rect.patch"
 
   apply_maplestory_patch() {
       local patch_name="$1"

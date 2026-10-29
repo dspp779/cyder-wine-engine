@@ -21,6 +21,8 @@ tests=(
   test-bundle-wine-dylibs-source.sh
   test-cyder-engine-version.sh
   test-engine-manifest.sh
+  test-winemac-style-masks.sh
+  test-win32u-visible-rect.sh
   test-winemac-a6-patch.sh
   test-ntdll-frame-walk-guard.sh
   test-wineserver-poll-guard-patches.sh

@@ -387,3 +387,21 @@ Undo with `--undo --install-runtime`.
 
 The former App-side RC overlay is retained only as historical documentation:
 [`docs/moltenvk-timeline-wait-poll-app-overlay.md`](../docs/moltenvk-timeline-wait-poll-app-overlay.md).
+
+## Full client visible rectangle
+
+`wine-win32u-full-client-visible-rect.patch` backports Alexandre Julliard's
+Wine commit 6cfa941df3f385ab025aa2c458753c017aa49ccc (2026-10-07), after
+the disk-space fallback and before the MapleStory stack. If decoration
+clipping excludes any client edge, get_visible_rect returns the full window
+rectangle. This addresses frameless/CEF window geometry, not fullscreen
+swapchain retirement or Steam authentication. The unchanged hunk has no later
+overlap; forward/reverse patch checks provide idempotence.
+Source: https://github.com/wine-mirror/wine/commit/6cfa941df3f385ab025aa2c458753c017aa49ccc
+GUI and game acceptance are still required; see the upstream CS2 audit in docs.
+
+`wine-winemac-initialize-style-masks.patch` backports Jactry Zeng's
+48e2d50404d0b67f30cf0a149df361f4d50eac64 before the visible-rect fix. It
+initializes both output masks, retaining the CX Quicken early return. This
+prevents uninitialized extended-style bits affecting decoration calculations.
+The independent hunk uses forward/reverse idempotence checks.
