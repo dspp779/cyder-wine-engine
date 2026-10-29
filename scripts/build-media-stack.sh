@@ -69,7 +69,7 @@ if [[ "$INSTALL_DEPS" -eq 1 ]]; then
   # meson/ninja/bison/pkgconf are build-only (bottles OK).
   brew_x86 install meson ninja bison pkgconf
   # pcre2/libffi are linked into the media dylibs that get bundled.
-  brew_x86_install_runtime pcre2 libffi
+  brew_x86_install_runtime pcre2 libffi gettext
 fi
 
 MESON="$HOMEBREW_PREFIX/bin/meson"
@@ -99,7 +99,19 @@ if [[ ! -f "$GLIB_SRC/subprojects/gvdb/meson.build" ]]; then
   git -C "$GLIB_SRC/subprojects/gvdb" checkout 0854af0fdb6d527a8d1999835ac2c5059976c210
 fi
 
-BUILD_PATH="$HOMEBREW_PREFIX/opt/bison/bin:/usr/bin:/bin:/usr/sbin:/sbin:$MEDIA_INSTALL/bin:$HOMEBREW_PREFIX/bin"
+# GLib's generators use /usr/bin/env python3. Keep them on the same explicit
+# interpreter as Meson instead of re-entering an incompatible CLT trampoline.
+HOST_TOOLS="$MEDIA_BUILD/host-tools"
+mkdir -p "$HOST_TOOLS"
+printf '#!/bin/bash\nexec %q "$@"\n' "$SYSTEM_PYTHON" > "$HOST_TOOLS/python3"
+chmod +x "$HOST_TOOLS/python3"
+if [[ -n "${FLEX:-}" ]]; then
+  printf '#!/bin/bash\nexec %q "$@"\n' "$FLEX" > "$HOST_TOOLS/flex"
+  chmod +x "$HOST_TOOLS/flex"
+else
+  rm -f "$HOST_TOOLS/flex"
+fi
+BUILD_PATH="$HOST_TOOLS:$HOMEBREW_PREFIX/opt/bison/bin:/usr/bin:/bin:/usr/sbin:/sbin:$MEDIA_INSTALL/bin:$HOMEBREW_PREFIX/bin"
 PC_PATH="$MEDIA_INSTALL/lib/pkgconfig:$HOMEBREW_PREFIX/lib/pkgconfig:$HOMEBREW_PREFIX/opt/libffi/lib/pkgconfig:$HOMEBREW_PREFIX/opt/pcre2/lib/pkgconfig"
 MESON_CMD=(
   arch -x86_64 env
@@ -107,6 +119,8 @@ MESON_CMD=(
   PYTHONPATH="$PYTHON_SITE"
   PKG_CONFIG="$HOMEBREW_PREFIX/bin/pkg-config"
   PKG_CONFIG_PATH="$PC_PATH"
+  CPATH="$MEDIA_INSTALL/include:$HOMEBREW_PREFIX/opt/gettext/include${CPATH:+:$CPATH}"
+  LIBRARY_PATH="$MEDIA_INSTALL/lib:$HOMEBREW_PREFIX/opt/gettext/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
   DYLD_LIBRARY_PATH="$MEDIA_INSTALL/lib"
   MACOSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET"
   CFLAGS="${CFLAGS:+$CFLAGS }$MIN_FLAG"
@@ -251,6 +265,6 @@ if [[ "$MEDIA_PROFILE" == full-video ]]; then
 fi
 
 media_verify_x86_64 "$MEDIA_INSTALL"
-python3 "$SCRIPT_DIR/pack-minos-scan.py" "$MEDIA_INSTALL" "$MACOSX_DEPLOYMENT_TARGET"
+"$SYSTEM_PYTHON" "$SCRIPT_DIR/pack-minos-scan.py" "$MEDIA_INSTALL" "$MACOSX_DEPLOYMENT_TARGET"
 
 echo "${MEDIA_PROFILE} CX$CX_VERSION media stack installed: $MEDIA_INSTALL"

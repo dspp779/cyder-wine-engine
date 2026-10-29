@@ -139,7 +139,7 @@ export CI=1
 if [[ -d "$HOMEBREW_PREFIX" ]]; then
   export HOMEBREW_CACHE="$HOMEBREW_PREFIX/cache"
   export HOMEBREW_LOGS="$HOMEBREW_PREFIX/logs"
-  export HOMEBREW_TEMP="$HOMEBREW_PREFIX/tmp"
+  export HOMEBREW_TEMP="${HOMEBREW_TEMP:-$HOMEBREW_PREFIX/tmp}"
   # Do not turn an empty bootstrap destination into a partial installation.
   if [[ -x "$HOMEBREW_PREFIX/bin/brew" ]]; then
     mkdir -p "$HOMEBREW_CACHE" "$HOMEBREW_LOGS" "$HOMEBREW_TEMP"
@@ -247,7 +247,7 @@ brew_x86_install_runtime() {
   local target="${MACOSX_DEPLOYMENT_TARGET:-10.15}"
   local wrap_bin="$HOMEBREW_PREFIX/opt/llvm/bin"
   local marker="# ogom-macos-deployment-wrapper target=${target}"
-  local name real quoted_real formula leaf
+  local name real quoted_real formula leaf dependency_order post_order
   local -a formulae=()
   local -a ordered=()
   local -a missing=()
@@ -320,10 +320,14 @@ brew_x86_install_runtime() {
 
   # Expand to a topological install order, including runtime deps that end up
   # in the Wine unix lib tree (gnutls → nettle/gmp/…, freetype → libpng, …).
+  if ! dependency_order="$(brew_x86 deps --union --topological "${install_names[@]}")"; then
+    echo "Cannot resolve runtime dependency graph; refusing an unchecked build." >&2
+    return 1
+  fi
   while IFS= read -r formula; do
     [[ -n "$formula" ]] || continue
     ordered+=("$(brew_x86_runtime_formula "$formula")")
-  done < <(brew_x86 deps --union --topological "${install_names[@]}" 2>/dev/null || true)
+  done <<< "$dependency_order"
   for formula in "${install_names[@]}"; do
     ordered+=("$formula")
   done
@@ -444,7 +448,23 @@ EOF
         status=1
       fi
     done
-    return "$status"
+    [[ "$status" -eq 0 ]] || return "$status"
   fi
+  # Homebrew can introduce bottled transitive dependencies during installation.
+  # Re-read the graph and fail before Wine builds if any installed runtime
+  # dependency still exceeds the product floor. A retry rebuilds those leaves.
+  if ! post_order="$(brew_x86 deps --union --topological "${install_names[@]}")"; then
+    echo "Cannot verify installed runtime dependency graph." >&2
+    return 1
+  fi
+  post_order="$(printf '%s\n' "$post_order" "${install_names[@]}")"
+  while IFS= read -r formula; do
+    [[ -n "$formula" ]] || continue
+    leaf="$(brew_x86_runtime_formula_leaf "$formula")"
+    if [[ -d "$HOMEBREW_PREFIX/opt/$leaf/lib" ]] && _ogom_formula_needs_rebuild "$formula"; then
+      echo "Runtime dependency $formula still exceeds minOS $target; rerun the source dependency build." >&2
+      return 1
+    fi
+  done <<< "$post_order"
   return 0
 }

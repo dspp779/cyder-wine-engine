@@ -78,6 +78,6 @@
 ## 驗證與限制
 
 - 已通過：兩個新測試會對 CX26.3 pristine 函式套 patch、編譯實際函式、驗證四邊 client overflow／decorated／shaped／present override 與 style mask 四種組合、Quicken early return，並 reverse 還原逐位元比較；manifest 記錄與順序檢查、test-build-wine、test-engine-manifest。
-- 已嘗試完整 `tests/run.sh`：隔離 checkout 缺少 configured Wine `build64/include/config.h`，停在 `test-cyder-cxcompatdb.sh`；部分 archive／Meson 測試跳過。這不是完整回歸通過。
-- 尚未完成：真正 Wine module 建置、host minOS／codesign 產物檢查、macOS GUI／Steam／CS2、其他遊戲回歸。PR 應保持 draft，不能用函式測試代替 GUI 驗收。
+- 完整 runtime 建置與回歸已補驗：CX26.3／Wine 11.0，full-video GStreamer，41 個 repo 測試入口 exit 0；98 個 host Mach-O 的架構、minOS 10.15、ad-hoc 簽章與 runtime 內依賴檢查通過。新 prefix 的 32／64 位元 Win32 檔案與 BCrypt、22 個媒體插件／10 個元件及預設憑證驗證 HTTPS 探測通過。唯一 skip 為可選 MoltenVK source live round-trip 子檢查。詳見 [完整建置紀錄與限制](build-validation.md)。
+- 尚需：macOS GUI／Steam session／CS2／DXMT／其他遊戲與較舊 macOS 實機驗證；正式發行還需對應 graphics payload、Developer ID 與封裝流程。PR 保持 draft，函式與 API 測試不代替遊戲驗收。
 - 5054 筆清單依 tag 區間計算，532 是公告 bug 條目總和。`inventory.json` 為可機讀索引；各版本頁保留完整提交，原文標題可逐筆連回官方 diff。類別依前綴分流，不宣稱自動分類等同完整人工語意審查。

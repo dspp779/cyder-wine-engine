@@ -25,6 +25,7 @@ tests=(
   test-win32u-visible-rect.sh
   test-winemac-a6-patch.sh
   test-ntdll-frame-walk-guard.sh
+  test-runtime-smoke.sh
   test-wineserver-poll-guard-patches.sh
   test-wineserver-exit-diagnostics.sh
   test-wineserver-fd-reselect-async-null-ops.sh

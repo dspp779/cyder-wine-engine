@@ -325,8 +325,8 @@ if [[ "$MAPLESTORY" -eq 1 ]]; then
   # must remain backend-neutral. D3DMetal builds use no MoltenVK; they still
   # need the isolated GStreamer stack for winegstreamer.
   PKG_PC_PATH="$MEDIA_INSTALL/lib/pkgconfig:$PKG_PC_PATH"
-  export LIBRARY_PATH="$MEDIA_INSTALL/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
-  for _gst_pc in gstreamer-1.0 gstreamer-base-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0; do
+  export LIBRARY_PATH="$MEDIA_INSTALL/lib:$HOMEBREW_PREFIX/opt/gettext/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
+  for _gst_pc in gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0; do
     require_x86_dep "$_gst_pc"
   done
   unset _gst_pc
@@ -613,6 +613,9 @@ CONFIGURE_CMD=(
   --with-mingw=llvm-mingw
   --prefix="$WINE_INSTALL"
 )
+if [[ "$MAPLESTORY" -eq 1 ]]; then
+  CONFIGURE_CMD+=(--with-gstreamer)
+fi
 if [[ "$BUILD_TESTS" -eq 0 ]]; then
   CONFIGURE_CMD+=(--disable-tests)
 fi
@@ -656,7 +659,11 @@ if [[ "$CONFIGURE_ONLY" -eq 0 ]]; then
   fi
   ENGINE_VERSION_LABEL="$(head -n 1 "$SCRIPT_DIR/../config/engine-version.txt" 2>/dev/null || true)"
   if [[ -n "$ENGINE_VERSION_LABEL" ]]; then
-    printf '%s\n' "$ENGINE_VERSION_LABEL" >"$WINE_INSTALL/version"
-    echo "Wrote engine version: $WINE_INSTALL/version"
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      echo "+ write engine version: $WINE_INSTALL/version"
+    else
+      printf '%s\n' "$ENGINE_VERSION_LABEL" >"$WINE_INSTALL/version"
+      echo "Wrote engine version: $WINE_INSTALL/version"
+    fi
   fi
 fi
