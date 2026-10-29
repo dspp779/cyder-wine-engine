@@ -74,7 +74,7 @@ fi
 
 MESON="$HOMEBREW_PREFIX/bin/meson"
 NINJA="$HOMEBREW_PREFIX/bin/ninja"
-SYSTEM_PYTHON=/usr/bin/python3
+SYSTEM_PYTHON="${CYDER_HOST_PYTHON:-/usr/bin/python3}"
 MESON_PACKAGE="$(find "$HOMEBREW_PREFIX/lib" -type d -path '*/site-packages/mesonbuild' -print -quit 2>/dev/null || true)"
 PYTHON_SITE="${MESON_PACKAGE%/mesonbuild}"
 GLIB_SRC="$BUILD_DIR/cx$CX_VERSION/sources/glib"

@@ -247,7 +247,7 @@ brew_x86_install_runtime() {
   local target="${MACOSX_DEPLOYMENT_TARGET:-10.15}"
   local wrap_bin="$HOMEBREW_PREFIX/opt/llvm/bin"
   local marker="# ogom-macos-deployment-wrapper target=${target}"
-  local name real formula leaf
+  local name real quoted_real formula leaf
   local -a formulae=()
   local -a ordered=()
   local -a missing=()
@@ -346,8 +346,8 @@ brew_x86_install_runtime() {
   mkdir -p "$wrap_bin"
   for name in clang clang++; do
     case "$name" in
-      clang++) real=/usr/bin/clang++ ;;
-      *) real=/usr/bin/clang ;;
+      clang++) real="${CYDER_HOST_CLANGXX:-/usr/bin/clang++}" ;;
+      *) real="${CYDER_HOST_CLANG:-/usr/bin/clang}" ;;
     esac
     # Preserve a non-wrapper binary if a real llvm keg is present.
     if [[ -e "$wrap_bin/$name" ]] && ! grep -q "ogom-macos-deployment-wrapper" "$wrap_bin/$name" 2>/dev/null; then
@@ -355,6 +355,7 @@ brew_x86_install_runtime() {
         mv "$wrap_bin/$name" "$wrap_bin/$name.ogom-bak"
       fi
     fi
+    printf -v quoted_real '%q' "$real"
     cat > "$wrap_bin/$name" <<EOF
 #!/bin/bash
 ${marker}
@@ -369,7 +370,7 @@ for a in "\$@"; do
   args+=("\$a")
 done
 export MACOSX_DEPLOYMENT_TARGET="\$TARGET"
-exec ${real} -arch x86_64 -mmacosx-version-min="\$TARGET" "\${args[@]}"
+exec ${quoted_real} -arch x86_64 -mmacosx-version-min="\$TARGET" "\${args[@]}"
 EOF
     chmod +x "$wrap_bin/$name"
   done

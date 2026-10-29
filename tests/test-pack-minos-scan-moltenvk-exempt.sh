@@ -34,15 +34,15 @@ unix="$tmp/engine/lib/wine/x86_64-unix"
 mkdir -p "$unix"
 echo 'int p=1;' >"$tmp/p.c"
 
-arch -x86_64 /usr/bin/clang -arch x86_64 -mmacosx-version-min=12.0 -isysroot "$sdk" \
+arch -x86_64 env "${CYDER_HOST_CLANG:-/usr/bin/clang}" -arch x86_64 -mmacosx-version-min=12.0 -isysroot "$sdk" \
   -dynamiclib -o "$unix/libMoltenVK-1.4.2.dylib" "$tmp/p.c"
-arch -x86_64 /usr/bin/clang -arch x86_64 -mmacosx-version-min=12.0 -isysroot "$sdk" \
+arch -x86_64 env "${CYDER_HOST_CLANG:-/usr/bin/clang}" -arch x86_64 -mmacosx-version-min=12.0 -isysroot "$sdk" \
   -dynamiclib -o "$unix/libMoltenVK-1.2.10.dylib" "$tmp/p.c"
 
 python3 "$MOD" "$tmp/engine" 10.15
 assert_eq "$?" "0" "scan must allow both reals at minos 12.0"
 
-arch -x86_64 /usr/bin/clang -arch x86_64 -mmacosx-version-min=12.1 -isysroot "$sdk" \
+arch -x86_64 env "${CYDER_HOST_CLANG:-/usr/bin/clang}" -arch x86_64 -mmacosx-version-min=12.1 -isysroot "$sdk" \
   -dynamiclib -o "$unix/libMoltenVK-1.2.10.dylib" "$tmp/p.c"
 if python3 "$MOD" "$tmp/engine" 10.15; then
   echo "expected high-minos 1.2.10 to fail" >&2

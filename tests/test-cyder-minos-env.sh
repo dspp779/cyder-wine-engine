@@ -50,4 +50,29 @@ mkdir -p "$TMP/with-env/scripts"
     ".env MACOSX_DEPLOYMENT_TARGET must be applied when unset in the environment"
 )
 
+# Explicit compiler paths must survive spaces while preserving the product floor.
+(
+  export OGOM="$TMP/compiler-fixture" HOMEBREW_PREFIX="$TMP/compiler-fixture/brew"
+  export HOMEBREW_REPOSITORY="$HOMEBREW_PREFIX" HOMEBREW_CELLAR="$HOMEBREW_PREFIX/Cellar"
+  export CYDER_HOST_CLANG="$TMP/compiler with spaces" CYDER_HOST_CLANGXX="$TMP/compiler with spaces"
+  export COMPILER_CALLS="$TMP/compiler-arguments"
+  mkdir -p "$HOMEBREW_PREFIX/opt/zlib/lib"
+  cat > "$CYDER_HOST_CLANG" <<'COMPILER'
+#!/bin/bash
+printf '%s\n' "$@" > "$COMPILER_CALLS"
+COMPILER
+  chmod +x "$CYDER_HOST_CLANG"
+  source "$ROOT/scripts/env-x86_64.sh"
+  brew_x86_validate_install() { return 0; }
+  brew_x86() { return 0; }
+  brew_x86_install_runtime zlib
+  "$HOMEBREW_PREFIX/opt/llvm/bin/clang" -mmacosx-version-min=27.0 -c fixture.c
+  actual="$(cat "$COMPILER_CALLS")"
+  assert_contains "$actual" '-arch' 'runtime wrapper pins architecture'
+  assert_contains "$actual" 'x86_64' 'runtime wrapper targets Intel'
+  assert_contains "$actual" '-mmacosx-version-min=10.15' 'runtime wrapper preserves product floor'
+  if [[ "$actual" == *27.0* ]]; then echo 'higher minOS leaked into compiler args' >&2; exit 1; fi
+  "$HOMEBREW_PREFIX/opt/llvm/bin/clang++" -c fixture.cc
+)
+
 echo "PASS test-cyder-minos-env"
