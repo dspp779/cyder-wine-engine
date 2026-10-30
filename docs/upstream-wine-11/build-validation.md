@@ -1,6 +1,6 @@
 # PR 3 Runtime 建置驗證
 
-目標：CX26.3／Wine 11.0，加上 PR #3 的兩項視窗 backport。這是隔離 install 的開發驗證，不會替換使用者的 Cyder runtime。
+目標：CX26.3／Wine 11.0，加上 PR #3 的兩項視窗 backport，以及合併 PR #2 的 OpenGL front-buffer present。這是隔離 install 的開發驗證，不會替換使用者的 Cyder runtime。
 
 ## 環境與已修正問題
 
@@ -38,9 +38,21 @@ export OBJCXX="$CXX"
 
 CLT 路徑是本機實測值，其他機器應以可用 Apple developer toolchain 為準。Wine source/build/install 皆在目前 worktree；封存檔重用原專案下載，未重用其他 Wine build 的 object。
 
+## PR #2 合併評估與重建
+
+原先 PR #3／`ef65fc5` 未包含 PR #2。現在已將 `92f813b` 透過 merge commit `e60765f` 合併進 PR #3 分支，並同步最新 main 的 `c53b70e`（graphics 簽章流程）。本次整合與建置都在這個隔離分支；PR #3 尚未合入 main。
+
+- PR #2 僅修改兩個 winemac OpenGL 呈現函式，補上 front-buffer flush 的呈現通知，保留 A6 的條件式 backing sync，swap 增加 NULL context guard；未改 driver struct ABI、遊戲 DLL 或授權驗證。
+- 新增 `test-winemac-front-buffer.sh`，對 A6 基礎上的實際 flush／swap 函式套 patch、編譯並執行。覆蓋所有 flags、pending／非 pending、read-view 相等與不等、NULL context，以及 flush-before-present 順序、重複套用拒絕與 reverse 還原。
+- 重跑 build script 的 configure-only 入口，確認 patch 判定為 already applied；`opengl.c` 雜湊不變，且恰好保留兩處 present 呼叫，沒有重複套用。
+- A6 live-source 測試改在副本先卸除後續 GL patch，再對 A6 reverse／forward，最後重套 GL 並逐檔比對；不對實際 Wine source tree 做測試性修改。
+- 透過完整 `build-wine.sh --cx 26 --maplestory --with-vulkan --vulkan-source crossover --jobs 8` 入口接續建置，實際重編 `opengl.o` 並重新連結／安裝 `winemac.so`；重新整理 22 個媒體插件並簽署。PR #2 作者原先只驗證 `--without-vulkan`，本次補上 `--with-vulkan` 建置及一般 API 探測。
+- 同步 main 後新增的 graphics release fixture 會被既有 Homebrew Python 蓋過測試用 interpreter；只在 fixture 設定獨立 Homebrew 座標，使其使用預期的假簽署器。正式來源 pin、Team／時間戳及不允許 ad-hoc fallback 的規則不變。
+- 合併後再次逐檔檢查 98 個 Mach-O，架構／minOS／簽章／依賴全部通過；再次執行 32／64 位元檔案與 BCrypt、媒體載入、HTTPS 探測，均通過。沒有執行女神守護之約、BlueCG 或 CS2 實機遊戲。
+
 ## 最終結果（2026-10-30）
 
-- 完整 Wine runtime 已建置、安裝並以 ad-hoc 開發簽章簽署。基底仍為 CX26.3／Wine 11.0，包含本 PR 的兩項視窗 backport；`wine --version` 為 `wine-11.0`。
+- 完整 Wine runtime 已建置、安裝並以 ad-hoc 開發簽章簽署。基底仍為 CX26.3／Wine 11.0，包含本 PR 的兩項視窗 backport 與 PR #2 的 OpenGL 呈現修正；`wine --version` 為 `wine-11.0`。
 - 產物：目前 worktree 的 `install/wine-cx26-x86_64`（約 1.1 GiB，保留開發資訊）。未替換 `~/.cyder` runtime，未產生發行 tarball、Developer ID 簽章或 notarization。
 - host x86_64；Windows i386／x86_64；正式 configure 啟用 FreeType、GnuTLS、Vulkan、GStreamer。GStreamer link probe 為 yes，`winegstreamer.so` 實際建成。
 - minimal 與 full-video 媒體皆建置通過。最終 runtime 使用獨立 `install/media-cx26-full-video-x86_64`，其 80 個 Mach-O 皆為 x86_64／minOS 10.15；整理入 engine 的插件共 22 個，並包含 plugin scanner。
@@ -48,7 +60,7 @@ CLT 路徑是本機實測值，其他機器應以可用 Apple developer toolchai
 
 | 驗證 | 結果 |
 |---|---|
-| `bash tests/run.sh` | 41 個測試入口全部 exit 0，含真實 Wine frame-walk 執行；1 個可選子檢查跳過，見下 |
+| `bash tests/run.sh` | 43 個 Shell 回歸入口與 8 項 Python 單元測試全部通過，含真實 Wine frame-walk 執行；1 個可選子檢查跳過，見下 |
 | 原始 CX26 patch stack | 實際 pristine source forward/reverse 與既有 patch 順序測試通過 |
 | 四語言媒體 toolchain | 真實編譯／連結 C、C++、ObjC、ObjC++，12 個 x86_64 Mach-O，minOS 通過，錯誤架構拒絕 |
 | runtime 產物逐檔檢查 | 98 個 Mach-O 全為 x86_64／minOS 10.15；98 個 `codesign --verify --strict` 通過 |
@@ -102,17 +114,18 @@ bash tests/run.sh
 |---|---|
 | `bin/wine` | `d5b4aed5766ba17dc760048e06efcd466ae9a1aa6e26857a475ec78516320dc1` |
 | `bin/wineserver` | `37a934ac2a88ec0442dc60f57664888731a53a002f170ed126f13d9a41d8c38e` |
-| `lib/wine/x86_64-unix/winemac.so` | `d145c735e3e10cd187ec3f50faf8767030030464783b6e819aed32d0e3953a05` |
+| `lib/wine/x86_64-unix/winemac.so` | `3f7cec5ee04e40c3ff4989a3aebd04a255899ccafe386fbfc8a8ca31ae8b3c98` |
 | `lib/wine/x86_64-windows/win32u.dll` | `5e53df08be50d0ddf3b9d515fd745a2734387dbbb44f0935a2461b1e485ad55f` |
 | `lib/wine/i386-windows/win32u.dll` | `94cf9d58b3e1919245275db609fc9f4424e255b45c353e67bdee886c0d627eb9` |
 
 ## 仍需實機驗證
 
-1. **視窗與其他程式回歸**：frameless／CEF、client overflow、滑鼠座標、Retina 不同比例、resize、Quicken 例外，以及其他遊戲的視窗／全螢幕切換。
-2. **CS2／DXMT**：初始化、borderless／Exclusive Fullscreen 的 Cmd-Tab／多螢幕、解析度與重啟、長時間遊玩；目前的函式與 Win32 探測不能證明 DXMT swapchain 行為。
-3. **Steam／Paradox**：同一 prefix 的 Steam 登入保持、正常 launcher 與合法 direct Cities2／launcher bypass 路徑、結束與再次啟動。HTTPS smoke 不涵蓋 Steam session／WebHelper。
-4. **遊戲內容與媒體**：城市載入、遊玩、存檔／重載、設定、過場影片／音訊；Paradox Mods 下載、重新下載及載入。插件可建立不等於遊戲播放流程已通過。
-5. **未修改遊戲 DLL 的基準**：先確認 cohtml 未修補情況；若需遊戲補丁，另以版本／原始 hash／同意／備份／冪等／失敗還原／更新後拒絕的方案處理，排除授權驗證繞過。
-6. **支援系統與發行**：實際較舊 macOS／不同 Apple Silicon、DXVK／DXMT／D3DMetal 的整體回歸；要發行仍需正式 graphics payload、Developer ID、封裝 gate 與對應實機驗收。minOS metadata 不代表已在所有舊系統測試。
+1. **PR #2 的 GL 驗收**：女神守護之約登入／伺服器畫面，BlueCG 拖曳縮放、Alt+Enter、最小化／還原及 Retina，大富翁 4／cnc-ddraw，以及每 frame 多次 Blt 的負擔。PR #2 作者的一款遊戲成功紀錄保留為上游證據，不計為本次重測。
+2. **視窗與其他程式回歸**：frameless／CEF、client overflow、滑鼠座標、Retina 不同比例、resize、Quicken 例外，以及其他遊戲的視窗／全螢幕切換。
+3. **CS2／DXMT**：初始化、borderless／Exclusive Fullscreen 的 Cmd-Tab／多螢幕、解析度與重啟、長時間遊玩；目前的函式與 Win32 探測不能證明 DXMT swapchain 行為。
+4. **Steam／Paradox**：同一 prefix 的 Steam 登入保持、正常 launcher 與合法 direct Cities2／launcher bypass 路徑、結束與再次啟動。HTTPS smoke 不涵蓋 Steam session／WebHelper。
+5. **遊戲內容與媒體**：城市載入、遊玩、存檔／重載、設定、過場影片／音訊；Paradox Mods 下載、重新下載及載入。插件可建立不等於遊戲播放流程已通過。
+6. **未修改遊戲 DLL 的基準**：先確認 cohtml 未修補情況；若需遊戲補丁，另以版本／原始 hash／同意／備份／冪等／失敗還原／更新後拒絕的方案處理，排除授權驗證繞過。
+7. **支援系統與發行**：實際較舊 macOS／不同 Apple Silicon、DXVK／DXMT／D3DMetal 的整體回歸；要發行仍需正式 graphics payload、Developer ID、封裝 gate 與對應實機驗收。minOS metadata 不代表已在所有舊系統測試。
 
 PR 保持 draft；以上結果建立了可測試的 CX engine，未把上游 stock Wine 11.16 的 CS2 成功紀錄當成 Cyder 相容性驗收。

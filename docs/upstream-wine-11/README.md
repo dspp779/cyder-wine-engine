@@ -44,7 +44,8 @@
 ## 整合判斷
 
 - **本 PR 回植兩項視窗正確性修正**：`48e2d504` 初始化兩個 style mask 輸出；`6cfa941d` 保留超出裝飾裁切區的 client area。兩者都在 11.20，已比對 Wine 官方 diff 與 CX26.3 原始檔。前者保留 CX Quicken 例外；後者不觸及 swapchain、授權或遊戲 DLL。對真正函式做編譯與幾何／旗標測試後才接入預設 patch stack。
-- **Metal／OpenGL 應分批遷移**：`b5ab3b15` front-buffer present、`52e03c61` MetalViewSwapChain 重構、`1a63b0d7` CALayerHost 跨程序呈現、`1300ec99` autorelease pool、後續 GL profile、latched client surface 與 drawable 調整具前後相依性。CX 有自己的 `d3dmetal.c`、固定大小 `macdrv_functions` ABI 與 A6 backing 修改；不能逐個機械套用。原主工作樹另有未提交的 b5ab3b15 實驗，本 PR 不重複帶入。CAContext wrapper 在 CX 目前不存在，不能只取 autorelease pool hunk。
+- **PR #2 的 front-buffer present 已整合**：透過 merge 保留 `92f813b`，納入上游 `b5ab3b15` 的 CX／A6 適配。`GL_FLUSH_PRESENT` 會先 flush context 再 present；swap 保留 A6 的 pending 條件並處理 NULL context，未改變 driver struct ABI。新增實際函式編譯、旗標矩陣、順序與 A6 疊加往返測試，並以 `--with-vulkan` 重建。這不取代 BlueCG／其他 GL 遊戲的實機回歸。
+- **其餘 Metal／OpenGL 應分批遷移**：`52e03c61` MetalViewSwapChain 重構、`1a63b0d7` CALayerHost 跨程序呈現、`1300ec99` autorelease pool、後續 GL profile、latched client surface 與 drawable 調整具前後相依性。CX 有自己的 `d3dmetal.c`、固定大小 `macdrv_functions` ABI 與 A6 backing 修改；不能逐個機械套用。CAContext wrapper 在 CX 目前不存在，不能只取 autorelease pool hunk。
 - **核心、WoW64、記憶體與同步需專案級驗證**：system thread、低位址保留、top-down allocation、ARM64/ARM64EC context、syscall wrapper、RtlWaitOnAddress 與 server 變更可能影響反作弊及整個 prefix。11.20 的 `81e52628` 是同步候選，但不是未知卡死的通用解方。需先建立確定重現與 CX server/protocol 對照。
 - **加密不能拆半套**：11.11 將 bcrypt 從 Unix TomCrypt 路徑轉向 bundled SymCrypt，後續 KDF、AES-GMAC、curve、RSA size 驗證依賴此前提。直接覆蓋 bcrypt 會改變建置與載入架構。應先用有效 ECDSA／RSA／KDF 向量驗證 CX，再規劃完整依賴；不導入任何授權驗證繞過。
 - **啟動與 DNS**：`4cf90548` 以 AI_DNS_ONLY 避免 wineboot mDNS timeout，是高優先候選；需確認 CX ws2_32 對旗標的實際支援及 hostname/FQDN/離線回歸，未以一句 flag 修改宣稱已修復。DNS cache 也需 TTL、negative caching 與網路切換測試。
@@ -55,7 +56,7 @@
 - **一般 DLL、C runtime、COM、XML、文字與資源**：完整清單保留每個 module 與 bug；先以使用程式、API 測試及相依性篩選，避免把使用者未遇到的 5,054 筆變更一起放進 CX26.3。小型 crash/overflow 修正可另立 narrow PR；本 PR 沒有完成每筆 diff 的 backport 審查。
 - **macOS 最低版本與打包**：上游移除 pre-10.15 workaround 不會授權提升 Cyder host floor；仍須 host 10.15、DXMT 15.0、versioned MoltenVK 12.0 例外與既有 codesign／pack gates。i386 macOS preloader 移除不等於刪除 i386 Windows PE 支援。
 
-版本公告只是變更索引，不是 Cyder 相容性證明。本 PR 不升級 Wine base、不宣稱 CS2 已可玩、不重建或安裝使用者 runtime。保留現有 Cyder012 identity，正式打包前需按 repository 發行流程決定新版本識別。
+版本公告只是變更索引，不是 Cyder 相容性證明。本 PR 不升級 Wine base、不宣稱 CS2 已可玩、不替換使用者 runtime。保留現有 Cyder012 identity，正式打包前需按 repository 發行流程決定新版本識別。
 
 ## CS2 社群補丁逐份盤點
 
@@ -78,6 +79,6 @@
 ## 驗證與限制
 
 - 已通過：兩個新測試會對 CX26.3 pristine 函式套 patch、編譯實際函式、驗證四邊 client overflow／decorated／shaped／present override 與 style mask 四種組合、Quicken early return，並 reverse 還原逐位元比較；manifest 記錄與順序檢查、test-build-wine、test-engine-manifest。
-- 完整 runtime 建置與回歸已補驗：CX26.3／Wine 11.0，full-video GStreamer，41 個 repo 測試入口 exit 0；98 個 host Mach-O 的架構、minOS 10.15、ad-hoc 簽章與 runtime 內依賴檢查通過。新 prefix 的 32／64 位元 Win32 檔案與 BCrypt、22 個媒體插件／10 個元件及預設憑證驗證 HTTPS 探測通過。唯一 skip 為可選 MoltenVK source live round-trip 子檢查。詳見 [完整建置紀錄與限制](build-validation.md)。
+- 完整 runtime 建置與回歸已補驗：CX26.3／Wine 11.0，full-video GStreamer，43 個 Shell 回歸入口與 8 項 Python 單元測試通過（含 PR #2 與最新 main）；98 個 host Mach-O 的架構、minOS 10.15、ad-hoc 簽章與 runtime 內依賴檢查通過。新 prefix 的 32／64 位元 Win32 檔案與 BCrypt、22 個媒體插件／10 個元件及預設憑證驗證 HTTPS 探測通過。唯一 skip 為可選 MoltenVK source live round-trip 子檢查。詳見 [完整建置紀錄與限制](build-validation.md)。
 - 尚需：macOS GUI／Steam session／CS2／DXMT／其他遊戲與較舊 macOS 實機驗證；正式發行還需對應 graphics payload、Developer ID 與封裝流程。PR 保持 draft，函式與 API 測試不代替遊戲驗收。
 - 5054 筆清單依 tag 區間計算，532 是公告 bug 條目總和。`inventory.json` 為可機讀索引；各版本頁保留完整提交，原文標題可逐筆連回官方 diff。類別依前綴分流，不宣稱自動分類等同完整人工語意審查。
