@@ -39,6 +39,7 @@ tests=(
   test-moltenvk-1-4-source-and-capabilities.sh
   test-moltenvk-build-target.sh
   test-pack-graphics-payloads.sh
+  test-graphics-release-pack.sh
   test-pack-engine-dxmt-gate.sh
   test-pack-minos-scan.sh
   test-pack-minos-scan-moltenvk-exempt.sh
@@ -48,3 +49,5 @@ for test_file in "${tests[@]}"; do
   echo "==> $test_file"
   bash "$ROOT/tests/$test_file"
 done
+
+python3 "$ROOT/tests/test-graphics-signing.py"
