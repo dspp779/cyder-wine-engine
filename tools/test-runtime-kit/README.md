@@ -4,7 +4,7 @@
 
 測試工具需要 macOS 11+；Apple Silicon 需已安裝 Rosetta 2。DXMT 另需 macOS 15+，DXVK 路徑需 macOS 12+。
 
-**本機已知限制：DXMT 的 D3D11 探測回報 winemetal.dll 載入失敗（0xc0000135），尚未解決。請先測 OpenGL／視窗修正；CS2／DXMT 不應視為已可用。詳見 PACK-VALIDATION.md。**
+DXMT 修正版已補齊專用瓶子的原始 winemetal.dll 可發現檔案。D3D11 裝置測試已回傳 S_OK／feature level 11.0；仍須依 CHECKLIST.md 驗證實際遊戲、視窗切換與長時間穩定性。舊版測試包的 0xc0000135 是啟動器漏做 prefix 準備所致。
 
 ## 開始測試
 
@@ -17,6 +17,8 @@
    - DXVK / DXVK2：需要 macOS 12+。
 
 此包安裝到 `~/.cyder-tests/@TEST_NAME@/`，engine、prefixes、logs 分開保存。正常 Cyder 的 engine、瓶子、遊戲庫與偏好不會被替換。首次啟動會建立新的 Windows 環境；遊戲需要的 Steam、VC runtime、字型或其他元件需在這個測試環境安裝。
+
+DXMT 啟動前會在專用瓶子的 system32／syswow64 補入套件中未修改的 winemetal.dll；已相同則不重寫，遇到不同檔案或連結會拒絕覆蓋，請改用新的測試瓶子。
 
 這是直接執行 Wine 的隔離測試工具，**不沿用 Cyder App 的 CompatDB 規則與既有瓶子設定**；測試時明確指定後端。它測的是 engine 與圖形路徑，不等於驗證整個 Cyder App 的啟動流程。未包含 Apple GPTK、遊戲或授權繞過補丁。
 
@@ -33,7 +35,7 @@ bash "Run Test.command" --smoke --bottle smoke
 可額外檢查 D3D11 裝置建立（這不是完整遊戲／視窗驗收）：
 
 ```bash
-bash "Run Test.command" --backend dxmt --bottle graphics -- "$PWD/tests/d3d11-device-smoke.exe"
+bash "Run Test.command" --backend dxmt --bottle graphics -- "$PWD/tests/d3d11-device-smoke.exe" --require-winemetal
 ```
 
 ## 指定瓶子與參數

@@ -57,3 +57,5 @@ done
 python3 "$ROOT/tests/test-graphics-signing.py"
 
 python3 "$ROOT/tests/test-test-runtime-kit.py"
+
+python3 "$ROOT/tests/test-dxmt-prefix-discovery.py"

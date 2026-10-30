@@ -84,3 +84,5 @@
 - 5054 筆清單依 tag 區間計算，532 是公告 bug 條目總和。`inventory.json` 為可機讀索引；各版本頁保留完整提交，原文標題可逐筆連回官方 diff。類別依前綴分流，不宣稱自動分類等同完整人工語意審查。
 
 後續已提供隔離測試安裝包；[封裝與安裝驗證](test-runtime-kit-validation.md) 記錄 builtin OpenGL 裝置建立成功，以及新發現的 DXMT winemetal.dll 載入失敗。CS2／DXMT 仍不得宣稱相容。
+
+上述測試包的 DXMT loader 失敗已定位為獨立啟動器漏做 prefix discovery 準備，修正後通過 D3D11 feature level 11.0 與實際 native winemetal 載入檢查；[原因、修正及界線](dxmt-prefix-discovery-fix.md)。這仍非 CS2 遊戲驗收。

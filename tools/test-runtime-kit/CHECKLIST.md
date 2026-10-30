@@ -11,7 +11,7 @@
 | 大富翁 4 | 相同 cnc-ddraw 與遊戲設定的瓶子副本 | 畫面、輸入與回合流程正常；此直接 launcher 不自動套用 App 的 CompatDB 規則 |
 | 視窗幾何／PR #3 | 有框／無框、CEF、Retina 1x/2x、多螢幕、解析度切換 | client 區域未被裁掉，按鈕點擊位置與顯示一致 |
 | Steam | 固定同一瓶子登入；關閉／再開 Steam | 登入保持、WebHelper 畫面與再次啟動正常 |
-| CS2／DXMT | 保持 Steam；直接合法 Cities2.exe；另記正常 Paradox 流程 | 本機已知 winemetal 載入失敗；先確認是否同錯，若仍失敗，後續城市／Mods 列「未測」；不得算初始化成功 |
+| CS2／DXMT | 保持 Steam；直接合法 Cities2.exe；另記正常 Paradox 流程 | 先以 --require-winemetal 裝置探測確認 11.0 與 winemetal loaded=yes，再測畫面；分清 Steam、Launcher、遊戲載入與渲染階段 |
 | CS2 視窗切換 | borderless、Exclusive Fullscreen；Cmd-Tab、最小化／還原、多螢幕 | 能恢復畫面與輸入，不凍結；每種模式單獨記錄 |
 | CS2 遊戲內容 | 新城→遊玩→存檔→退出→重載→設定保存 | 城市／存檔／設定正常，無資料遺失 |
 | Paradox Mods | 下載→重開→載入；再測重新下載 | 下載及載入完成，記錄模組名稱／版本與錯誤；不先套 cohtml 等 DLL 修補 |

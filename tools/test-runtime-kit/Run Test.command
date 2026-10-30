@@ -78,6 +78,10 @@ if [[ ! -f "$PREFIX/.cyder-test-initialized" ]]; then
   [[ -f "$PREFIX/system.reg" && -f "$PREFIX/user.reg" ]] || fail '測試瓶子初始化不完整；請查看日誌。'
   printf '%s\n' "$TEST_VERSION" > "$PREFIX/.cyder-test-initialized"
 fi
+if [[ "$backend" == dxmt ]]; then
+  source "$KIT/prepare-dxmt-prefix.sh"
+  test_runtime_prepare_dxmt_prefix "$ENGINE" "$PREFIX" "$ROOT" "$TEST_VERSION"
+fi
 if [[ "$mode" == smoke ]]; then
   export WINEDLLOVERRIDES=mscoree,mshtml=
   cleanup_smoke() { arch -x86_64 "$ENGINE/bin/wineserver" -k >/dev/null 2>&1 || true; sleep 3; }
