@@ -19,6 +19,7 @@ Patch order for the CX26.3 / Wine 11.0 Cyder engine:
 15. `cyder-wineserver-registry-fsync.patch`
 16. `cyder-winemac-hide-ime-only-klid.patch`
 17. `cyder-winemac-gl-front-buffer-present.patch`
+    - Follow with `cyder-winemac-gl-flush-no-buffer-swap.patch`.
 18. `cyder-kernelbase-disk-free-space-fallback.patch`
 19. `maplestory-cx26-message-wait-handoff.patch`
 20. `maplestory-cx26-core.patch`
@@ -418,3 +419,21 @@ GUI and game acceptance are still required; see the upstream CS2 audit in docs.
 initializes both output masks, retaining the CX Quicken early return. This
 prevents uninitialized extended-style bits affecting decoration calculations.
 The independent hunk uses forward/reverse idempotence checks.
+
+## Front-buffer flush without a native swap
+
+`cyder-winemac-gl-flush-no-buffer-swap.patch` follows the b5ab3b15 backport.
+It retains the present notification and A6 pending-backing handling, but removes
+`macdrv_flush_opengl_context` from the flush callback: that helper invokes
+NSOpenGLContext.flushBuffer and can exchange native front/back buffers.
+win32u already calls the caller's glFlush/glFinish before the notification,
+and separately requests a swap for GL_FLUSH_FORCE_SWAP. A flush must therefore
+not add another buffer exchange. Actual-function tests use the real flag bits,
+cover all 32 flag combinations, and check one exchange for flush plus swap.
+
+Controlled BlueCG HD mode 1 tests: removing A6 alone keeps the black screen;
+removing PR #2 alone restores OpenGL login with A6 retained; removing only this
+flush-time exchange also restores loading/login with A6 and present retained.
+See `docs/upstream-wine-11/bluecg-a6-present-regression.md` for evidence/limits.
+Marker: `GL_FLUSH_PRESENT is not a buffer-swap request`. The manifest writer
+consumes the ordered patch list from `config/engine-release.json`.

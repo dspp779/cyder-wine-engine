@@ -42,3 +42,5 @@
 新增測試 launcher 參數 `--backend wined3d --wined3d-renderer gdi`（預設仍為 `gl`）。renderer 只接受 gl／gdi，與 DXMT／DXVK 等後端混用會拒絕；先清除繼承的 WINE_D3D_CONFIG，再設定本次值。bootstrap 繼續用原本 builtin OpenGL，遊戲子程序才繼承選定值。新增離線 dry-run 參數／環境隔離測試不執行 Wine，也不替代上表的實機證據。
 
 只變更測試啟動選項與文件，未改 Wine 原始碼、遊戲 DLL 或正式 runtime。記錄與含預填帳號的截圖僅保存在本機，未附到 PR。登入視窗保留給使用者測試，未代為輸入帳密或登入。
+
+後續已完成 A6／PR #2 的單一模組隔離對照：本次 startup-black 收斂至 PR #2 flush callback 新增的 NSOpenGLContext.flushBuffer。移除該呼叫、保留 A6 與 present 後，**OpenGL 登入 UI 恢復，不需 GDI**。GDI 不再是根因修正；詳見 [隔離對照與證據界線](bluecg-a6-present-regression.md)。原測試 ZIP 尚未包含這次新 engine patch。

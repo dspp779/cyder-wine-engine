@@ -5,9 +5,14 @@ TMP="$(mktemp -d "${TMPDIR:-/tmp}/cyder-gl-present.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 cp -R "$ROOT/tests/fixtures/winemac-front-buffer/." "$TMP/"
 PATCH="$ROOT/patches/cyder-winemac-gl-front-buffer-present.patch"
+NO_SWAP="$ROOT/patches/cyder-winemac-gl-flush-no-buffer-swap.patch"
 patch --forward --batch --fuzz=0 -s -d "$TMP" -p1 < "$PATCH"
 if patch --forward --batch --fuzz=0 --dry-run -s -d "$TMP" -p1 < "$PATCH" >/dev/null 2>&1; then
   echo 'already applied front-buffer patch accepted forward' >&2; exit 1
+fi
+patch --forward --batch --fuzz=0 -s -d "$TMP" -p1 < "$NO_SWAP"
+if patch --forward --batch --fuzz=0 --dry-run -s -d "$TMP" -p1 < "$NO_SWAP" >/dev/null 2>&1; then
+  echo 'already applied no-buffer-swap patch accepted forward' >&2; exit 1
 fi
 cat > "$TMP/probe.c" <<'C'
 #include <assert.h>
@@ -16,9 +21,11 @@ typedef unsigned UINT;
 typedef int BOOL;
 #define TRUE 1
 #define FALSE 0
-#define GL_FLUSH_INTERVAL 1u
-#define GL_FLUSH_UPDATED 2u
-#define GL_FLUSH_PRESENT 4u
+#define GL_FLUSH_FINISHED 1u
+#define GL_FLUSH_INTERVAL 2u
+#define GL_FLUSH_UPDATED 4u
+#define GL_FLUSH_PRESENT 8u
+#define GL_FLUSH_FORCE_SWAP 16u
 #define TRACE(...) ((void)0)
 struct macdrv_client_surface { void *cocoa_view; };
 struct opengl_drawable { struct macdrv_client_surface *client; int interval; };
@@ -44,10 +51,10 @@ int main(void)
     struct opengl_drawable base = { &client, 2 };
     struct macdrv_context context = { &token, &token, &token };
     /* A null context must remain safe, including the swap notification. */
-    macdrv_surface_flush(&base, 7); assert(!events[0]);
+    macdrv_surface_flush(&base, 31); assert(!events[0]);
     assert(macdrv_surface_swap(&base)); assert(!strcmp(events, "P"));
     teb.glReserved2 = &context;
-    for (UINT flags = 0; flags < 8; ++flags)
+    for (UINT flags = 0; flags < 32; ++flags)
     for (pending = 0; pending < 2; ++pending)
     for (int matching_view = 0; matching_view < 2; ++matching_view)
     {
@@ -56,7 +63,7 @@ int main(void)
         context.read_view = matching_view ? client.cocoa_view : NULL;
         if (flags & GL_FLUSH_INTERVAL) strcat(expected, "I");
         if ((flags & GL_FLUSH_UPDATED) || pending) strcat(expected, "M");
-        if (flags & GL_FLUSH_PRESENT) strcat(expected, "FP");
+        if (flags & GL_FLUSH_PRESENT) strcat(expected, "P");
         macdrv_surface_flush(&base, flags);
         assert(!strcmp(events, expected));
         if ((flags & GL_FLUSH_UPDATED) || pending) assert(make_arg == matching_view);
@@ -68,11 +75,20 @@ int main(void)
         assert(!strcmp(events, pending ? "MFP" : "FP"));
         if (pending) assert(make_arg == FALSE);
     }
+    /* win32u requests emulated front-buffer swaps via a separate callback.
+     * The flush notification must not exchange the native buffers first. */
+    pending = 0;
+    events[0] = 0;
+    macdrv_surface_flush(&base, GL_FLUSH_PRESENT | GL_FLUSH_FORCE_SWAP);
+    assert(!strcmp(events, "P"));
+    assert(macdrv_surface_swap(&base));
+    assert(!strcmp(events, "PFP")); /* one native buffer exchange, not two */
     return 0;
 }
 C
 "${CYDER_HOST_CLANG:-/usr/bin/clang}" -std=c99 -Wall -Wextra -Werror "$TMP/probe.c" -o "$TMP/probe"
 "$TMP/probe"
+patch --reverse --forward --batch --fuzz=0 -s -d "$TMP" -p1 < "$NO_SWAP"
 patch --reverse --forward --batch --fuzz=0 -s -d "$TMP" -p1 < "$PATCH"
 cmp "$TMP/dlls/winemac.drv/opengl.c" "$ROOT/tests/fixtures/winemac-front-buffer/dlls/winemac.drv/opengl.c"
-echo 'PASS winemac front-buffer present (actual functions, flag matrix, null context, A6 conditional sync, round-trip)'
+echo 'PASS winemac front-buffer present (actual functions, actual flag bits, no flush-time buffer exchange, null context, A6 conditional sync, round-trip)'

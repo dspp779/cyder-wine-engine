@@ -1,0 +1,30 @@
+winemac: Do not swap native buffers for a front-buffer flush.
+
+Follow up the b5ab3b15 backport. win32u_wgl_context_flush has already
+executed the caller's glFlush/glFinish before notifying the drawable.
+macdrv_flush_opengl_context calls NSOpenGLContext.flushBuffer, which also
+swaps a double-buffered drawable. GL_FLUSH_PRESENT alone is not a swap
+request (it is also sent while binding a context). For emulated front
+buffers, win32u separately invokes the swap callback for GL_FLUSH_FORCE_SWAP.
+
+Keep client_surface_present and A6 synchronization, but leave native buffer
+exchange to macdrv_surface_swap. Removing just this call restores BlueCG HD
+mode 1 loading/login on OpenGL, with both A6 and the rest of PR #2 retained.
+
+--- a/dlls/winemac.drv/opengl.c
++++ b/dlls/winemac.drv/opengl.c
+@@ -2023,11 +2023,9 @@
+     if (flags & GL_FLUSH_INTERVAL) set_swap_interval(context, base->interval);
+     if ((flags & GL_FLUSH_UPDATED) || macdrv_opengl_context_backing_sync_pending(context->context))
+         make_context_current(context, context->read_view == client->cocoa_view);
+-    if (flags & GL_FLUSH_PRESENT)
+-    {
+-        macdrv_flush_opengl_context(context->context);
+-        client_surface_present(base->client);
+-    }
++    /* GL_FLUSH_PRESENT is not a buffer-swap request. win32u has already
++     * flushed GL commands; GL_FLUSH_FORCE_SWAP uses the swap callback. */
++    if (flags & GL_FLUSH_PRESENT) client_surface_present(base->client);
+ }
+ 
+ 
