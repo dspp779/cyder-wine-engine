@@ -82,3 +82,5 @@
 - 完整 runtime 建置與回歸已補驗：CX26.3／Wine 11.0，full-video GStreamer，43 個 Shell 回歸入口與 8 項 Python 單元測試通過（含 PR #2 與最新 main）；98 個 host Mach-O 的架構、minOS 10.15、ad-hoc 簽章與 runtime 內依賴檢查通過。新 prefix 的 32／64 位元 Win32 檔案與 BCrypt、22 個媒體插件／10 個元件及預設憑證驗證 HTTPS 探測通過。唯一 skip 為可選 MoltenVK source live round-trip 子檢查。詳見 [完整建置紀錄與限制](build-validation.md)。
 - 尚需：macOS GUI／Steam session／CS2／DXMT／其他遊戲與較舊 macOS 實機驗證；正式發行還需對應 graphics payload、Developer ID 與封裝流程。PR 保持 draft，函式與 API 測試不代替遊戲驗收。
 - 5054 筆清單依 tag 區間計算，532 是公告 bug 條目總和。`inventory.json` 為可機讀索引；各版本頁保留完整提交，原文標題可逐筆連回官方 diff。類別依前綴分流，不宣稱自動分類等同完整人工語意審查。
+
+後續已提供隔離測試安裝包；[封裝與安裝驗證](test-runtime-kit-validation.md) 記錄 builtin OpenGL 裝置建立成功，以及新發現的 DXMT winemetal.dll 載入失敗。CS2／DXMT 仍不得宣稱相容。

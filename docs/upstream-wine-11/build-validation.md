@@ -129,3 +129,9 @@ bash tests/run.sh
 7. **支援系統與發行**：實際較舊 macOS／不同 Apple Silicon、DXVK／DXMT／D3DMetal 的整體回歸；要發行仍需正式 graphics payload、Developer ID、封裝 gate 與對應實機驗收。minOS metadata 不代表已在所有舊系統測試。
 
 PR 保持 draft；以上結果建立了可測試的 CX engine，未把上游 stock Wine 11.16 的 CS2 成功紀錄當成 Cyder 相容性驗收。
+
+## 後續測試安裝包
+
+已另以獨立 test engineId／版本封裝，安裝／還原方式、checksum 與實機清單隨測試包提供，見 [測試包驗證紀錄](test-runtime-kit-validation.md)。封裝後 94 個核心 Mach-O 簽章通過，並完成真實安裝及 32／64 位元探測。
+
+新增實際 D3D11 探測顯示 builtin OpenGL 可建立 feature level 10.1 裝置，但 DXMT 在 winemetal.dll 載入階段失敗（0xc0000135），尚未解決。這是比先前一般 Win32／媒體 smoke 更窄且新的結果，不得將前述通過項目延伸為 DXMT 或 CS2 初始化成功。

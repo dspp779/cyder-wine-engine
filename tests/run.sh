@@ -55,3 +55,5 @@ for test_file in "${tests[@]}"; do
 done
 
 python3 "$ROOT/tests/test-graphics-signing.py"
+
+python3 "$ROOT/tests/test-test-runtime-kit.py"
