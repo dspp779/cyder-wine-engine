@@ -70,6 +70,8 @@ if [[ "$mode" == dry-run ]]; then
   exit 0
 fi
 arch -x86_64 /usr/bin/true || fail 'Rosetta 2 尚不可用。'
+source "$KIT/prepare-media-environment.sh"
+test_runtime_prepare_media_environment "$ENGINE" "$ROOT"
 mkdir -p "$ROOT/logs"
 log="$ROOT/logs/$(date +%Y%m%d-%H%M%S)-$bottle-$backend-$$.log"
 echo "Engine：$TEST_VERSION"

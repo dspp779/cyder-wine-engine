@@ -458,3 +458,25 @@ destruction. It preserves flush/swap/present ordering, A6 and NULL handling. Dis
 contexts perform no clock reads or log output. The build safely reverse-checks and
 unwinds all profiler hunks before overlapping A6/present application and restores
 profiling afterward; partial trees fail closed. See the profiling guide in docs.
+
+`cyder-winemac-surface-profile.patch` follows GL profiling and adds opt-in
+`CYDER_SURFACE_PROFILE=1` GDI submission counts, wall time and 1 ms interval
+histograms. Five-second reports and destruction tails are bounded, disabled
+surfaces have no allocation/clocks, and no drawing policy changes. These are
+submission intervals, not display/GPU completion or logical game frames.
+
+`wine-winemac-hide-client-view-on-gdi-flush.patch` backports upstream 1a1d1f3f.
+After a D3D/OpenGL client surface has presented, switching the same window to
+GDI must hide the previous client view; otherwise stale GL content can occlude
+the newly drawn GDI image. Apply before GDI profiling; both patches remain
+independently reversible. This fixes a b5ab3b15 presentation regression, not
+flush cost. The regression compiles the actual flush body and covers missing
+window data, NULL/non-NULL views and shape updates.
+
+`cyder-winemac-reattach-hidden-gl-client-view.patch` completes the return to GL
+after GDI hides a previously presented client view. A replacement context must
+attach before its first drawing commands; waiting for viewWillDraw discards
+that first frame. Only realized, nonempty, previously used hidden views get
+the exception. First-use, unrealized, empty and clipped views remain deferred.
+The actual Cocoa method is exercised with Foundation mocks and a visible
+GL-red → GDI-green → recreated-GL-blue control verifies first-frame behavior.

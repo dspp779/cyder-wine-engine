@@ -203,3 +203,7 @@ echo "PASS test-build-wine"
 # Preserve notifications when the interval changes in the same flush.
 assert_contains "$output" "$ROOT/patches/wine-win32u-preserve-flush-flags.patch" "build should preserve flush flags during interval updates"
 assert_contains "$output" "$ROOT/patches/cyder-winemac-gl-profile.patch" "build should include opt-in GL profiling"
+
+assert_contains "$output" "$ROOT/patches/wine-winemac-hide-client-view-on-gdi-flush.patch" "build should hide stale GL views on GDI flush"
+assert_contains "$output" "$ROOT/patches/cyder-winemac-reattach-hidden-gl-client-view.patch" "build should attach replacement contexts to established hidden views"
+assert_contains "$output" "$ROOT/patches/cyder-winemac-surface-profile.patch" "build should include opt-in GDI surface profiling"
