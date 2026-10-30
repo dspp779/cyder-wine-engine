@@ -44,3 +44,5 @@
 只變更測試啟動選項與文件，未改 Wine 原始碼、遊戲 DLL 或正式 runtime。記錄與含預填帳號的截圖僅保存在本機，未附到 PR。登入視窗保留給使用者測試，未代為輸入帳密或登入。
 
 後續已完成 A6／PR #2 的單一模組隔離對照：本次 startup-black 收斂至 PR #2 flush callback 新增的 NSOpenGLContext.flushBuffer。移除該呼叫、保留 A6 與 present 後，**OpenGL 登入 UI 恢復，不需 GDI**。GDI 不再是根因修正；詳見 [隔離對照與證據界線](bluecg-a6-present-regression.md)。原測試 ZIP 尚未包含這次新 engine patch。
+
+再校正：後續確認 PR #2 缺少上游 62da9c02 的前置修正。保留 flushBuffer，只移除 context 綁定時誤送的 PRESENT，同樣恢復 OpenGL 登入；正式整合已改採這個上游方案，bc4ba8f 刪除呼叫的方案僅為歷史診斷。詳見上述隔離對照報告的「上游前置修正」。
