@@ -25,6 +25,7 @@ tests=(
   test-win32u-visible-rect.sh
   test-winemac-front-buffer.sh
   test-winemac-gl-profile.sh
+  test-winemac-gl-profile-runtime.sh
   test-win32u-flush-flags.sh
   test-win32u-context-bind-present.sh
   test-winemac-a6-patch.sh
