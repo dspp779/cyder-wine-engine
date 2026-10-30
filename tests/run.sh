@@ -23,6 +23,7 @@ tests=(
   test-engine-manifest.sh
   test-winemac-style-masks.sh
   test-win32u-visible-rect.sh
+  test-winemac-front-buffer.sh
   test-winemac-a6-patch.sh
   test-ntdll-frame-walk-guard.sh
   test-runtime-smoke.sh
