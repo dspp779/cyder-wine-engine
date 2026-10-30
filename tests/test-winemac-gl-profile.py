@@ -16,7 +16,14 @@ def func(source,name):
     return source[begin:end]+'\n'
 with tempfile.TemporaryDirectory(prefix='cyder-gl-profile-') as tmp:
     tmp=Path(tmp);source=tmp/'dlls/winemac.drv/opengl.c';source.parent.mkdir(parents=True)
-    original=(ROOT/'tests/fixtures/winemac-gl-profile/dlls/winemac.drv/opengl.c').read_bytes();source.write_bytes(original)
+    # Reconstruct blank gaps instead of committing thousands of empty lines.
+    original_lines=[]
+    for line in (ROOT/'tests/fixtures/winemac-gl-profile/dlls/winemac.drv/opengl.c').read_text().splitlines(True)[1:]:
+        marker=re.fullmatch(r'#line (\d+)\n',line)
+        if marker:
+            original_lines.extend(['\n']*(int(marker[1])-1-len(original_lines)))
+        else:original_lines.append(line)
+    original=''.join(original_lines).encode();source.write_bytes(original)
     patch=(ROOT/'patches/cyder-winemac-gl-profile.patch').read_bytes()
     run('patch','--forward','--batch','--fuzz=0','-s','-d',str(tmp),'-p1',input=patch)
     assert subprocess.run(['patch','--forward','--batch','--fuzz=0','--dry-run','-s','-d',str(tmp),'-p1'],input=patch,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode
