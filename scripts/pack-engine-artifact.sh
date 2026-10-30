@@ -152,6 +152,9 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "DRY RUN: would pack separate DXVK/DXMT graphics payloads"
 else
   graphics_pack_args=(--engine "$WINE_INSTALL")
+  if [[ "${SIGN_IDENTITY:-}" == 'Developer ID Application: '* ]]; then
+    graphics_pack_args+=(--channel release --revision "${CYDER_GRAPHICS_PACKAGE_REVISION:?Set a new graphics revision cyder.N}")
+  fi
   if [[ "$FORCE" -eq 1 ]]; then
     graphics_pack_args+=(--force)
   fi
