@@ -199,3 +199,7 @@ assert_contains "$media25" "$retired_msg" "build-media-stack --cx 25 must print 
 
 
 echo "PASS test-build-wine"
+
+# Preserve notifications when the interval changes in the same flush.
+assert_contains "$output" "$ROOT/patches/wine-win32u-preserve-flush-flags.patch" "build should preserve flush flags during interval updates"
+assert_contains "$output" "$ROOT/patches/cyder-winemac-gl-profile.patch" "build should include opt-in GL profiling"

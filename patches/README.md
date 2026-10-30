@@ -19,7 +19,9 @@ Patch order for the CX26.3 / Wine 11.0 Cyder engine:
 15. `cyder-wineserver-registry-fsync.patch`
 16. `cyder-winemac-hide-ime-only-klid.patch`
 17. `cyder-winemac-gl-front-buffer-present.patch`
-    - First apply `wine-win32u-no-present-on-context-bind.patch` (upstream 62da9c02).
+    - First apply `wine-win32u-preserve-flush-flags.patch` (b3c408b3), then
+      `wine-win32u-no-present-on-context-bind.patch` (62da9c02).
+    - Then apply `cyder-winemac-gl-profile.patch` (opt-in diagnostics).
 18. `cyder-kernelbase-disk-free-space-fallback.patch`
 19. `maplestory-cx26-message-wait-handoff.patch`
 20. `maplestory-cx26-core.patch`
@@ -442,3 +444,17 @@ patch idempotence/round-trip and legacy-workaround migration. The winemac tests
 retain all 32 real flag combinations and native flush-before-present behavior.
 The manifest writer reads the canonical ordered release config.
 See `docs/upstream-wine-11/bluecg-a6-present-regression.md` for evidence/limits.
+
+`wine-win32u-preserve-flush-flags.patch` backports Wine b3c408b3 (11.3),
+before the context-bind and winemac presentation patches. Interval updates OR
+`GL_FLUSH_INTERVAL` into the existing flags, preserving simultaneous PRESENT,
+UPDATED, FINISHED and FORCE_SWAP notifications. The regression compiles the
+actual patched function and covers every flag combination, changed/unchanged
+intervals, updated surfaces and non-window drawables, plus patch round-trip.
+
+`cyder-winemac-gl-profile.patch` follows the front-buffer patch. `CYDER_GL_PROFILE=1`
+enables bounded per-context wall-time aggregates, every five seconds and at context
+destruction. It preserves flush/swap/present ordering, A6 and NULL handling. Disabled
+contexts perform no clock reads or log output. The build safely reverse-checks and
+unwinds all profiler hunks before overlapping A6/present application and restores
+profiling afterward; partial trees fail closed. See the profiling guide in docs.

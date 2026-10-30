@@ -1,0 +1,192 @@
+winemac: Add opt-in aggregate flush/swap wall-time profiling.
+
+CYDER_GL_PROFILE=1 enables per-context counters and timing. Disabled by default;
+no per-call allocation, locking, clock reads or log I/O when disabled. Report
+at most two aggregate lines per context per five seconds, plus context destroy.
+Keep native flush, A6 synchronization and visible-surface presentation unchanged.
+Durations include driver waits, not GPU execution time. No game-specific policy.
+
+--- a/dlls/winemac.drv/opengl.c
++++ b/dlls/winemac.drv/opengl.c
+@@ -32,6 +32,7 @@
+ #include "winnt.h"
+ #include "wine/debug.h"
+ #include "wine/opengl_driver.h"
++#include "cyder_gl_profile.h"
+ 
+ #define GL_SILENCE_DEPRECATION
+ #define __gl_h_
+@@ -71,6 +72,7 @@
+     macdrv_view             read_view;
+     CGLPBufferObj           read_pbuffer;
+     int                     swap_interval;
++    struct cyder_gl_profile  profile;
+ };
+ 
+ struct gl_drawable
+@@ -1453,6 +1455,7 @@
+         return FALSE;
+     }
+     context->swap_interval = INT_MIN;
++    cyder_gl_profile_init(&context->profile);
+ 
+     TRACE("created context %p/%p/%p\n", context, context->context, context->cglcontext);
+ 
+@@ -2017,17 +2020,25 @@
+     struct macdrv_client_surface *client = impl_from_client_surface(base->client);
+     struct macdrv_context *context = NtCurrentTeb()->glReserved2;
+ 
++    uint64_t begin, native_begin = 0, native_end = 0;
++
+     TRACE("%s flags %#x\n", debugstr_opengl_drawable(base), flags);
+ 
+     if (!context) return;
++    begin = cyder_gl_profile_now(&context->profile);
+     if (flags & GL_FLUSH_INTERVAL) set_swap_interval(context, base->interval);
+     if ((flags & GL_FLUSH_UPDATED) || macdrv_opengl_context_backing_sync_pending(context->context))
+         make_context_current(context, context->read_view == client->cocoa_view);
+     if (flags & GL_FLUSH_PRESENT)
+     {
++        native_begin = cyder_gl_profile_now(&context->profile);
+         macdrv_flush_opengl_context(context->context);
++        native_end = cyder_gl_profile_now(&context->profile);
+         client_surface_present(base->client);
+     }
++    cyder_gl_profile_record(&context->profile, 0, flags, begin, native_begin, native_end,
++                            cyder_gl_profile_now(&context->profile), context->swap_interval,
++                            pixel_formats[context->format - 1].double_buffer);
+ }
+ 
+ 
+@@ -2849,6 +2860,8 @@
+ 
+     TRACE("deleting context %p/%p/%p\n", context, context->context, context->cglcontext);
+ 
++    cyder_gl_profile_report(&context->profile, cyder_gl_profile_now(&context->profile),
++                            context->swap_interval, pixel_formats[context->format - 1].double_buffer, 1);
+     macdrv_dispose_opengl_context(context->context);
+     free(context);
+     return TRUE;
+@@ -2873,16 +2886,25 @@
+ {
+     struct macdrv_context *context = NtCurrentTeb()->glReserved2;
+ 
++    uint64_t begin = 0, native_begin = 0, native_end = 0;
++
+     TRACE("%s context %p/%p/%p\n", debugstr_opengl_drawable(base), context, (context ? context->context : NULL),
+           (context ? context->cglcontext : NULL));
+ 
+     if (context)
+     {
++        begin = cyder_gl_profile_now(&context->profile);
+         if (macdrv_opengl_context_backing_sync_pending(context->context))
+             make_context_current(context, FALSE);
++        native_begin = cyder_gl_profile_now(&context->profile);
+         macdrv_flush_opengl_context(context->context);
++        native_end = cyder_gl_profile_now(&context->profile);
+     }
+     client_surface_present(base->client);
++    if (context)
++        cyder_gl_profile_record(&context->profile, 1, 0, begin, native_begin, native_end,
++                                cyder_gl_profile_now(&context->profile), context->swap_interval,
++                                pixel_formats[context->format - 1].double_buffer);
+     return TRUE;
+ }
+ 
+--- /dev/null
++++ b/dlls/winemac.drv/cyder_gl_profile.h
+@@ -0,0 +1,94 @@
++/* Cyder: opt-in, bounded per-context OpenGL presentation profiling.
++ * Contexts may move between threads but must not be current concurrently.
++ * No allocation, lock, clock read or output on the disabled path.
++ * Wall-clock spans include driver waits; they are not GPU execution times.
++ */
++#ifndef CYDER_GL_PROFILE_H
++#define CYDER_GL_PROFILE_H
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <time.h>
++#include <unistd.h>
++
++struct cyder_gl_profile_phase
++{
++    uint64_t callbacks, native, callback_ns, native_ns, present_ns, native_max_ns;
++    uint64_t flags[5], histogram[5];
++};
++struct cyder_gl_profile
++{
++    int enabled;
++    uint64_t start;
++    struct cyder_gl_profile_phase phase[2];
++};
++
++static uint64_t cyder_gl_profile_now(const struct cyder_gl_profile *profile)
++{
++    struct timespec time;
++    if (!profile->enabled || clock_gettime(CLOCK_MONOTONIC, &time)) return 0;
++    return (uint64_t)time.tv_sec * 1000000000 + time.tv_nsec;
++}
++
++static void cyder_gl_profile_init(struct cyder_gl_profile *profile)
++{
++    const char *value = getenv("CYDER_GL_PROFILE");
++    profile->enabled = value && !strcmp(value, "1");
++}
++
++static void cyder_gl_profile_report(struct cyder_gl_profile *profile, uint64_t end,
++                                   int interval, unsigned double_buffer, unsigned final)
++{
++    unsigned i;
++    if (!profile->enabled || !profile->start || end < profile->start) return;
++    for (i = 0; i < 2; ++i)
++    {
++        const struct cyder_gl_profile_phase *p = &profile->phase[i];
++        if (!p->callbacks) continue;
++        fprintf(stderr, "CYDER_GL_PROFILE pid=%ld context=%p phase=%s final=%u elapsed_ns=%llu "
++                "callbacks=%llu native=%llu callback_ns=%llu native_ns=%llu present_ns=%llu native_max_ns=%llu "
++                "interval=%d double_buffer=%u flags_finished=%llu flags_interval=%llu flags_updated=%llu "
++                "flags_present=%llu flags_force_swap=%llu le_100us=%llu le_1ms=%llu le_4ms=%llu le_16ms=%llu gt_16ms=%llu\n",
++                (long)getpid(), (void *)profile, i ? "swap" : "flush", final,
++                (unsigned long long)(end - profile->start), (unsigned long long)p->callbacks,
++                (unsigned long long)p->native, (unsigned long long)p->callback_ns,
++                (unsigned long long)p->native_ns, (unsigned long long)p->present_ns,
++                (unsigned long long)p->native_max_ns, interval, double_buffer,
++                (unsigned long long)p->flags[0], (unsigned long long)p->flags[1],
++                (unsigned long long)p->flags[2], (unsigned long long)p->flags[3],
++                (unsigned long long)p->flags[4], (unsigned long long)p->histogram[0],
++                (unsigned long long)p->histogram[1], (unsigned long long)p->histogram[2],
++                (unsigned long long)p->histogram[3], (unsigned long long)p->histogram[4]);
++    }
++    memset(profile->phase, 0, sizeof(profile->phase));
++    profile->start = 0;
++}
++
++static void cyder_gl_profile_record(struct cyder_gl_profile *profile, unsigned swap, unsigned flags,
++                                   uint64_t begin, uint64_t native_begin, uint64_t native_end, uint64_t end,
++                                   int interval, unsigned double_buffer)
++{
++    struct cyder_gl_profile_phase *p;
++    uint64_t duration;
++    unsigned i;
++    if (!profile->enabled || !begin || end < begin) return;
++    if (!profile->start) profile->start = begin;
++    p = &profile->phase[!!swap];
++    ++p->callbacks;
++    p->callback_ns += end - begin;
++    for (i = 0; i < 5; ++i) if (flags & (1u << i)) ++p->flags[i];
++    if (native_begin && native_end >= native_begin && end >= native_end)
++    {
++        duration = native_end - native_begin;
++        ++p->native;
++        p->native_ns += duration;
++        p->present_ns += end - native_end;
++        if (p->native_max_ns < duration) p->native_max_ns = duration;
++        i = duration <= 100000 ? 0 : duration <= 1000000 ? 1 : duration <= 4000000 ? 2 : duration <= 16000000 ? 3 : 4;
++        ++p->histogram[i];
++    }
++    if (end - profile->start >= 5000000000ULL)
++        cyder_gl_profile_report(profile, end, interval, double_buffer, 0);
++}
++#endif

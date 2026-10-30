@@ -71,3 +71,7 @@ fi
 assert_contains "$(cat "$TMP/engine-manifest.json")" "wine-win32u-full-client-visible-rect.patch" "manifest records visible-rect backport"
 
 echo "PASS test-engine-manifest"
+
+# Preserve notifications when the interval changes in the same flush.
+assert_contains "$(cat "$TMP/engine-manifest.json")" "wine-win32u-preserve-flush-flags.patch" "manifest should record the interval flag fix"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-winemac-gl-profile.patch" "manifest should record opt-in GL profiling"

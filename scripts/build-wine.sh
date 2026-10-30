@@ -474,6 +474,15 @@ remove_obsolete_cyder_patch() {
 }
 
 if [[ "$CX_VERSION" == "26" ]]; then
+  # Unwind profiling before overlapping A6/present checks, then restore it below.
+  # Verify every reverse hunk first: partial instrumentation must fail closed.
+  if [[ "$DRY_RUN" -eq 0 ]] && { [[ -f "$WINE_SRC/dlls/winemac.drv/cyder_gl_profile.h" ]] ||
+       grep -Fq 'cyder_gl_profile_record(' "$WINE_SRC/dlls/winemac.drv/opengl.c"; }; then
+    patch --reverse --forward --batch --fuzz=0 --dry-run -s -d "$WINE_SRC" -p1 < "$OGOM/patches/cyder-winemac-gl-profile.patch" || {
+      echo "Incomplete/incompatible GL profiling patch; restore a complete source tree" >&2; exit 1;
+    }
+    patch --reverse --forward --batch --fuzz=0 -s -d "$WINE_SRC" -p1 < "$OGOM/patches/cyder-winemac-gl-profile.patch"
+  fi
   apply_cyder_patch "$OGOM/patches/a6-final-same-view-backing-sync.patch"
   if [[ "$VULKAN_SONAME_FALLBACK" -eq 1 ]]; then
     apply_cyder_patch "$OGOM/patches/w1-win32u-vulkan-soname.patch"
@@ -506,8 +515,10 @@ if [[ "$CX_VERSION" == "26" ]]; then
   if [[ "$DRY_RUN" -eq 1 ]] || grep -Fq 'GL_FLUSH_PRESENT is not a buffer-swap request' "$WINE_SRC/dlls/winemac.drv/opengl.c"; then
     remove_obsolete_cyder_patch "$OGOM/patches/obsolete/cyder-winemac-gl-flush-no-buffer-swap.patch"
   fi
+  apply_cyder_patch "$OGOM/patches/wine-win32u-preserve-flush-flags.patch"
   apply_cyder_patch "$OGOM/patches/wine-win32u-no-present-on-context-bind.patch"
   apply_cyder_patch "$OGOM/patches/cyder-winemac-gl-front-buffer-present.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-winemac-gl-profile.patch"
   apply_cyder_patch "$OGOM/patches/cyder-kernelbase-disk-free-space-fallback.patch"
   apply_cyder_patch "$OGOM/patches/wine-winemac-initialize-style-masks.patch"
   apply_cyder_patch "$OGOM/patches/wine-win32u-full-client-visible-rect.patch"

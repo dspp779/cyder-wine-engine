@@ -23,6 +23,12 @@ if [[ -d "$SRC/dlls/winemac.drv" ]]; then
   cp -R "$SRC/dlls/winemac.drv" "$TMP/dlls/"
   FRONT_BUFFER="$ROOT/patches/cyder-winemac-gl-front-buffer-present.patch"
   NO_SWAP="$ROOT/patches/obsolete/cyder-winemac-gl-flush-no-buffer-swap.patch"
+  PROFILE="$ROOT/patches/cyder-winemac-gl-profile.patch"
+  has_profile=0
+  if [[ -f "$TMP/dlls/winemac.drv/cyder_gl_profile.h" ]]; then
+    has_profile=1
+    patch --reverse --forward --batch --fuzz=0 -s -d "$TMP" -p1 <"$PROFILE"
+  fi
   has_no_swap=0
   if grep -Fq 'GL_FLUSH_PRESENT is not a buffer-swap request' "$TMP/dlls/winemac.drv/opengl.c"; then
     has_no_swap=1
@@ -40,6 +46,10 @@ if [[ -d "$SRC/dlls/winemac.drv" ]]; then
   fi
   if [[ "$has_no_swap" -eq 1 ]]; then
     patch --forward --batch -s -d "$TMP" -p1 <"$NO_SWAP"
+  fi
+  if [[ "$has_profile" -eq 1 ]]; then
+    patch --forward --batch --fuzz=0 -s -d "$TMP" -p1 <"$PROFILE"
+    cmp "$TMP/dlls/winemac.drv/cyder_gl_profile.h" "$SRC/dlls/winemac.drv/cyder_gl_profile.h"
   fi
   for file in $(sed -n 's|^+++ b/||p' "$PATCH" "$FRONT_BUFFER" | sort -u); do
     cmp "$TMP/$file" "$SRC/$file"
