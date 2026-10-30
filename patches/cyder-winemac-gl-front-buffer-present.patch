@@ -1,0 +1,45 @@
+winemac: Present OpenGL front-buffer flushes.
+
+Backport of upstream Wine b5ab3b15 ("winemac: Call client_surface_present
+when OpenGL surface gets presented"), adapted on top of the A6 backing-sync
+patch.
+
+opengl32 passes GL_FLUSH_PRESENT to the driver when glFlush()/glFinish() is
+called while drawing to the front buffer. winemac ignored that flag, so
+front-buffer rendering never reached the screen. DirectDraw windowed games
+(DDSCL_NORMAL + clipper) that also create a D3D device hit this path:
+wined3d blits the primary surface into the GL front buffer and calls
+glFlush(), and the window stays black (e.g. DelphiX TDXDraw games such as
+NSTGO aLogin.exe).
+
+--- a/dlls/winemac.drv/opengl.c
++++ b/dlls/winemac.drv/opengl.c
+@@ -2023,6 +2023,11 @@
+     if (flags & GL_FLUSH_INTERVAL) set_swap_interval(context, base->interval);
+     if ((flags & GL_FLUSH_UPDATED) || macdrv_opengl_context_backing_sync_pending(context->context))
+         make_context_current(context, context->read_view == client->cocoa_view);
++    if (flags & GL_FLUSH_PRESENT)
++    {
++        macdrv_flush_opengl_context(context->context);
++        client_surface_present(base->client);
++    }
+ }
+ 
+ 
+@@ -2871,9 +2876,13 @@
+     TRACE("%s context %p/%p/%p\n", debugstr_opengl_drawable(base), context, (context ? context->context : NULL),
+           (context ? context->cglcontext : NULL));
+ 
+-    if (macdrv_opengl_context_backing_sync_pending(context->context))
+-        make_context_current(context, FALSE);
+-    macdrv_flush_opengl_context(context->context);
++    if (context)
++    {
++        if (macdrv_opengl_context_backing_sync_pending(context->context))
++            make_context_current(context, FALSE);
++        macdrv_flush_opengl_context(context->context);
++    }
++    client_surface_present(base->client);
+     return TRUE;
+ }
+ 

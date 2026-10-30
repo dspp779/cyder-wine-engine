@@ -29,6 +29,7 @@
     "cyder-wineserver-macos-timezone-bias.patch",
     "cyder-wineserver-registry-fsync.patch",
     "cyder-winemac-hide-ime-only-klid.patch",
+    "cyder-winemac-gl-front-buffer-present.patch",
     "cyder-kernelbase-disk-free-space-fallback.patch",
     "maplestory-cx26-message-wait-handoff.patch",
     "maplestory-cx26-core.patch",
