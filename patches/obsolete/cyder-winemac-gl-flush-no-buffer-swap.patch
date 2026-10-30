@@ -1,3 +1,9 @@
+OBSOLETE DIAGNOSTIC WORKAROUND — retained only for incremental migration.
+Superseded by wine-win32u-no-present-on-context-bind.patch (upstream 62da9c02).
+The old explanation below isolated the trigger but missed the earlier upstream
+notification fix. Preserve legitimate flushBuffer presentation; do not apply
+this workaround to new builds.
+
 winemac: Do not swap native buffers for a front-buffer flush.
 
 Follow up the b5ab3b15 backport. win32u_wgl_context_flush has already

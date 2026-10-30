@@ -22,7 +22,7 @@ if [[ -d "$SRC/dlls/winemac.drv" ]]; then
   mkdir -p "$TMP/dlls"
   cp -R "$SRC/dlls/winemac.drv" "$TMP/dlls/"
   FRONT_BUFFER="$ROOT/patches/cyder-winemac-gl-front-buffer-present.patch"
-  NO_SWAP="$ROOT/patches/cyder-winemac-gl-flush-no-buffer-swap.patch"
+  NO_SWAP="$ROOT/patches/obsolete/cyder-winemac-gl-flush-no-buffer-swap.patch"
   has_no_swap=0
   if grep -Fq 'GL_FLUSH_PRESENT is not a buffer-swap request' "$TMP/dlls/winemac.drv/opengl.c"; then
     has_no_swap=1

@@ -19,7 +19,7 @@ Patch order for the CX26.3 / Wine 11.0 Cyder engine:
 15. `cyder-wineserver-registry-fsync.patch`
 16. `cyder-winemac-hide-ime-only-klid.patch`
 17. `cyder-winemac-gl-front-buffer-present.patch`
-    - Follow with `cyder-winemac-gl-flush-no-buffer-swap.patch`.
+    - First apply `wine-win32u-no-present-on-context-bind.patch` (upstream 62da9c02).
 18. `cyder-kernelbase-disk-free-space-fallback.patch`
 19. `maplestory-cx26-message-wait-handoff.patch`
 20. `maplestory-cx26-core.patch`
@@ -420,20 +420,25 @@ initializes both output masks, retaining the CX Quicken early return. This
 prevents uninitialized extended-style bits affecting decoration calculations.
 The independent hunk uses forward/reverse idempotence checks.
 
-## Front-buffer flush without a native swap
+## Context binding must not present a frame
 
-`cyder-winemac-gl-flush-no-buffer-swap.patch` follows the b5ab3b15 backport.
-It retains the present notification and A6 pending-backing handling, but removes
-`macdrv_flush_opengl_context` from the flush callback: that helper invokes
-NSOpenGLContext.flushBuffer and can exchange native front/back buffers.
-win32u already calls the caller's glFlush/glFinish before the notification,
-and separately requests a swap for GL_FLUSH_FORCE_SWAP. A flush must therefore
-not add another buffer exchange. Actual-function tests use the real flag bits,
-cover all 32 flag combinations, and check one exchange for flush plus swap.
+`wine-win32u-no-present-on-context-bind.patch` backports upstream
+62da9c02a7b349e10601e4e2430ed824c1a074fe (Wine 11.3), before the b5ab3b15
+winemac present backport (Wine 11.4). CX26 still sent GL_FLUSH_PRESENT while
+binding a new drawable; after b5ab3b15 that notification invokes native
+NSOpenGLContext.flushBuffer before an application frame exists. Keep the
+binding synchronization but pass flags=0, matching the upstream predecessor.
 
-Controlled BlueCG HD mode 1 tests: removing A6 alone keeps the black screen;
-removing PR #2 alone restores OpenGL login with A6 retained; removing only this
-flush-time exchange also restores loading/login with A6 and present retained.
+A separate diagnostic engine retaining A6, the original present backport and
+flushBuffer, with only this one-line win32u fix, restores BlueCG HD mode 1
+loading/login. This supersedes the earlier no-buffer-swap workaround, which
+also avoided startup black but removed legitimate presentation behavior.
+That patch remains under `obsolete/` only for incremental-tree migration;
+build-wine removes it when its marker is found and restores upstream flush.
+
+Tests compile the actual context_sync_drawables function and cover same/split
+read/draw bindings, current-context reuse, failed binding, no premature present,
+patch idempotence/round-trip and legacy-workaround migration. The winemac tests
+retain all 32 real flag combinations and native flush-before-present behavior.
+The manifest writer reads the canonical ordered release config.
 See `docs/upstream-wine-11/bluecg-a6-present-regression.md` for evidence/limits.
-Marker: `GL_FLUSH_PRESENT is not a buffer-swap request`. The manifest writer
-consumes the ordered patch list from `config/engine-release.json`.
