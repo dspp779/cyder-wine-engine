@@ -12,7 +12,7 @@ DXMT 修正版已補齊專用瓶子的原始 winemetal.dll 可發現檔案。D3D
 2. 雙擊 **Install.command**。看到「安裝完成」或「已安裝且校驗通過」即可。它不需要管理員密碼。
 3. 雙擊 **Verify.command**，應顯示 PASS。
 4. 雙擊 **Run Test.command**，選擇後端，再選遊戲或安裝程式 EXE。
-   - PR #2 的女神守護之約、BlueCG 等 DirectDraw 黑畫面驗證：選 **wined3d**（強制 OpenGL）。
+   - PR #2 的女神守護之約、BlueCG 等 DirectDraw 黑畫面驗證：選 **wined3d**（預設 OpenGL；BlueCG 的 GDI 對照見下方）。
    - CS2：選 **dxmt**，需要 macOS 15+。
    - DXVK / DXVK2：需要 macOS 12+。
 
@@ -46,6 +46,17 @@ bash "Run Test.command" --backend dxmt --bottle graphics -- "$PWD/tests/d3d11-de
 bash "Run Test.command" --backend wined3d --bottle bluecg -- "/完整路徑/遊戲.exe"
 bash "Run Test.command" --backend dxmt --bottle cs2 -- "/完整路徑/Cities2.exe" 參數
 ```
+
+BlueCG HD 模式 1 的登入畫面目前可用 GDI 對照（不代表 GL 修正已通過）：
+
+```bash
+LANG=zh_TW.UTF-8 LC_ALL=zh_TW.UTF-8 bash "Run Test.command" \
+  --backend wined3d --wined3d-renderer gdi --bottle bluecg -- "$HOME/games/bluecg/BlueLauncher.exe"
+```
+
+在啟動器選 HD 模式 1，等載入圖出現後點一下進入登入介面。新 prefix 的啟動器內嵌網頁需先有 Wine Gecko x86 與 32 位元 mshtml 註冊；參見 repo 的 `docs/upstream-wine-11/bluecg-direct-smoke.md`。本工具不自動安裝依賴。GDI 停用 3D，只適合作為此模式的測試選項，其他 3D 模式不適用；登入、遊戲內、效能及視窗切換仍待驗證。
+
+`--wined3d-renderer` 僅接受 `gl`／`gdi`，且只能與 `--backend wined3d` 搭配。未指定時仍使用 OpenGL；互動選單不會自動套用 GDI。
 
 Steam / CS2：先以 `--backend wined3d --bottle cs2` 安裝並登入 Steam，保持 Steam 執行，再用 `--backend dxmt --bottle cs2` 啟動合法安裝的 Cities2.exe。不要以不同瓶子測「Steam 保持登入」。遊戲或 Paradox Launcher 若要求登入、授權或必要元件，照正常流程處理並記錄失敗點；本包不修改遊戲 DLL。
 

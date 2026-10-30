@@ -2,6 +2,8 @@
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 backend=wined3d
+renderer=gl
+renderer_explicit=0
 bottle=shared-test
 mode=game
 gptk=""
@@ -10,6 +12,7 @@ interactive=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --backend) backend="${2:?}"; shift 2 ;;
+    --wined3d-renderer) renderer="${2:?}"; renderer_explicit=1; shift 2 ;;
     --bottle) bottle="${2:?}"; shift 2 ;;
     --gptk-root) gptk="${2:?}"; shift 2 ;;
     --smoke) mode=smoke; shift ;;
@@ -21,6 +24,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 case "$backend" in wined3d|dxmt|dxvk|dxvk2|d3dmetal) ;; *) fail 'backend 必須是 wined3d、dxmt、dxvk、dxvk2 或 d3dmetal。' ;; esac
+case "$renderer" in gl|gdi) ;; *) fail 'wined3d renderer 必須是 gl 或 gdi。' ;; esac
+[[ "$renderer_explicit" == 0 || "$backend" == wined3d ]] || fail '--wined3d-renderer 僅適用於 wined3d。'
 [[ "$bottle" =~ ^[A-Za-z0-9_-]{1,40}$ ]] || fail '瓶子名稱僅接受 1–40 個英文字母、數字、底線或連字號。'
 [[ -f "$ROOT/.cyder-test-version" && "$(cat "$ROOT/.cyder-test-version")" == "$TEST_VERSION" ]] || fail '請先執行 Install.command。'
 verify_tree "$ROOT"
@@ -48,7 +53,7 @@ unset CX_GRAPHICS_BACKEND CX_ACTIVE_GRAPHICS_BACKEND CYDER_ACTIVE_GRAPHICS_BACKE
 export WINEPREFIX="$PREFIX" WINELOADER="$ENGINE/bin/wine" WINESERVER="$ENGINE/bin/wineserver"
 export CYDER_COMPATDB=0 CYDER_GRAPHICS_BACKEND="$backend" CYDER_GRAPHICS_BACKENDS_ROOT="$ENGINE"
 export WINEDEBUG=err+all,warn+seh
-if [[ "$backend" == wined3d ]]; then export WINE_D3D_CONFIG=renderer=gl; fi
+if [[ "$backend" == wined3d ]]; then export WINE_D3D_CONFIG="renderer=$renderer"; fi
 if [[ "$backend" == d3dmetal ]]; then
   [[ -f "$gptk/wine/x86_64-windows/d3d11.dll" && -f "$gptk/external/libd3dshared.dylib" ]] || fail '請用 --gptk-root 指定自行合法安裝的 GPTK 根目錄。'
   export CYDER_GPTK_ROOT="$gptk"
@@ -61,6 +66,7 @@ if [[ "$mode" == stop ]]; then
 fi
 if [[ "$mode" == dry-run ]]; then
   printf 'engine=%s\nprefix=%s\nbackend=%s\ncompatdb=disabled-for-controlled-test\n' "$ENGINE" "$PREFIX" "$backend"
+  printf 'wine_d3d_config=%s\n' "${WINE_D3D_CONFIG:-<backend-managed>}"
   exit 0
 fi
 arch -x86_64 /usr/bin/true || fail 'Rosetta 2 尚不可用。'

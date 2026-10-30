@@ -93,5 +93,40 @@ class KitSafetyTests(unittest.TestCase):
             self.assertFalse((self.root / 'absent').exists())
 
 
+
+@unittest.skipUnless(Path('/usr/bin/sw_vers').exists(), 'launcher targets macOS')
+class LauncherRendererOptionTests(unittest.TestCase):
+    def test_renderer_selection_and_environment_isolation(self):
+        # Installation integrity has separate safety/integration tests. This
+        # dry-run fixture isolates argument validation and environment selection;
+        # it launches no Wine process and makes no graphics compatibility claim.
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            launcher = root / 'Run Test.command'
+            launcher.write_text((ROOT / 'tools/test-runtime-kit/Run Test.command').read_text())
+            (root / '.cyder-test-version').write_text('fixture-test')
+            (root / 'common.sh').write_text(
+                'ROOT="$CYDER_TEST_ROOT"\nTEST_VERSION=fixture-test\n'
+                'fail() { echo "$*" >&2; exit 1; }\nverify_tree() { :; }\n')
+            env = dict(os.environ, CYDER_TEST_ROOT=temp,
+                       WINE_D3D_CONFIG='renderer=vulkan', WINEDLLOVERRIDES='ddraw=n,b')
+            cases = [([], 'renderer=gl'),
+                     (['--wined3d-renderer', 'gl'], 'renderer=gl'),
+                     (['--wined3d-renderer', 'gdi'], 'renderer=gdi'),
+                     (['--backend', 'dxmt'], '<backend-managed>')]
+            for args, expected in cases:
+                run = subprocess.run(['bash', str(launcher), '--dry-run'] + args,
+                                     env=env, capture_output=True, text=True)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                self.assertIn('wine_d3d_config=' + expected + '\n', run.stdout)
+            for args in [['--wined3d-renderer', 'vulkan'],
+                         ['--wined3d-renderer', 'gdi,csmt=0'],
+                         ['--backend', 'dxmt', '--wined3d-renderer', 'gdi'],
+                         ['--backend', 'dxvk2', '--wined3d-renderer', 'gl']]:
+                run = subprocess.run(['bash', str(launcher), '--dry-run'] + args,
+                                     env=env, capture_output=True, text=True)
+                self.assertNotEqual(run.returncode, 0, args)
+            self.assertFalse((root / 'prefixes').exists())
+
 if __name__ == '__main__':
     unittest.main()
