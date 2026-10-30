@@ -80,3 +80,16 @@ winemac、ddraw、wined3d。穩定後採至少三個完整五秒統計窗；分�
 因此尚無可報告的「每次 native flush 成本」，不能把初始化數值當作每幀資料。
 登入後／走動／多次 Blt 與 profiling off/on 的場景對照仍待同場景取樣。
 沒有憑證操作，也未修改遊戲 DLL。
+
+### 登入前初步樣本（Apple M4，macOS 27.2）
+
+新模組的獨立 HD 模式 1 run 到達登入 UI。已輸出的七個 context/phase 聚合
+共 11 次 flush callback，合計 callback wall time 5,052,000 ns（約 5.05 ms）；
+`native=0`、`flags_present=0`，沒有 swap phase。最長的一個聚合觀察窗為
+52.338616 秒，包含三次同步通知。這些是初始化／切換成本，不能視為每幀成本，
+各 context 的 elapsed 也不能相加當總觀察時間。
+
+目前沒有 native flush 的成本樣本，不能回報「每次 native flush 幾微秒」或
+「遊戲內多次 Blt 造成多少 FPS 損失」。診斷登入視窗保留，等待使用者自行登入
+後在相同場景收集資料；不要求、不讀取或輸入憑證。原始 log 與帶帳號的畫面僅
+留本機私有暫存目錄，不提交或公開。
