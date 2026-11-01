@@ -29,6 +29,8 @@ tests=(
   test-winemac-missing-order-anchor.sh
   test-winemac-gdi-client-view.sh
   test-winemac-surface-profile.sh
+  test-ddraw-present-profile.sh
+  test-gdi-window-blit-profile.sh
   test-winemac-gl-profile-runtime.sh
   test-win32u-flush-flags.sh
   test-win32u-context-bind-present.sh
