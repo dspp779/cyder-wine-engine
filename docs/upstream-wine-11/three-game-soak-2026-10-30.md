@@ -3,7 +3,7 @@
 測試日期：2026-10-30～11-01（Asia/Taipei）。
 
 本輪使用獨立診斷 runtime、三份 BlueCG 遊戲／prefix 副本，以及獨立女神／賽馬娘
-prefix。未替換正式 Cyder runtime，未修改遊戲 DLL。帳密只從本機 `.env` 在記憶體
+prefix。未替換正式 Cyder runtime，未自行 patch 遊戲 DLL。帳密只從本機 `.env` 在記憶體
 取用；原始遊戲截圖與日誌包含遊戲內文字，僅保留於私有暫存目錄，不納入 PR；
 本文只附無帳號／角色資訊的原生字型裁圖及彙總量測圖。
 
@@ -11,11 +11,11 @@ prefix。未替換正式 Cyder runtime，未修改遊戲 DLL。帳密只從本�
 
 | 項目 | 已實際驗證 | 尚未驗證／限制 |
 |---|---|---|
-| 水藍魔力 | 兩場戰鬥勝利、一次逃走、戒指／國王流程、城堡與法蘭城多人場景；原生中文方框以既有宋體配置修正；真實 2x Retina、雙向 Alt+Enter、連續縮放、1x／2x 各三次最小化還原；三開固定位置 3,600.93 秒，主程序缺失 0 | Alt+Enter 首次切回有 8×5 points 偏差，後續不累增；非 exclusive fullscreen；footprint 自然回收但最後十分鐘仍緩增，不能保證無洩漏；原生 macOS 全螢幕退出有裁切／退出失敗，另由 engine #4 追蹤；室內 no3d／GL／no3d 對照僅閒置負載 |
+| 水藍魔力 | 兩場戰鬥勝利、一次逃走、戒指／國王流程、城堡與法蘭城多人場景；原生中文方框以既有宋體配置修正；真實 2x Retina、雙向 Alt+Enter、連續縮放、1x／2x 各三次最小化還原；三開固定位置 3,600.93 秒，主程序缺失 0；原生全螢幕排序例外已定位，獨立修正版 GL 3 輪／no3d 6 輪畫面與退出通過 | Alt+Enter 首次切回有 8×5 points 偏差，後續不累增；非 exclusive fullscreen；footprint 自然回收但最後十分鐘仍緩增，不能保證無洩漏；原始 runtime 原生全螢幕有裁切／退出失敗；排序修正已獨立提交，尚未合併／發佈；室內 no3d／GL／no3d 對照僅閒置負載 |
 | 賽馬娘 | 標題影片、3D 主頁、教學編成；草地／沙地 1800m 兩場完整播放至名次結算；同組五場總結算 WIN 73,537 pt；DXMT／GStreamer 實際載入 | 第 3～5 場僅觀看結果；未涵蓋所有模式與長時間穩定度 |
 | 女神守護之約 | 官方更新、註冊、免費創角、住宅走動／捲圖、NPC 對話、介面教學問答、狀態背包、出口劇情切圖；戰鬥第 1～6 回合；600.24 秒取樣與正常登出 | 普通攻擊傷害與完整戰鬥結算未確認；長時間穩定度待測，不能宣稱完整遊戲驗收通過 |
 | GL/GDI 修正 | 原可見控制紅／紅／藍；完整修正後單次 swap 顯示紅／綠／藍；實際 C／Cocoa 方法回歸通過 | 非所有遊戲、模式及桌面設定的通用驗收 |
-| 建置／自動回歸 | 兩個 host 模組 x86_64／minOS 10.15、strict ad-hoc 簽章；53 Shell entrypoints + 27 Python tests 通過 | 既有 optional MoltenVK live-source round-trip 因缺少來源跳過，content checks 通過；不是 shipping build／發布包 |
+| 建置／自動回歸 | 兩個 host 模組 x86_64／minOS 10.15、strict ad-hoc 簽章；54 Shell entrypoints + 27 Python tests 通過（含排序回歸；runtime probes 另顯式補跑） | 既有 optional MoltenVK live-source round-trip 因缺少來源跳過，content checks 通過；不是 shipping build／發布包 |
 
 BlueCG 最新一小時固定位置三開，遊戲合計 CPU 平均／P95 為
 **258.59%／274.07%**（100%=一核心），全機 GPU 平均 **11.38%**。
@@ -562,4 +562,29 @@ no3d 兩端平均 CPU 88.59%，相對中段 GL 147.69% 低 **40.01%**；
 40%，也不據此修改全域 renderer 預設。
 
 本階段續測完成後，視窗盤點為空，已還原原 macOS 輸入來源；沒有更新正式 runtime、
-全域 renderer，也未自行 patch 遊戲二進位。本次提交僅包含此階段報告及無敏感資訊的量測／字型圖片。
+全域 renderer，也未自行 patch 遊戲二進位。該階段報告僅附無敏感資訊的量測／字型圖片。
+
+## 2026-11-01 後續定位：原生全螢幕子視窗排序修正
+
+原始 GL／no3d 失敗時的系統紀錄都有 `NSRangeException`；完整堆疊指到
+`WineWindow order:childWindow:relativeTo:`，不是僅憑 sample 猜測死鎖。
+參考 sibling 不在 window-server snapshot 時，原方法仍在 `NSNotFound` 插入，
+使主執行緒 request drain 被例外中斷。新增窄 patch 在該情況使用 Cocoa parent
+既有的後到前子視窗順序，正常 snapshot 路徑保持原樣，未知 child 不附加。
+
+本輪先經官方 updater 更新獨立遊戲副本，再以**更新後同一份遊戲檔**反向確認：
+原始 GL 六輪出現 15 筆同堆疊 AppKit 例外，第 2／5 輪返回截圖裁切，
+再切換有時恢復，最終可正常退出；不把問題誤寫成每輪永久卡死。
+修正版 GL 3 輪、no3d 6 輪都恢復 961×721 的正確內容比例，每輪最小化還原
+與最末標準退出成功；全螢幕／視窗狀態按鈕輸入正確，系統同類例外均為 0。
+
+新增實際 Objective-C 方法回歸先重現原版例外，再驗證修正及 patch 往返。
+完整測試 54 Shell entrypoints／27 Python tests 通過，缺少預設 install 而跳過
+的 frame-walk、32／64 位元 file／BCrypt 與 GL 8／8 控制另指定診斷 runtime 補跑通過；
+既有 optional MoltenVK live-source round-trip 仍跳過。
+
+這次只增量重建 x86_64／minOS 10.15／ad-hoc 的 winemac.so，未替換正式 runtime；
+完整 media configure 因既有 GStreamer 開發 header 路徑缺失未成功，不能當作完整
+媒體建置通過。排序修正與回歸測試已獨立提交至 `codex/bluecg-native-fullscreen-ordering`，
+尚未合併／發佈，也未外推為所有 2x／多螢幕／多開情境。
+[原因、同檔對照、模組 hashes 與建置限制](bluecg-native-fullscreen-ordering.md)。

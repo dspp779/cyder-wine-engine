@@ -26,6 +26,7 @@ tests=(
   test-winemac-front-buffer.sh
   test-winemac-gl-profile.sh
   test-winemac-hidden-view-context.sh
+  test-winemac-missing-order-anchor.sh
   test-winemac-gdi-client-view.sh
   test-winemac-surface-profile.sh
   test-winemac-gl-profile-runtime.sh
