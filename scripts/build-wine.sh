@@ -375,6 +375,19 @@ apply_cyder_patch() {
     echo "+ patch -d $WINE_SRC -p1 < $patch_file"
     return 0
   fi
+  if [[ "$(basename "$patch_file")" == "cyder-bluecg-final-blit-halftone.patch" ]] &&
+     grep -Fq 'static BOOL bluecg_filter_enabled;' "$WINE_SRC/dlls/gdi32/dc.c" &&
+     grep -Fq 'SetBrushOrgEx(hdc, old_origin.x, old_origin.y, NULL);' "$WINE_SRC/dlls/gdi32/dc.c"; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
+    return 0
+  fi
+  if [[ "$(basename "$patch_file")" == "cyder-bluecg-final-blit-gpu.patch" ]] &&
+     grep -Fq '#include "cyder_bluecg_gpu.h"' "$WINE_SRC/dlls/gdi32/dc.c" &&
+     grep -Fq 'gpu_presented ? 3 : 2' "$WINE_SRC/dlls/gdi32/dc.c" &&
+     [[ -f "$WINE_SRC/dlls/gdi32/cyder_bluecg_gpu.h" ]]; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
+    return 0
+  fi
   if [[ "$(basename "$patch_file")" == "cyder-gdi-window-blit-profile.patch" ]] &&
      grep -Fq '#include "cyder_gdi_profile.h"' "$WINE_SRC/dlls/gdi32/dc.c" &&
      grep -Fq 'DLL_PROCESS_DETACH) cyder_gdi_profile_close();' "$WINE_SRC/dlls/gdi32/objects.c" &&
@@ -545,6 +558,7 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/cyder-ddraw-present-profile.patch"
   apply_cyder_patch "$OGOM/patches/cyder-gdi-window-blit-profile.patch"
   apply_cyder_patch "$OGOM/patches/cyder-bluecg-final-blit-halftone.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-bluecg-final-blit-gpu.patch"
   apply_cyder_patch "$OGOM/patches/cyder-kernelbase-disk-free-space-fallback.patch"
   apply_cyder_patch "$OGOM/patches/wine-winemac-initialize-style-masks.patch"
   apply_cyder_patch "$OGOM/patches/wine-win32u-full-client-visible-rect.patch"

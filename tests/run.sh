@@ -32,6 +32,7 @@ tests=(
   test-ddraw-present-profile.sh
   test-gdi-window-blit-profile.sh
   test-bluecg-final-blit-halftone.sh
+  test-bluecg-final-blit-gpu.sh
   test-winemac-gl-profile-runtime.sh
   test-win32u-flush-flags.sh
   test-win32u-context-bind-present.sh
@@ -73,3 +74,5 @@ python3 "$ROOT/tests/test-test-runtime-kit.py"
 python3 "$ROOT/tests/test-dxmt-prefix-discovery.py"
 
 python3 "$ROOT/tests/test-game-soak.py"
+
+python3 "$ROOT/tests/test-bluecg-gpu-color-lut.py"

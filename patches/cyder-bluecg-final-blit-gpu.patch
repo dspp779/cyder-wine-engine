@@ -1,0 +1,105 @@
+--- a/dlls/gdi32/dc.c
++++ b/dlls/gdi32/dc.c
+@@ -32,6 +32,7 @@
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(gdi);
+ #include "cyder_gdi_profile.h"
++#include "cyder_bluecg_gpu.h"
+ 
+ static struct list drivers = LIST_INIT( drivers );
+ 
+@@ -1963,6 +1964,9 @@
+         if ((begin = cyder_gdi_profile_begin())) window = NtUserWindowFromDC(hdc_dst);
+         SetLastError(saved_error);
+     }
++    saved_error = GetLastError();
++    if (!dc_attr->print && !dc_attr->emf) bluecg_gpu_hide_for_blt(hdc_dst, x_dst, y_dst, width, height, rop);
++    SetLastError(saved_error);
+     result = NtGdiBitBlt( hdc_dst, x_dst, y_dst, width, height,
+                         hdc_src, x_src, y_src, rop, 0 /* FIXME */, 0 /* FIXME */ );
+     if (window)
+@@ -2023,7 +2027,7 @@
+     DWORD saved_error, filter_error;
+     INT old_mode = 0;
+     POINT old_origin;
+-    BOOL filter = FALSE;
++    BOOL filter = FALSE, gpu_presented;
+ 
+     if (is_meta_dc( hdc )) return METADC_StretchBlt( hdc, x_dst, y_dst, width_dst, height_dst,
+                                                      hdc_src, x_src, y_src, width_src,
+@@ -2053,14 +2057,19 @@
+         }
+     }
+     SetLastError(filter_error);
+-    result = NtGdiStretchBlt( hdc, x_dst, y_dst, width_dst, height_dst,
++    gpu_presented = !dc_attr->print && !dc_attr->emf && bluecg_gpu_try(hdc, x_dst, y_dst, width_dst, height_dst,
++            hdc_src, x_src, y_src, width_src, height_src, rop);
++    if (!gpu_presented && !dc_attr->print && !dc_attr->emf)
++        bluecg_gpu_hide_for_blt(hdc, x_dst, y_dst, width_dst, height_dst, rop);
++    SetLastError(filter_error);
++    result = gpu_presented || NtGdiStretchBlt( hdc, x_dst, y_dst, width_dst, height_dst,
+                             hdc_src, x_src, y_src, width_src, height_src,
+                             rop, 0 /* FIXME */ );
+     if (window)
+     {
+         saved_error = GetLastError();
+         cyder_gdi_profile_record(window, hdc, x_dst, y_dst, width_dst, height_dst,
+-                width_src, height_src, rop, 2, begin, result);
++                width_src, height_src, rop, gpu_presented ? 3 : 2, begin, result);
+         SetLastError(saved_error);
+     }
+     if (filter)
+--- /dev/null
++++ b/dlls/gdi32/cyder_bluecg_gpu.h
+@@ -0,0 +1,51 @@
++/* BlueCG final GPU presentation experiment; no DLL load unless explicitly selected. */
++static INIT_ONCE bluecg_gpu_once = INIT_ONCE_STATIC_INIT;
++static INIT_ONCE bluecg_gpu_load_once = INIT_ONCE_STATIC_INIT;
++static int bluecg_gpu_mode;
++static HMODULE bluecg_gpu_module;
++static BOOL (__cdecl *bluecg_gpu_draw)(HWND,HDC,int,int,int,int,int);
++static void (__cdecl *bluecg_gpu_hide_window)(HWND);
++static BOOL CALLBACK bluecg_gpu_init(INIT_ONCE *once, void *param, void **context)
++{
++ WCHAR path[MAX_PATH], *base;char value[16];DWORD n;
++ n=GetEnvironmentVariableA("CYDER_BLUECG_BLIT_FILTER",value,sizeof(value));
++ if(n!=10 && n!=11)return TRUE;
++ if(strcmp(value,"gpu-linear") && strcmp(value,"gpu-nearest"))return TRUE;
++ n=GetModuleFileNameW(NULL,path,ARRAY_SIZE(path));if(!n || n>=ARRAY_SIZE(path))return TRUE;
++ base=wcsrchr(path,'\\');if(wcsicmp(base?base+1:path,L"bluecg.exe"))return TRUE;
++ bluecg_gpu_mode=!strcmp(value,"gpu-linear")?1:2;return TRUE;
++}
++static BOOL CALLBACK bluecg_gpu_load(INIT_ONCE *once, void *param, void **context)
++{
++ bluecg_gpu_module=LoadLibraryExW(L"cyder_bluecg_gpu.dll",NULL,LOAD_LIBRARY_SEARCH_SYSTEM32);
++ if(bluecg_gpu_module) {
++  bluecg_gpu_draw=(void*)GetProcAddress(bluecg_gpu_module,"bluecg_gpu_present");
++  bluecg_gpu_hide_window=(void*)GetProcAddress(bluecg_gpu_module,"bluecg_gpu_hide");
++ }
++ return TRUE;
++}
++static HWND bluecg_gpu_target(HDC dc,int x,int y,int w,int h,DWORD rop)
++{
++ HWND window;RECT client;POINT view,origin;
++ InitOnceExecuteOnce(&bluecg_gpu_once,bluecg_gpu_init,NULL,NULL);
++ if(!bluecg_gpu_mode || x || y || w<320 || h<240 || w>16384 || h>16384 || rop!=SRCCOPY)return NULL;
++ if(GetMapMode(dc)!=MM_TEXT || GetGraphicsMode(dc)!=GM_COMPATIBLE || GetLayout(dc)
++  || !GetViewportOrgEx(dc,&view) || !GetWindowOrgEx(dc,&origin) || view.x || view.y || origin.x || origin.y)return NULL;
++ window=NtUserWindowFromDC(dc);
++ if(!window || GetWindowThreadProcessId(window,NULL)!=GetCurrentThreadId() || (DWORD_PTR)NtUserQueryWindow(window,WindowProcess)!=GetCurrentProcessId()
++  || !NtUserGetClientRect(window,&client,0) || client.left || client.top || client.right!=w || client.bottom!=h)return NULL;
++ return window;
++}
++static BOOL bluecg_gpu_try(HDC dc,int x,int y,int dw,int dh,HDC src,int sx,int sy,int sw,int sh,DWORD rop)
++{
++ HWND window;
++ if(dc==src || sx || sy || sw!=961 || sh!=721 || (dw==sw && dh==sh))return FALSE;
++ if(!(window=bluecg_gpu_target(dc,x,y,dw,dh,rop)))return FALSE;
++ InitOnceExecuteOnce(&bluecg_gpu_load_once,bluecg_gpu_load,NULL,NULL);
++ return bluecg_gpu_draw && bluecg_gpu_draw(window,src,sw,sh,dw,dh,bluecg_gpu_mode==1);
++}
++static void bluecg_gpu_hide_for_blt(HDC dc,int x,int y,int w,int h,DWORD rop)
++{
++ HWND window;
++ if(bluecg_gpu_hide_window && (window=bluecg_gpu_target(dc,x,y,w,h,rop)))bluecg_gpu_hide_window(window);
++}
