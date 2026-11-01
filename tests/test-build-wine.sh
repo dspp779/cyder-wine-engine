@@ -53,6 +53,14 @@ if [[ "$output" == *"w1-win32u-vulkan-soname.patch"* ]]; then
   echo "ASSERT failed: the SONAME fallback must not be part of the default CX26 build" >&2
   exit 1
 fi
+if [[ "$output" == *"--with-gstreamer"* ]]; then
+  echo 'default build unexpectedly requires the optional media profile' >&2; exit 1
+fi
+media_output="$(WINE_INSTALL="$brew_fixture/dry-run-install" bash "$ROOT/scripts/build-wine.sh" --cx 26 --maplestory --dry-run --without-vulkan 2>&1)"
+[[ ! -e "$brew_fixture/dry-run-install" ]] || { echo 'dry-run wrote install output' >&2; exit 1; }
+assert_contains "$media_output" '--with-gstreamer' 'media profile must fail configure rather than silently disable GStreamer'
+assert_contains "$media_output" 'require pkg-config gstreamer-video-1.0' 'Wine requires the video development module too'
+assert_contains "$media_output" "$HOMEBREW_PREFIX/opt/gettext/lib" 'media linking must find its non-pkg-config gettext dependency'
 output_soname_fallback="$(bash "$ROOT/scripts/build-wine.sh" --cx 26 --dry-run --without-vulkan \
   --vulkan-soname-fallback 2>&1 || true)"
 assert_contains "$output_soname_fallback" "$ROOT/patches/w1-win32u-vulkan-soname.patch" \
@@ -87,6 +95,8 @@ assert_contains "$output" "$ROOT/patches/cyder-wineserver-registry-fsync.patch" 
   "build should fsync registry files before close"
 assert_contains "$output" "$ROOT/patches/cyder-winemac-hide-ime-only-klid.patch" \
   "build should stop exposing IME-only KLIDs from winemac"
+assert_contains "$output" "$ROOT/patches/cyder-winemac-gl-front-buffer-present.patch" \
+  "build should present winemac OpenGL front-buffer flushes"
 assert_contains "$output" "$ROOT/patches/cyder-kernelbase-disk-free-space-fallback.patch" \
   "build should retry GetDiskFreeSpaceExW on a real mapped volume when the device root cannot be opened"
 assert_contains "$output" "$ROOT/patches/cyder-ntdll-query-directory-object-trace.patch" \
@@ -189,3 +199,11 @@ assert_contains "$media25" "$retired_msg" "build-media-stack --cx 25 must print 
 
 
 echo "PASS test-build-wine"
+
+# Preserve notifications when the interval changes in the same flush.
+assert_contains "$output" "$ROOT/patches/wine-win32u-preserve-flush-flags.patch" "build should preserve flush flags during interval updates"
+assert_contains "$output" "$ROOT/patches/cyder-winemac-gl-profile.patch" "build should include opt-in GL profiling"
+
+assert_contains "$output" "$ROOT/patches/wine-winemac-hide-client-view-on-gdi-flush.patch" "build should hide stale GL views on GDI flush"
+assert_contains "$output" "$ROOT/patches/cyder-winemac-reattach-hidden-gl-client-view.patch" "build should attach replacement contexts to established hidden views"
+assert_contains "$output" "$ROOT/patches/cyder-winemac-surface-profile.patch" "build should include opt-in GDI surface profiling"

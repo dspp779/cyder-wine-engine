@@ -94,7 +94,7 @@ install_tree() {
   tree_id="$(printf '%s' "$tree" | shasum -a 256 | awk '{print substr($1,1,12)}')"
   local_shim="$STAGE/libMoltenVK-$tree_id.dylib"
   sdk="$(xcrun --sdk macosx --show-sdk-path)"
-  arch -x86_64 clang -arch x86_64 \
+  arch -x86_64 env "${CYDER_HOST_CLANG:-/usr/bin/clang}" -arch x86_64 \
     -mmacosx-version-min="${MACOSX_DEPLOYMENT_TARGET}" \
     -isysroot "$sdk" \
     -dynamiclib \

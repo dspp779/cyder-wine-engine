@@ -1,0 +1,38 @@
+winemac: Hide a stale GL client view when flushing GDI window content.
+
+Backport Wine commit 1a1d1f3f382083c8afc8311762137582e028d6fc (2026-08-11).
+https://github.com/wine-mirror/wine/commit/1a1d1f3f382083c8afc8311762137582e028d6fc
+
+Fix the b5ab3b15 GL-to-GDI visual freeze: the old client view must stop
+occluding the GDI window surface. The declaration is moved ahead of the
+alpha-info declaration to keep the independent profiling hunks reversible.
+Rendering behavior follows upstream; this is not a flush throttling change.
+
+--- a/dlls/winemac.drv/surface.c
++++ b/dlls/winemac.drv/surface.c
+@@ -82,6 +82,7 @@
+                                  const BITMAPINFO *shape_info, const void *shape_bits)
+ {
+     struct macdrv_window_surface *surface = get_mac_surface(window_surface);
++    struct macdrv_win_data *data;
+     CGImageAlphaInfo alpha_info = (window_surface->alpha_mask ? kCGImageAlphaPremultipliedFirst : kCGImageAlphaNoneSkipFirst);
+     CGColorSpaceRef colorspace;
+     CGImageRef image;
+@@ -118,6 +119,17 @@
+             macdrv_window_set_shape_image(surface->window, image);
+             CGImageRelease(image);
+         }
++    }
++
++    /* The previous client surface may still occlude GDI content after a D3D swapchain. */
++    if ((data = get_win_data(window_surface->hwnd)))
++    {
++        if (data->client_view)
++        {
++            macdrv_set_view_hidden(data->client_view, TRUE);
++            data->client_view = NULL;
++        }
++        release_win_data(data);
+     }
+ 
+     return TRUE;

@@ -5,7 +5,7 @@ media_prepare_native_file() {
   local native="$MEDIA_BUILD/cyder-native.ini" candidate
   mkdir -p "$MEDIA_BUILD"
   candidate="$(mktemp "$MEDIA_BUILD/.cyder-native.XXXXXX")"
-  python3 - "$candidate" "$MIN_FLAG" \
+  "${CYDER_HOST_PYTHON:-python3}" - "$candidate" "$MIN_FLAG" \
     "${CC:-/usr/bin/clang -arch x86_64}" \
     "${CXX:-/usr/bin/clang++ -arch x86_64}" \
     "${OBJC:-/usr/bin/clang -arch x86_64}" \
@@ -40,7 +40,7 @@ PY
 }
 
 media_verify_x86_64() {
-  python3 - "$1" <<'PY'
+  "${CYDER_HOST_PYTHON:-python3}" - "$1" <<'PY'
 import pathlib, subprocess, sys
 root = pathlib.Path(sys.argv[1])
 magics = {bytes.fromhex(x) for x in ('cffaedfe', 'cefaedfe', 'feedfacf', 'feedface',

@@ -1,0 +1,17 @@
+win32u: Preserve flush flags when changing the swap interval.
+
+Backport b3c408b3c0b6a308c3f07951960c0d47ea87fece (Wine 11.3).
+Updating the interval must not discard PRESENT, UPDATED, FINISHED or
+FORCE_SWAP on the same notification. Apply before the context-bind fix.
+
+--- a/dlls/win32u/opengl.c
++++ b/dlls/win32u/opengl.c
+@@ -162,7 +162,7 @@
+     if (interval != drawable->interval)
+     {
+         drawable->interval = interval;
+-        flags = GL_FLUSH_INTERVAL;
++        flags |= GL_FLUSH_INTERVAL;
+     }
+ 
+     if (flags) drawable->funcs->flush( drawable, flags );

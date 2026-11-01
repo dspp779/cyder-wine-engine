@@ -50,6 +50,10 @@ done
 cat >"$out"
 SH2
 chmod +x "$TEMP/bin/python3" "$TEMP/bin/zstd"
+# env-x86_64 prepends the project Homebrew bin directory. Isolate its
+# coordinates so an installed Python cannot shadow this test-only interpreter.
+export HOMEBREW_PREFIX="$TEMP/empty-brew"
+export HOMEBREW_REPOSITORY="$HOMEBREW_PREFIX" HOMEBREW_CELLAR="$HOMEBREW_PREFIX/Cellar"
 export PATH="$TEMP/bin:$PATH" OGOM="$ROOT" CYDER_ZSTD="$TEMP/bin/zstd"
 export SIGN_IDENTITY='Developer ID Application: Fixture' CYDER_GRAPHICS_CHANNEL=release CYDER_GRAPHICS_PACKAGE_REVISION=cyder.1
 pack() { bash "$ROOT/scripts/pack-graphics-payloads.sh" --engine "$TEMP/engine" --output-dir "$TEMP/artifacts" "$@"; }

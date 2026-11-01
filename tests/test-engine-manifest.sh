@@ -55,6 +55,8 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-registry-
   "manifest should record the registry fsync patch"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-winemac-hide-ime-only-klid.patch" \
   "manifest should record the winemac IME-only KLID patch"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-winemac-gl-front-buffer-present.patch" \
+  "manifest should record the winemac front-buffer present patch"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-kernelbase-disk-free-space-fallback.patch" \
   "manifest should record the GetDiskFreeSpaceExW fallback patch"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "maplestory-cx26-file-cache-adaptive.patch" \
@@ -66,4 +68,10 @@ if [[ "$(cat "$TMP/engine-manifest.json")" == *"maplestory-cx26-io-cache-stats.p
   exit 1
 fi
 
+assert_contains "$(cat "$TMP/engine-manifest.json")" "wine-win32u-full-client-visible-rect.patch" "manifest records visible-rect backport"
+
 echo "PASS test-engine-manifest"
+
+# Preserve notifications when the interval changes in the same flush.
+assert_contains "$(cat "$TMP/engine-manifest.json")" "wine-win32u-preserve-flush-flags.patch" "manifest should record the interval flag fix"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-winemac-gl-profile.patch" "manifest should record opt-in GL profiling"

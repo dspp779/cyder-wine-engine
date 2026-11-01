@@ -21,8 +21,20 @@ tests=(
   test-bundle-wine-dylibs-source.sh
   test-cyder-engine-version.sh
   test-engine-manifest.sh
+  test-winemac-style-masks.sh
+  test-win32u-visible-rect.sh
+  test-winemac-front-buffer.sh
+  test-winemac-gl-profile.sh
+  test-winemac-hidden-view-context.sh
+  test-winemac-gdi-client-view.sh
+  test-winemac-surface-profile.sh
+  test-winemac-gl-profile-runtime.sh
+  test-win32u-flush-flags.sh
+  test-win32u-context-bind-present.sh
   test-winemac-a6-patch.sh
   test-ntdll-frame-walk-guard.sh
+  test-test-runtime-media.sh
+  test-runtime-smoke.sh
   test-wineserver-poll-guard-patches.sh
   test-wineserver-exit-diagnostics.sh
   test-wineserver-fd-reselect-async-null-ops.sh
@@ -51,3 +63,9 @@ for test_file in "${tests[@]}"; do
 done
 
 python3 "$ROOT/tests/test-graphics-signing.py"
+
+python3 "$ROOT/tests/test-test-runtime-kit.py"
+
+python3 "$ROOT/tests/test-dxmt-prefix-discovery.py"
+
+python3 "$ROOT/tests/test-game-soak.py"
