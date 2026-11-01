@@ -1,0 +1,221 @@
+gdi32: Add opt-in buffered window blit timestamps and stretch metadata.
+
+Disabled unless CYDER_GDI_PROFILE_DIR names an existing private directory.
+Large window-target BitBlt / StretchBlt calls are candidates, not assumed frames.
+
+--- a/dlls/gdi32/dc.c
++++ b/dlls/gdi32/dc.c
+@@ -31,6 +31,7 @@
+ #include "wine/debug.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(gdi);
++#include "cyder_gdi_profile.h"
+ 
+ static struct list drivers = LIST_INIT( drivers );
+ 
+@@ -1943,6 +1944,10 @@
+                                       HDC hdc_src, INT x_src, INT y_src, DWORD rop )
+ {
+     DC_ATTR *dc_attr;
++    uint64_t begin = 0;
++    HWND window = NULL;
++    BOOL result;
++    DWORD saved_error;
+ 
+     if (is_meta_dc( hdc_dst )) return METADC_BitBlt( hdc_dst, x_dst, y_dst, width, height,
+                                                  hdc_src, x_src, y_src, rop );
+@@ -1951,8 +1956,23 @@
+     if (dc_attr->emf && !EMFDC_BitBlt( dc_attr, x_dst, y_dst, width, height,
+                                        hdc_src, x_src, y_src, rop ))
+         return FALSE;
+-    return NtGdiBitBlt( hdc_dst, x_dst, y_dst, width, height,
++    /* Observe only large blits to window DCs; memory and printer work is not a frame. */
++    if (width >= 320 && height >= 240)
++    {
++        saved_error = GetLastError();
++        if ((begin = cyder_gdi_profile_begin())) window = NtUserWindowFromDC(hdc_dst);
++        SetLastError(saved_error);
++    }
++    result = NtGdiBitBlt( hdc_dst, x_dst, y_dst, width, height,
+                         hdc_src, x_src, y_src, rop, 0 /* FIXME */, 0 /* FIXME */ );
++    if (window)
++    {
++        saved_error = GetLastError();
++        cyder_gdi_profile_record(window, hdc_dst, x_dst, y_dst, width, height,
++                width, height, rop, 1, begin, result);
++        SetLastError(saved_error);
++    }
++    return result;
+ }
+ 
+ /***********************************************************************
+@@ -1963,6 +1983,10 @@
+                         DWORD rop )
+ {
+     DC_ATTR *dc_attr;
++    uint64_t begin = 0;
++    HWND window = NULL;
++    BOOL result;
++    DWORD saved_error;
+ 
+     if (is_meta_dc( hdc )) return METADC_StretchBlt( hdc, x_dst, y_dst, width_dst, height_dst,
+                                                      hdc_src, x_src, y_src, width_src,
+@@ -1973,9 +1997,23 @@
+                                            hdc_src, x_src, y_src, width_src,
+                                            height_src, rop ))
+         return FALSE;
+-    return NtGdiStretchBlt( hdc, x_dst, y_dst, width_dst, height_dst,
+-                            hdc_src, x_src, y_src, width_src,
+-                            height_src, rop, 0 /* FIXME */ );
++    if (width_dst >= 320 && height_dst >= 240)
++    {
++        saved_error = GetLastError();
++        if ((begin = cyder_gdi_profile_begin())) window = NtUserWindowFromDC(hdc);
++        SetLastError(saved_error);
++    }
++    result = NtGdiStretchBlt( hdc, x_dst, y_dst, width_dst, height_dst,
++                            hdc_src, x_src, y_src, width_src, height_src,
++                            rop, 0 /* FIXME */ );
++    if (window)
++    {
++        saved_error = GetLastError();
++        cyder_gdi_profile_record(window, hdc, x_dst, y_dst, width_dst, height_dst,
++                width_src, height_src, rop, 2, begin, result);
++        SetLastError(saved_error);
++    }
++    return result;
+ }
+ 
+ /***********************************************************************
+--- a/dlls/gdi32/objects.c
++++ b/dlls/gdi32/objects.c
+@@ -136,8 +136,11 @@
+  *
+  * GDI initialization.
+  */
++void cyder_gdi_profile_close(void);
++
+ BOOL WINAPI DllMain( HINSTANCE inst, DWORD reason, LPVOID reserved )
+ {
++    if (reason == DLL_PROCESS_DETACH) cyder_gdi_profile_close();
+     if (reason != DLL_PROCESS_ATTACH) return TRUE;
+ 
+     DisableThreadLibraryCalls( inst );
+--- /dev/null
++++ b/dlls/gdi32/cyder_gdi_profile.h
+@@ -0,0 +1,115 @@
++/* Opt-in GDI window blit submissions; never display/GPU completion. */
++#ifndef CYDER_GDI_PROFILE_H
++#define CYDER_GDI_PROFILE_H
++#include <stdio.h>
++#include <stdint.h>
++static INIT_ONCE cyder_gdi_profile_once = INIT_ONCE_STATIC_INIT;
++static SRWLOCK cyder_gdi_profile_lock = SRWLOCK_INIT;
++static HANDLE cyder_gdi_profile_file = INVALID_HANDLE_VALUE;
++static char cyder_gdi_profile_buffer[32768];
++static DWORD cyder_gdi_profile_used;
++
++static BOOL cyder_gdi_profile_write(const char *data, DWORD size)
++{
++    DWORD done;
++    if (cyder_gdi_profile_file == INVALID_HANDLE_VALUE) return FALSE;
++    if (WriteFile(cyder_gdi_profile_file, data, size, &done, NULL) && done == size) return TRUE;
++    ERR("CYDER_GDI_PROFILE write failed; capture incomplete.\n");
++    CloseHandle(cyder_gdi_profile_file);
++    cyder_gdi_profile_file = INVALID_HANDLE_VALUE;
++    cyder_gdi_profile_used = 0;
++    return FALSE;
++}
++
++static BOOL CALLBACK cyder_gdi_profile_init(INIT_ONCE *once, void *parameter, void **context)
++{
++    char dir[MAX_PATH], path[MAX_PATH], header[512];
++    LARGE_INTEGER before, after, frequency;
++    ULARGE_INTEGER wall;
++    FILETIME ft;
++    DWORD length;
++    int size;
++    (void)once; (void)parameter; (void)context;
++    length = GetEnvironmentVariableA("CYDER_GDI_PROFILE_DIR", dir, sizeof(dir));
++    if (!length || length >= sizeof(dir) - 48) return TRUE;
++    snprintf(path, sizeof(path), "%s\\gdi-present-%08lx.csv", dir, GetCurrentProcessId());
++    cyder_gdi_profile_file = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_READ, NULL,
++            CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
++    if (cyder_gdi_profile_file == INVALID_HANDLE_VALUE)
++    {
++        ERR("CYDER_GDI_PROFILE cannot exclusively create capture.\n");
++        return TRUE;
++    }
++    QueryPerformanceFrequency(&frequency);
++    QueryPerformanceCounter(&before);
++    GetSystemTimePreciseAsFileTime(&ft);
++    QueryPerformanceCounter(&after);
++    wall.LowPart = ft.dwLowDateTime; wall.HighPart = ft.dwHighDateTime;
++    size = snprintf(header, sizeof(header),
++            "# CYDER_GDI_PROFILE frequency=%llu anchor_qpc=%llu anchor_epoch_ns=%llu windows_pid=%lu\n"
++            "begin_qpc,end_qpc,thread_id,surface,left,top,width,height,primary_width,primary_height,hresult,api,src_width,src_height,stretch_mode,rop\n",
++            (unsigned long long)frequency.QuadPart,
++            (unsigned long long)(before.QuadPart + (after.QuadPart - before.QuadPart) / 2),
++            (unsigned long long)((wall.QuadPart - 116444736000000000ULL) * 100), GetCurrentProcessId());
++    if (size <= 0 || (size_t)size >= sizeof(header))
++    {
++        CloseHandle(cyder_gdi_profile_file);
++        cyder_gdi_profile_file = INVALID_HANDLE_VALUE;
++        return TRUE;
++    }
++    cyder_gdi_profile_write(header, size);
++    return TRUE;
++}
++
++static uint64_t cyder_gdi_profile_begin(void)
++{
++    LARGE_INTEGER time;
++    InitOnceExecuteOnce(&cyder_gdi_profile_once, cyder_gdi_profile_init, NULL, NULL);
++    if (cyder_gdi_profile_file == INVALID_HANDLE_VALUE) return 0;
++    QueryPerformanceCounter(&time);
++    return time.QuadPart;
++}
++
++static void cyder_gdi_profile_record(HWND window, HDC dc, int x, int y, int width, int height,
++        int src_width, int src_height, DWORD rop, unsigned api, uint64_t begin, BOOL success)
++{
++    LARGE_INTEGER end;
++    RECT client = {0};
++    char row[256];
++    int size;
++    if (!begin || !window) return;
++    QueryPerformanceCounter(&end);
++    NtUserGetClientRect(window, &client, 0);
++    size = snprintf(row, sizeof(row), "%llu,%llu,%lu,%p,%d,%d,%d,%d,%ld,%ld,%d,%u,%d,%d,%d,%lu\n",
++            (unsigned long long)begin, (unsigned long long)end.QuadPart, GetCurrentThreadId(), window,
++            x, y, width, height, client.right - client.left, client.bottom - client.top,
++            success ? 0 : -1, api, src_width, src_height, GetStretchBltMode(dc), rop);
++    if (size <= 0 || (size_t)size >= sizeof(row)) return;
++    AcquireSRWLockExclusive(&cyder_gdi_profile_lock);
++    if (cyder_gdi_profile_file != INVALID_HANDLE_VALUE)
++    {
++        if (cyder_gdi_profile_used + size > sizeof(cyder_gdi_profile_buffer))
++        {
++            if (!cyder_gdi_profile_write(cyder_gdi_profile_buffer, cyder_gdi_profile_used))
++                goto done;
++            cyder_gdi_profile_used = 0;
++        }
++        memcpy(cyder_gdi_profile_buffer + cyder_gdi_profile_used, row, size);
++        cyder_gdi_profile_used += size;
++    }
++done:
++    ReleaseSRWLockExclusive(&cyder_gdi_profile_lock);
++}
++
++/* DLL_PROCESS_DETACH: other process threads may already be gone holding locks.
++ * Do not acquire a lock or allocate here. Incomplete records are never counted. */
++void cyder_gdi_profile_close(void)
++{
++    if (cyder_gdi_profile_file == INVALID_HANDLE_VALUE) return;
++    if (cyder_gdi_profile_used)
++        cyder_gdi_profile_write(cyder_gdi_profile_buffer, cyder_gdi_profile_used);
++    if (cyder_gdi_profile_file != INVALID_HANDLE_VALUE) CloseHandle(cyder_gdi_profile_file);
++    cyder_gdi_profile_file = INVALID_HANDLE_VALUE;
++    cyder_gdi_profile_used = 0;
++}
++#endif

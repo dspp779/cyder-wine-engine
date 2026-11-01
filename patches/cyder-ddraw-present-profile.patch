@@ -1,0 +1,191 @@
+ddraw: Add opt-in buffered primary update submission timestamps.
+
+Preserves caller LastError and original HRESULT; never GPU completion or scanout.
+
+--- a/dlls/ddraw/surface.c
++++ b/dlls/ddraw/surface.c
+@@ -25,6 +25,7 @@
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(ddraw);
+ WINE_DECLARE_DEBUG_CHANNEL(fps);
++#include "cyder_ddraw_profile.h"
+ 
+ static struct ddraw_surface *unsafe_impl_from_IDirectDrawSurface2(IDirectDrawSurface2 *iface);
+ static struct ddraw_surface *unsafe_impl_from_IDirectDrawSurface3(IDirectDrawSurface3 *iface);
+@@ -62,7 +63,34 @@
+  * applications from drawing to the screen while we've locked the frontbuffer.
+  * We'd like to do this in wined3d instead, but for that to work wined3d needs
+  * to support windowless rendering first. */
++static HRESULT cyder_ddraw_update_frontbuffer_impl(struct ddraw_surface *surface,
++        const RECT *rect, BOOL read, unsigned int swap_interval);
++
+ HRESULT ddraw_surface_update_frontbuffer(struct ddraw_surface *surface,
++        const RECT *rect, BOOL read, unsigned int swap_interval)
++{
++    BOOL primary_write = !read && (surface->surface_desc.ddsCaps.dwCaps & DDSCAPS_PRIMARYSURFACE);
++    BOOL swapped = surface->ddraw->flags & DDRAW_SWAPPED;
++    uint64_t begin = 0;
++    DWORD error;
++    HRESULT hr;
++    if (primary_write)
++    {
++        error = GetLastError();
++        begin = cyder_ddraw_profile_begin();
++        SetLastError(error);
++    }
++    hr = cyder_ddraw_update_frontbuffer_impl(surface, rect, read, swap_interval);
++    if (begin)
++    {
++        error = GetLastError();
++        cyder_ddraw_profile_record(surface, swapped ? NULL : rect, begin, hr);
++        SetLastError(error);
++    }
++    return hr;
++}
++
++static HRESULT cyder_ddraw_update_frontbuffer_impl(struct ddraw_surface *surface,
+         const RECT *rect, BOOL read, unsigned int swap_interval)
+ {
+     struct wined3d_texture *dst_texture, *wined3d_texture;
+--- a/dlls/ddraw/main.c
++++ b/dlls/ddraw/main.c
+@@ -29,6 +29,8 @@
+ #include "winreg.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(ddraw);
++
++void cyder_ddraw_profile_close(void);
+ 
+ /* hack for WA/WWP/Diablo */
+ int use_desktop_hack = 0;
+@@ -930,6 +932,7 @@
+     }
+ 
+     case DLL_PROCESS_DETACH:
++        cyder_ddraw_profile_close();
+         if (WARN_ON(ddraw))
+         {
+             struct ddraw *ddraw;
+--- /dev/null
++++ b/dlls/ddraw/cyder_ddraw_profile.h
+@@ -0,0 +1,120 @@
++/* Opt-in DirectDraw primary update submissions; never display/GPU completion. */
++#ifndef CYDER_DDRAW_PROFILE_H
++#define CYDER_DDRAW_PROFILE_H
++#include <stdio.h>
++#include <stdint.h>
++static INIT_ONCE cyder_ddraw_profile_once = INIT_ONCE_STATIC_INIT;
++static SRWLOCK cyder_ddraw_profile_lock = SRWLOCK_INIT;
++static HANDLE cyder_ddraw_profile_file = INVALID_HANDLE_VALUE;
++static char cyder_ddraw_profile_buffer[32768];
++static DWORD cyder_ddraw_profile_used;
++
++static BOOL cyder_ddraw_profile_write(const char *data, DWORD size)
++{
++    DWORD done;
++    if (cyder_ddraw_profile_file == INVALID_HANDLE_VALUE) return FALSE;
++    if (WriteFile(cyder_ddraw_profile_file, data, size, &done, NULL) && done == size) return TRUE;
++    ERR("CYDER_DDRAW_PROFILE write failed; capture incomplete.\n");
++    CloseHandle(cyder_ddraw_profile_file);
++    cyder_ddraw_profile_file = INVALID_HANDLE_VALUE;
++    cyder_ddraw_profile_used = 0;
++    return FALSE;
++}
++
++static BOOL CALLBACK cyder_ddraw_profile_init(INIT_ONCE *once, void *parameter, void **context)
++{
++    char dir[MAX_PATH], path[MAX_PATH], header[512];
++    LARGE_INTEGER before, after, frequency;
++    ULARGE_INTEGER wall;
++    FILETIME ft;
++    DWORD length;
++    int size;
++    (void)once; (void)parameter; (void)context;
++    length = GetEnvironmentVariableA("CYDER_DDRAW_PROFILE_DIR", dir, sizeof(dir));
++    if (!length || length >= sizeof(dir) - 48) return TRUE;
++    snprintf(path, sizeof(path), "%s\\ddraw-present-%08lx.csv", dir, GetCurrentProcessId());
++    cyder_ddraw_profile_file = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_READ, NULL,
++            CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
++    if (cyder_ddraw_profile_file == INVALID_HANDLE_VALUE)
++    {
++        ERR("CYDER_DDRAW_PROFILE cannot exclusively create capture.\n");
++        return TRUE;
++    }
++    QueryPerformanceFrequency(&frequency);
++    QueryPerformanceCounter(&before);
++    GetSystemTimePreciseAsFileTime(&ft);
++    QueryPerformanceCounter(&after);
++    wall.LowPart = ft.dwLowDateTime; wall.HighPart = ft.dwHighDateTime;
++    size = snprintf(header, sizeof(header),
++            "# CYDER_DDRAW_PROFILE frequency=%llu anchor_qpc=%llu anchor_epoch_ns=%llu windows_pid=%lu\n"
++            "begin_qpc,end_qpc,thread_id,surface,left,top,width,height,primary_width,primary_height,hresult\n",
++            (unsigned long long)frequency.QuadPart,
++            (unsigned long long)(before.QuadPart + (after.QuadPart - before.QuadPart) / 2),
++            (unsigned long long)((wall.QuadPart - 116444736000000000ULL) * 100), GetCurrentProcessId());
++    if (size <= 0 || (size_t)size >= sizeof(header))
++    {
++        CloseHandle(cyder_ddraw_profile_file);
++        cyder_ddraw_profile_file = INVALID_HANDLE_VALUE;
++        return TRUE;
++    }
++    cyder_ddraw_profile_write(header, size);
++    return TRUE;
++}
++
++static uint64_t cyder_ddraw_profile_begin(void)
++{
++    LARGE_INTEGER time;
++    InitOnceExecuteOnce(&cyder_ddraw_profile_once, cyder_ddraw_profile_init, NULL, NULL);
++    if (cyder_ddraw_profile_file == INVALID_HANDLE_VALUE) return 0;
++    QueryPerformanceCounter(&time);
++    return time.QuadPart;
++}
++
++static void cyder_ddraw_profile_record(struct ddraw_surface *surface, const RECT *rect,
++        uint64_t begin, HRESULT hr)
++{
++    LARGE_INTEGER end;
++    RECT full;
++    char row[256];
++    int size;
++    if (!begin) return;
++    QueryPerformanceCounter(&end);
++    if (!rect)
++    {
++        SetRect(&full, 0, 0, surface->surface_desc.dwWidth, surface->surface_desc.dwHeight);
++        rect = &full;
++    }
++    if (IsRectEmpty(rect)) return;
++    size = snprintf(row, sizeof(row), "%llu,%llu,%lu,%p,%ld,%ld,%ld,%ld,%lu,%lu,%ld\n",
++            (unsigned long long)begin, (unsigned long long)end.QuadPart, GetCurrentThreadId(), surface,
++            rect->left, rect->top, rect->right - rect->left, rect->bottom - rect->top,
++            surface->surface_desc.dwWidth, surface->surface_desc.dwHeight, (long)hr);
++    if (size <= 0 || (size_t)size >= sizeof(row)) return;
++    AcquireSRWLockExclusive(&cyder_ddraw_profile_lock);
++    if (cyder_ddraw_profile_file != INVALID_HANDLE_VALUE)
++    {
++        if (cyder_ddraw_profile_used + size > sizeof(cyder_ddraw_profile_buffer))
++        {
++            if (!cyder_ddraw_profile_write(cyder_ddraw_profile_buffer, cyder_ddraw_profile_used))
++                goto done;
++            cyder_ddraw_profile_used = 0;
++        }
++        memcpy(cyder_ddraw_profile_buffer + cyder_ddraw_profile_used, row, size);
++        cyder_ddraw_profile_used += size;
++    }
++done:
++    ReleaseSRWLockExclusive(&cyder_ddraw_profile_lock);
++}
++
++/* DLL_PROCESS_DETACH: other process threads may already be gone holding locks.
++ * Do not acquire a lock or allocate here. Incomplete records are never counted. */
++void cyder_ddraw_profile_close(void)
++{
++    if (cyder_ddraw_profile_file == INVALID_HANDLE_VALUE) return;
++    if (cyder_ddraw_profile_used)
++        cyder_ddraw_profile_write(cyder_ddraw_profile_buffer, cyder_ddraw_profile_used);
++    if (cyder_ddraw_profile_file != INVALID_HANDLE_VALUE) CloseHandle(cyder_ddraw_profile_file);
++    cyder_ddraw_profile_file = INVALID_HANDLE_VALUE;
++    cyder_ddraw_profile_used = 0;
++}
++#endif

@@ -492,3 +492,38 @@ normal snapshot ordering is unchanged and unknown children are not attached.
 `tests/test-winemac-missing-order-anchor.sh` executes the actual Objective-C
 method before/after application, exercises above/below, missing/self/unknown
 anchors, and verifies patch reversal. Marker: `Use Cocoa's back-to-front child`.
+
+### DirectDraw primary submission profiling
+
+`cyder-ddraw-present-profile.patch` follows the window diagnostics. It changes no
+renderer policy and remains disabled unless `CYDER_DDRAW_PROFILE_DIR` names an
+existing private directory in Windows syntax. Each process exclusively creates
+`ddraw-present-<Windows PID>.csv`, with QPC / UTC clock anchors, thread and primary
+surface identity, rectangles, HRESULT, and API entry/return timestamps. Reads and
+non-primary surfaces are excluded. Output is buffered and the final tail is
+flushed on DLL process detach. A write failure invalidates the capture.
+
+These are DirectDraw update submissions, not necessarily one logical game frame,
+GPU completion or display scanout. A game must first establish which rectangles
+and surfaces correspond to full-image updates. Split clip rectangles, failed
+updates, mixed threads/surfaces and uncovered time windows cannot silently become
+FPS or frame-time samples. Use a separate runtime and measure probe overhead.
+
+`cyder-gdi-window-blit-profile.patch` similarly records large BitBlt (api=1) and
+StretchBlt (api=2) submissions to window DCs when `CYDER_GDI_PROFILE_DIR` is set.
+It adds source/destination sizes, stretch mode and ROP. Here `surface` identifies
+the destination HWND and `primary_width/height` mean target client dimensions.
+Large memory-DC work is excluded. The default path reads no clock or output file.
+Validate a single target HWND/thread/rectangle before treating it as an image
+submission stream; this still does not measure scanout or GPU completion.
+
+### Experimental BlueCG final bitmap filter
+
+`cyder-bluecg-final-blit-halftone.patch` follows GDI profiling. Disabled by
+default; `CYDER_BLUECG_BLIT_FILTER=halftone` only applies in `bluecg.exe`,
+to an enlarged/reduced SRCCOPY StretchBlt covering its own complete client.
+Memory DCs, partial rectangles, printing and EMF recording are excluded.
+HALFTONE and brush origin zero are temporary; caller DC state and the underlying
+API return/LastError are preserved, including failure. This is a CPU GDI filter,
+not GPU sampling or a global renderer policy. Use an isolated test runtime;
+performance and game-level image quality must be measured before adoption.
