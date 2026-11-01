@@ -527,3 +527,14 @@ HALFTONE and brush origin zero are temporary; caller DC state and the underlying
 API return/LastError are preserved, including failure. This is a CPU GDI filter,
 not GPU sampling or a global renderer policy. Use an isolated test runtime;
 performance and game-level image quality must be measured before adoption.
+
+### Experimental BlueCG GPU final bitmap presenter
+
+`cyder-bluecg-final-blit-gpu.patch` follows the HALFTONE experiment and is disabled
+by default. Its opt-in hook loads the separately built helper only for the
+verified BlueCG full-window 961×721 source route. The original and HALFTONE paths
+remain available in the same runtime. The helper owns an input-transparent GL
+child, stages a top-down copy, uploads a reusable texture and samples linearly.
+Original-size/failing GDI output hides it; child destruction releases resources.
+See `tools/bluecg-gpu-blit/README.md` for setup and measurement limits. No normal
+engine install/pack or CompatDB policy includes the helper automatically.
