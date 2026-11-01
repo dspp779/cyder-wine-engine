@@ -375,6 +375,11 @@ apply_cyder_patch() {
     echo "+ patch -d $WINE_SRC -p1 < $patch_file"
     return 0
   fi
+  if [[ "$(basename "$patch_file")" == "cyder-winemac-missing-order-anchor.patch" ]] &&
+     grep -Fq "Use Cocoa's back-to-front child" "$WINE_SRC/dlls/winemac.drv/cocoa_window.m"; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
+    return 0
+  fi
   if patch --forward --batch --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
     patch --forward --batch -s -d "$WINE_SRC" -p1 < "$patch_file"
     echo "Applied $(basename "$patch_file")"
@@ -522,6 +527,7 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/wine-winemac-hide-client-view-on-gdi-flush.patch"
   apply_cyder_patch "$OGOM/patches/cyder-winemac-reattach-hidden-gl-client-view.patch"
   apply_cyder_patch "$OGOM/patches/cyder-winemac-surface-profile.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-winemac-missing-order-anchor.patch"
   apply_cyder_patch "$OGOM/patches/cyder-kernelbase-disk-free-space-fallback.patch"
   apply_cyder_patch "$OGOM/patches/wine-winemac-initialize-style-masks.patch"
   apply_cyder_patch "$OGOM/patches/wine-win32u-full-client-visible-rect.patch"

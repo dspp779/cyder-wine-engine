@@ -1,0 +1,33 @@
+From: Cyder Engine <cyder@local>
+Subject: winemac: Use Cocoa sibling order when the window-server anchor is absent.
+
+Native fullscreen transitions can omit an otherwise valid Cocoa sibling from
+windowNumbersWithOptions:.  Inserting at NSNotFound throws NSRangeException,
+unwinds PerformRequest, and can strand pending synchronous OnMainThread calls.
+Preserve sibling ordering using the parent's back-to-front children in this case.
+Keep the normal window-server path unchanged, and do not attach unknown children.
+
+--- a/dlls/winemac.drv/cocoa_window.m
++++ b/dlls/winemac.drv/cocoa_window.m
+@@ -1704,6 +1704,21 @@
+         if (other)
+         {
+             otherIndex = [windowNumbers indexOfObject:[NSNumber numberWithInteger:[other windowNumber]]];
++            if (otherIndex == NSNotFound)
++            {
++                /* A native fullscreen transition can omit a sibling from the
++                 * window-server snapshot.  Use Cocoa's back-to-front child
++                 * order rather than inserting at NSNotFound. */
++                origChildren = [self childWineWindows];
++                if (![origChildren containsObject:child]) return;
++                children = [[origChildren mutableCopy] autorelease];
++                [children removeObjectIdenticalTo:child];
++                otherIndex = [children indexOfObjectIdenticalTo:other];
++                if (otherIndex == NSNotFound) return;
++                [children insertObject:child atIndex:otherIndex + (mode == NSWindowAbove ? 1 : 0)];
++                [self setChildWineWindows:children];
++                return;
++            }
+             [windowNumbers insertObject:childWindowNumber atIndex:otherIndex + (mode == NSWindowAbove ? 0 : 1)];
+         }
+         else if (mode == NSWindowAbove)
