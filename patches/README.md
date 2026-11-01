@@ -516,3 +516,14 @@ the destination HWND and `primary_width/height` mean target client dimensions.
 Large memory-DC work is excluded. The default path reads no clock or output file.
 Validate a single target HWND/thread/rectangle before treating it as an image
 submission stream; this still does not measure scanout or GPU completion.
+
+### Experimental BlueCG final bitmap filter
+
+`cyder-bluecg-final-blit-halftone.patch` follows GDI profiling. Disabled by
+default; `CYDER_BLUECG_BLIT_FILTER=halftone` only applies in `bluecg.exe`,
+to an enlarged/reduced SRCCOPY StretchBlt covering its own complete client.
+Memory DCs, partial rectangles, printing and EMF recording are excluded.
+HALFTONE and brush origin zero are temporary; caller DC state and the underlying
+API return/LastError are preserved, including failure. This is a CPU GDI filter,
+not GPU sampling or a global renderer policy. Use an isolated test runtime;
+performance and game-level image quality must be measured before adoption.

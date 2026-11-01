@@ -39,6 +39,7 @@
     "cyder-winemac-missing-order-anchor.patch",
     "cyder-ddraw-present-profile.patch",
     "cyder-gdi-window-blit-profile.patch",
+    "cyder-bluecg-final-blit-halftone.patch",
     "cyder-kernelbase-disk-free-space-fallback.patch",
     "wine-winemac-initialize-style-masks.patch",
     "wine-win32u-full-client-visible-rect.patch",

@@ -544,6 +544,7 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/cyder-winemac-missing-order-anchor.patch"
   apply_cyder_patch "$OGOM/patches/cyder-ddraw-present-profile.patch"
   apply_cyder_patch "$OGOM/patches/cyder-gdi-window-blit-profile.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-bluecg-final-blit-halftone.patch"
   apply_cyder_patch "$OGOM/patches/cyder-kernelbase-disk-free-space-fallback.patch"
   apply_cyder_patch "$OGOM/patches/wine-winemac-initialize-style-masks.patch"
   apply_cyder_patch "$OGOM/patches/wine-win32u-full-client-visible-rect.patch"
