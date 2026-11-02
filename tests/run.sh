@@ -15,6 +15,7 @@ tests=(
   test-cyder-cxcompatdb.sh
   test-cyder-minos-env.sh
   test-ntdll-frame-walk-patches.sh
+  test-pe-release-gate.sh
   test-strip-wine-install.sh
   test-sign-wine.sh
   test-sign-wine-preserve-developer-id.sh
@@ -51,3 +52,5 @@ for test_file in "${tests[@]}"; do
 done
 
 python3 "$ROOT/tests/test-graphics-signing.py"
+
+python3 "$ROOT/tests/test-pe-signing.py"

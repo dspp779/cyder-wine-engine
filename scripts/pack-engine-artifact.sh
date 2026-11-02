@@ -57,6 +57,9 @@ Build a compressed engine artifact from install/wine-cx26-x86_64 (or WINE_INSTAL
   zstd: dist/artifacts/engine-<CX26-winever>.tar.zst (--zstd)
 Set CYDER_ENGINE_VERSION to override the detected version label.
 Set CYDER_ENGINE_FORMAT=zstd or pass --zstd to build with zstd -22 --ultra.
+PE Authenticode is optional: CYDER_PE_SIGNING=off (default), or required to
+sign reviewed PE and enforce the independent Authenticode release gate.
+Apple Developer ID signing remains controlled by SIGN_IDENTITY.
 The default media profile is full-video; use --media-profile minimal only for
 an explicitly reduced/non-video engine build.
 EOF
@@ -148,6 +151,23 @@ ARCHIVE="$(cyder_engine_archive_path_for_format "$ENGINE_VERSION" "$ARTIFACTS_DI
 VERSION_FILE="$ARTIFACTS_DIR/engine-version.txt"
 STAMP_FILE="$ARTIFACTS_DIR/.pack-stamp"
 
+# PE Authenticode is an explicit opt-in, independent of Apple Developer ID.
+PE_SIGNING_ENABLED=0
+PE_PROVENANCE_SHA256=""
+case "${CYDER_PE_SIGNING:-off}" in
+  off) ;;
+  required) PE_SIGNING_ENABLED=1 ;;
+  *) echo "Invalid CYDER_PE_SIGNING (expected off or required)" >&2; exit 1 ;;
+esac
+if [[ "$PE_SIGNING_ENABLED" -eq 1 ]]; then
+  : "${CYDER_PE_SIGNING_POLICY:?Set a reviewed PE signing policy when CYDER_PE_SIGNING=required}"
+  python3 "$SCRIPT_DIR/pe-signing.py" preflight --policy "$CYDER_PE_SIGNING_POLICY"
+  if [[ -e "$ARCHIVE" && "$DRY_RUN" -ne 1 ]]; then
+    echo "Refusing to reuse/overwrite a PE-signed engine archive; choose a new engine version label." >&2
+    exit 1
+  fi
+fi
+
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "DRY RUN: would pack separate DXVK/DXMT graphics payloads"
 else
@@ -180,6 +200,7 @@ echo "==> Embedding GStreamer media profile $MEDIA_PROFILE from $MEDIA_INSTALL"
 rsync -a --delete \
   --exclude 'lib64/apple_gptk' \
   --exclude 'apple_gptk' \
+  --exclude '/cyder-pe-provenance.json' \
   --exclude 'lib/dxvk' \
   --exclude 'lib/dxvk2' \
   --exclude 'lib/dxmt' \
@@ -282,6 +303,11 @@ if [[ "$ENGINE_VERSION_LABEL" == *Cyder008* || "$ENGINE_VERSION_LABEL" == *Cyder
 elif [[ "$ENGINE_VERSION_LABEL" == *Cyder012* || "$ENGINE_VERSION_LABEL" == *Cyder01[3-9]* || "$ENGINE_VERSION_LABEL" == *Cyder0[2-9]* ]]; then
   cyder_validate_moltenvk_dual_layout "$ENGINE_TREE/lib/wine/x86_64-unix" || exit 1
 fi
+# Strip/bundle first, then PE-sign staging only, before final hashes/manifests.
+if [[ "$PE_SIGNING_ENABLED" -eq 1 && "$DRY_RUN" -ne 1 ]]; then
+  python3 "$SCRIPT_DIR/pe-signing.py" prepare --root "$ENGINE_TREE" --policy "$CYDER_PE_SIGNING_POLICY"
+  PE_PROVENANCE_SHA256="$(shasum -a 256 "$ENGINE_TREE/cyder-pe-provenance.json" | awk '{print $1}')"
+fi
 bash "$SCRIPT_DIR/sign-wine.sh" --root "$ENGINE_TREE" --entitlements "$ENTITLEMENTS_PLIST"
 
 PACKED_CXCOMPATDB="$ENGINE_TREE/lib/wine/x86_64-unix/cxcompatdb.so"
@@ -305,7 +331,8 @@ NTDLL_SHA256="$(shasum -a 256 "$NTDLL" | awk '{print $1}')"
 bash "$SCRIPT_DIR/write-engine-manifest.sh" \
   --output "$ENGINE_TREE/engine-manifest.json" \
   --version "$ENGINE_VERSION_LABEL" \
-  --ntdll-sha256 "$NTDLL_SHA256"
+  --ntdll-sha256 "$NTDLL_SHA256" \
+  --pe-provenance-sha256 "$PE_PROVENANCE_SHA256"
 
 mkdir -p "$ARTIFACTS_DIR"
 if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -344,6 +371,10 @@ case "$FORMAT" in
     tar -xJf "$ARCHIVE" -C "$VERIFY_ROOT"
     ;;
 esac
+if [[ "$PE_SIGNING_ENABLED" -eq 1 ]]; then
+  test "$(shasum -a 256 "$VERIFY_ROOT/wine-x86_64/cyder-pe-provenance.json" | awk '{print $1}')" = "$PE_PROVENANCE_SHA256"
+  python3 "$SCRIPT_DIR/pe-signing.py" verify --root "$VERIFY_ROOT/wine-x86_64" --policy "$CYDER_PE_SIGNING_POLICY"
+fi
 verified_macho=0
 while IFS= read -r -d '' signed_path; do
   if file -b "$signed_path" | grep -q 'Mach-O'; then
@@ -372,6 +403,7 @@ bash "$SCRIPT_DIR/write-engine-manifest.sh" \
   --output "${ARCHIVE}.manifest.json" \
   --version "$ENGINE_VERSION_LABEL" \
   --ntdll-sha256 "$NTDLL_SHA256" \
+  --pe-provenance-sha256 "$PE_PROVENANCE_SHA256" \
   --artifact "$(basename "$ARCHIVE")" \
   --artifact-sha256 "$ARTIFACT_SHA256"
 
