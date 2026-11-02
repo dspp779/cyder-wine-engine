@@ -1,0 +1,30 @@
+From: Cyder Engine <cyder@local>
+Subject: winemac: Explicitly restore miniaturized windows for Accessibility.
+
+Win32 iconic geometry can clear the Cocoa Miniaturizable style after the
+minimize request.  On macOS 27 the inherited AXMinimized=false setter then
+returns success without calling deminiaturize: or notifying Win32.
+Use the existing native deminiaturize/notification path only for a real
+AX restore of a miniaturized window.  Delegate minimize and no-op requests
+to AppKit, preserving its validation.  No renderer or game-specific policy.
+
+--- a/dlls/winemac.drv/cocoa_window.m
++++ b/dlls/winemac.drv/cocoa_window.m
+@@ -2763,6 +2763,17 @@
+         [self sendEditMenuCommand:EDIT_COMMAND_UNDO];
+     }
+ 
++    - (void) setAccessibilityMinimized:(BOOL)minimized
++    {
++        /* Explicit AX unminimize uses Cocoa's restore path.  Win32 can remove
++         * the miniaturizable style while iconic, making AppKit's inherited
++         * accessibility setter silently ignore an otherwise valid restore. */
++        if (!minimized && [self isMiniaturized])
++            [self deminiaturize:nil];
++        else
++            [super setAccessibilityMinimized:minimized];
++    }
++
+     - (void) miniaturize:(id)sender
+     {
+         /* When Stage Manager is enabled, miniaturize: just moves the app/window to
