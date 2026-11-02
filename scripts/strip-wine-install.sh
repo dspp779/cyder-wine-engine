@@ -147,6 +147,11 @@ if [[ "${CYDER_KEEP_DEBUG_SYMBOLS:-}" != "1" ]]; then
   llvm_strip="$(find_llvm_tool llvm-strip 2>/dev/null || true)"
   llvm_objdump="$(find_llvm_tool llvm-objdump 2>/dev/null || true)"
   if [[ -n "$llvm_strip" && -n "$llvm_objdump" ]]; then
+    # Existing Authenticode is never stripped, even if debug sections remain.
+    # Build the entire candidate list first so malformed PE headers fail closed.
+    candidates="$(mktemp "${TMPDIR:-/tmp}/cyder-pe-strip.XXXXXX")"
+    trap 'rm -f "$candidates"' EXIT
+    python3 "$SCRIPT_DIR/pe-signing.py" strip-candidates --root "$WINE_ROOT" >"$candidates"
     while IFS= read -r -d '' f; do
       # Inspect before modifying so an already stripped OEM engine remains
       # byte-for-byte untouched (and keeps any existing code signature).
@@ -160,7 +165,7 @@ if [[ "${CYDER_KEEP_DEBUG_SYMBOLS:-}" != "1" ]]; then
       fi
     # Do not filter by extension: Wine also ships PE .sys, .drv, .ocx, .cpl,
     # .acm, .ax and legacy .exe16 modules with the same DWARF sections.
-    done < <(find "$WINE_ROOT/lib/wine" -path '*-windows/*' -type f -print0 2>/dev/null)
+    done <"$candidates"
   else
     echo "Warning: llvm-strip/llvm-objdump unavailable; retaining PE debug symbols" >&2
   fi

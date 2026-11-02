@@ -15,6 +15,7 @@ tests=(
   test-cyder-cxcompatdb.sh
   test-cyder-minos-env.sh
   test-ntdll-frame-walk-patches.sh
+  test-pe-release-gate.sh
   test-strip-wine-install.sh
   test-sign-wine.sh
   test-sign-wine-preserve-developer-id.sh
@@ -69,3 +70,5 @@ python3 "$ROOT/tests/test-test-runtime-kit.py"
 python3 "$ROOT/tests/test-dxmt-prefix-discovery.py"
 
 python3 "$ROOT/tests/test-game-soak.py"
+
+python3 "$ROOT/tests/test-pe-signing.py"
