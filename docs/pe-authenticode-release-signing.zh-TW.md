@@ -21,7 +21,7 @@
 6. 產生 `cyder-pe-provenance.json`，記錄審核政策 digest、每檔原始／最終 digest、大小及 action。PE 簽完才產生 ntdll hash／engine manifest。內部與 sidecar engine manifest 的 `peAuthenticode.sha256` 綁定 provenance；CyderBits 既有逐檔 inventory 會自然讀取簽署後內容，不能沿用舊 hash。
 7. tar 解壓往返後再比對 provenance digest、逐檔範圍／內容／簽署者／時間戳，全部通過才寫入版本與 checksum sidecar。既有 Mach-O 解壓後驗章仍執行。
 
-選用 PE 簽署時，archive 已存在即使 `--force` 亦拒絕重用／覆寫，必須選擇未使用的引擎標籤。新簽署會改變 PE hash 與 archive 身分，不能以相同標籤悄悄替換舊正式產物。預設 off 不新增這項限制，保留既有快取／`--force` 行為。本次沒有修改 canonical engine version 或發布任何標籤。壓縮／往返驗證失敗留下的候選 archive 不會有新成功 sidecar，須視為失敗候選處理，不得發布。
+選用 PE 簽署時，archive 已存在即使 `--force` 亦拒絕重用／覆寫，必須選擇未使用的引擎標籤。新簽署會改變 PE hash 與 archive 身分，不能以相同標籤悄悄替換舊正式產物。預設 off 不新增這項限制，保留既有快取／`--force` 行為。本次沒有修改 canonical engine version 或發布任何標籤。候選 archive 先寫入 artifacts 同一檔案系統的私有暫存目錄，通過往返驗證且 sidecar 全部生成後才發布；壓縮／驗章失敗會清除候選，既有 archive、checksum、manifest、版本與 stamp 保持原樣，不會讓下次快取重用失敗產物。archive 本身以同檔案系統 rename 原子替換；多個 sidecar 不是單一原子交易，發布中斷可能暫時出現 digest 不一致，消費端仍須檢查。
 
 ## 範圍與審核清單
 
@@ -125,3 +125,12 @@ CYDER_TEST_OPENSSL=/absolute/path/to/openssl \
 先不購買憑證、不啟用 paid signing、不更新正式 runtime。P3-01 保留可選受控實驗；P0-01 優先取得受影響樣本精確 hash／建置與 Bitdefender 隔離紀錄，P0-02 保留已補強的 runtime／prefix 關鍵檔案診斷，後續再設計只恢復受管理缺檔且遇重複隔離停止的受控修復。這些不依賴 Authenticode 採購，也不能宣稱已完成防毒誤報修復。
 
 本次可選化回歸：15 項 PE 核心測試全部通過（含既有本機工具的真實測試憑證 fixture）；可選模式 shell fixture 亦完成真正 tar/xz／內外 manifest 往返，僅以 stub 取代 Apple／graphics 簽署與環境相關階段，確認 default/off 在無 PE 憑證設定時能完成測試封裝、不複製陳舊 provenance、不宣告已驗章，且保留來源檔案與副本位元組。這不是實際 Developer ID 發行包驗收。strip、Apple 簽章與 Developer ID 保留、engine manifest、技能驗證及差異格式檢查通過。CyderBits 的 prefix／元件測試 34 cases／158 assertions、hook 與 AppKit 背景／取消／deadline 測試重跑通過；未變更 prefix 診斷程式。完整套件的既有 Wine config.h 前置缺口仍未補建，未宣稱全套通過。
+
+
+## PR #9 review 修正（2026-11-02）
+
+- **P1：未驗證產物的快取污染。** 原流程先直接覆寫正式 archive，之後才做解壓與驗章；新增的 PE gate 失敗會留下下一次 off／無 force 可重用的檔案，`--force` 的 Mach-O 驗章失敗也會破壞舊 archive。現已先在同一 artifacts 檔案系統的隱藏候選目錄壓縮、驗章並產生 sidecar，成功後才發布；失敗保留舊產物與標記。每個 archive 有原子 mkdir 的 publisher lock，取得鎖後再次核對是否已有產物，不能移除別的程序持有的鎖。中斷殘留鎖須先檢查持有者，禁止自動破鎖。
+- **P2：預設 strip 對合法連結的回歸。** 既有 `find -type f` 會略過連結，新 candidate helper 卻直接拒絕它們，使未選用 PE 簽署的引擎也無法打包。預設 strip 現在略過連結檔／目錄、不跟隨或寫入外部目標；required 的完整性政策仍拒絕 linked PE。
+- 補測試先重現上述失敗後再修正：PE 解壓驗章拒絕不留下最終 cache、Mach-O 往返拒絕不破壞先前 archive／所有 sidecar／版本／stamp、成功 force 產物與 digest 同步、他人持有 lock 時停止且不移除該鎖，以及外部 FIFO／連結目錄不被 strip 跟隨。完整 pack fixture 使用真實 tar/xz，僅 stub 簽署與環境階段；不是正式發行驗收。
+
+Review 後驗證：PE 核心 16 tests 全部通過（包含既有工具執行的真實測試憑證 fixture）；可選模式／候選失敗／force 回復／他人持鎖／成功發布的 shell 整合、strip、engine manifest 與 DXMT pack gate（含實際 zstd branch）通過，shell 語法與差異格式檢查通過。完整套件仍有前述 Wine config.h 前置限制，未重建引擎、未進行正式憑證或 Bitdefender 驗收。

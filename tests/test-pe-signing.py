@@ -239,6 +239,29 @@ class GateTests(unittest.TestCase):
         self.assertEqual(before, (self.stage / self.c).read_bytes())
         self.assertNotEqual((self.source / self.a).read_bytes(), (self.stage / self.a).read_bytes())
 
+    def test_default_strip_skips_linked_files_and_directories_without_following(self):
+        (self.stage / 'bin').mkdir()
+        wine = self.stage / 'bin/wine'
+        wine.write_text('#!/bin/sh\n'); wine.chmod(0o700)
+        outside = self.base / 'outside'
+        outside.mkdir()
+        fifo = outside / 'blocked.dll'; os.mkfifo(fifo)
+        source = self.stage / 'lib/wine/i386-windows'
+        (source / 'alias.dll').symlink_to(fifo)
+        (source / 'linked-directory').symlink_to(outside, target_is_directory=True)
+        tools = self.base / 'tools'; tools.mkdir()
+        strip = tools / 'llvm-strip'
+        strip.write_text('#!/bin/sh\nprintf changed >> "$2"\n'); strip.chmod(0o700)
+        objdump = tools / 'llvm-objdump'
+        objdump.write_text('#!/bin/sh\necho " 7 .debug_info 00000100"\n'); objdump.chmod(0o700)
+        result = subprocess.run(['bash', str(ROOT / 'scripts/strip-wine-install.sh'), str(self.stage)],
+                                env=dict(os.environ, CYDER_LLVM_STRIP=str(strip)), capture_output=True, timeout=5)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertTrue((source / 'alias.dll').is_symlink())
+        self.assertTrue((source / 'linked-directory').is_symlink())
+        # Opt-in signing still requires a concrete reviewed tree and rejects aliases.
+        with self.assertRaises(p.SigningError): p.inventory(self.stage)
+
     def test_real_crypto_rejects_missing_timestamp_and_wrong_leaf(self):
         tool = os.environ.get('CYDER_TEST_OSSLSIGNCODE')
         openssl = os.environ.get('CYDER_TEST_OPENSSL')

@@ -256,9 +256,11 @@ def main():
             require(args.root is not None, 'strip candidates need --root')
             candidates = []
             for directory in sorted((args.root / 'lib/wine').glob('*-windows')):
-                require(not directory.is_symlink(), 'linked PE directory')
+                if directory.is_symlink():
+                    continue  # Match find -type f: never traverse a linked PE tree.
                 for path in sorted(directory.rglob('*')):
-                    require(not path.is_symlink(), 'linked PE strip input')
+                    if path.is_symlink():
+                        continue  # Preserve aliases; never strip their external targets.
                     if path.is_dir():
                         continue
                     require(path.is_file(), 'special PE strip input')

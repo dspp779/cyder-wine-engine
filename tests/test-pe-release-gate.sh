@@ -69,6 +69,76 @@ root=pathlib.Path(sys.argv[1])
 for p in [root/'unpacked/wine-x86_64/engine-manifest.json',root/'artifacts/engine-wine-x86_64-fixture-new.tar.xz.manifest.json']:
     assert 'peAuthenticode' not in json.loads(p.read_text())
 PYTEST
+# A failed PE round-trip must not leave a final-path artifact for later cache reuse.
+cat >"$TEMP/project/scripts/pe-signing.py" <<'STUB'
+import pathlib,sys
+if sys.argv[1] == 'prepare':
+    root=pathlib.Path(sys.argv[sys.argv.index('--root')+1])
+    (root/'cyder-pe-provenance.json').write_text('{}')
+if sys.argv[1] == 'verify':
+    sys.exit(1)
+STUB
+if run_pack env CYDER_PE_SIGNING=required CYDER_PE_SIGNING_POLICY="$TEMP/policy.json" \
+  CYDER_ENGINE_VERSION_LABEL=fixture-rejected >"$TEMP/rejected.log" 2>&1; then
+  echo 'FAIL: injected PE round-trip rejection accepted' >&2; exit 1
+fi
+test ! -e "$TEMP/artifacts/engine-wine-x86_64-fixture-rejected.tar.xz"
+test ! -e "$TEMP/artifacts/engine-wine-x86_64-fixture-rejected.tar.xz.sha256"
+# A failed --force pack must retain the previous verified archive and sidecars.
+python3 - "$TEMP" <<'PYTEST'
+import hashlib,json,pathlib,sys
+root=pathlib.Path(sys.argv[1]);artifacts=root/'artifacts'
+paths=['engine-wine-x86_64-fixture-new.tar.xz'+suffix for suffix in ['', '.sha256', '.manifest.json']]+['engine-version.txt','.pack-stamp']
+json.dump({n:hashlib.sha256((artifacts/n).read_bytes()).hexdigest() for n in paths},open(root/'before-force.json','w'))
+PYTEST
+printf 'new candidate content\n' >"$TEMP/engine/lib/wine/x86_64-windows/upstream.dll"
+mkdir -p "$TEMP/reject-tools"
+printf '#!/bin/sh\necho Mach-O\n' >"$TEMP/reject-tools/file"
+printf '#!/bin/sh\nexit 1\n' >"$TEMP/reject-tools/codesign"
+chmod +x "$TEMP/reject-tools/file" "$TEMP/reject-tools/codesign"
+if env -u CYDER_PE_SIGNING SIGN_IDENTITY='Developer ID Application: Fixture' \
+  OGOM="$TEMP/project" WINE_INSTALL="$TEMP/engine" MEDIA_INSTALL="$TEMP/media" \
+  CYDER_ENGINE_MEDIA_PROFILE=minimal CYDER_ENGINE_VERSION_LABEL=fixture-new \
+  CYDER_ENGINE_ARTIFACTS_DIR="$TEMP/artifacts" CYDER_GRAPHICS_PACKAGE_REVISION=cyder.1 \
+  CYDER_TEST_GRAPHICS_CALLS="$TEMP/graphics-calls" PATH="$TEMP/reject-tools:$PATH" \
+  bash "$TEMP/project/scripts/pack-engine-artifact.sh" --force >"$TEMP/force-rejected.log" 2>&1; then
+  echo 'FAIL: injected Mach-O round-trip rejection accepted' >&2; exit 1
+fi
+python3 - "$TEMP" <<'PYTEST'
+import hashlib,json,pathlib,sys
+root=pathlib.Path(sys.argv[1]);before=json.load(open(root/'before-force.json'))
+for n,sha in before.items():
+    assert hashlib.sha256((root/'artifacts'/n).read_bytes()).hexdigest()==sha, n+' changed despite rejected candidate'
+assert not list((root/'artifacts').glob('.cyder-engine-publish.*'))
+PYTEST
+# A lock owned by another pack must remain intact and block publication.
+mkdir "$TEMP/artifacts/engine-wine-x86_64-fixture-locked.tar.xz.pack-lock"
+if run_pack env -u CYDER_PE_SIGNING CYDER_ENGINE_VERSION_LABEL=fixture-locked >"$TEMP/locked.log" 2>&1; then
+  echo 'FAIL: concurrent publisher was not blocked' >&2; exit 1
+fi
+rg -q 'pack lock needs inspection' "$TEMP/locked.log"
+test -d "$TEMP/artifacts/engine-wine-x86_64-fixture-locked.tar.xz.pack-lock"
+test ! -e "$TEMP/artifacts/engine-wine-x86_64-fixture-locked.tar.xz"
+rmdir "$TEMP/artifacts/engine-wine-x86_64-fixture-locked.tar.xz.pack-lock"
+# A successful --force can publish the changed candidate, with matching sidecars.
+env -u CYDER_PE_SIGNING SIGN_IDENTITY='Developer ID Application: Fixture' \
+  OGOM="$TEMP/project" WINE_INSTALL="$TEMP/engine" MEDIA_INSTALL="$TEMP/media" \
+  CYDER_ENGINE_MEDIA_PROFILE=minimal CYDER_ENGINE_VERSION_LABEL=fixture-new \
+  CYDER_ENGINE_ARTIFACTS_DIR="$TEMP/artifacts" CYDER_GRAPHICS_PACKAGE_REVISION=cyder.1 \
+  CYDER_TEST_GRAPHICS_CALLS="$TEMP/graphics-calls" \
+  bash "$TEMP/project/scripts/pack-engine-artifact.sh" --force >"$TEMP/force-success.log" 2>&1
+python3 - "$TEMP" <<'PYTEST'
+import hashlib,json,pathlib,sys,tarfile
+root=pathlib.Path(sys.argv[1]);archive=root/'artifacts/engine-wine-x86_64-fixture-new.tar.xz'
+sha=hashlib.sha256(archive.read_bytes()).hexdigest()
+assert sha!=json.load(open(root/'before-force.json'))[archive.name]
+assert sha==archive.with_name(archive.name+'.sha256').read_text().split()[0]
+assert sha==json.load(open(str(archive)+'.manifest.json'))['artifactSHA256']
+with tarfile.open(archive) as tar:
+    assert tar.extractfile('wine-x86_64/lib/wine/x86_64-windows/upstream.dll').read()==b'new candidate content\n'
+assert not list((root/'artifacts').glob('*.pack-lock'))
+assert not list((root/'artifacts').glob('.cyder-engine-publish.*'))
+PYTEST
 # Check the stage/round-trip ordering at the actual production call sites.
 python3 - "$ROOT" <<'PY'
 import pathlib,sys

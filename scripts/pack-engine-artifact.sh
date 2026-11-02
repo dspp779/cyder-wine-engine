@@ -187,11 +187,35 @@ if [[ -f "$ARCHIVE" && "$FORCE" -ne 1 ]]; then
   exit 0
 fi
 
-STAGING="$(mktemp -d "${TMPDIR:-/tmp}/cyder-engine-pack.XXXXXX")"
+# Hold one publisher per artifact, and never expose an unverified candidate
+# at the final archive path (where the next invocation would reuse it as cache).
+STAGING=""
+CANDIDATE_ROOT=""
+PACK_LOCK=""
 cleanup() {
-  rm -rf "$STAGING"
+  [[ -z "$STAGING" ]] || rm -rf "$STAGING"
+  [[ -z "$CANDIDATE_ROOT" ]] || rm -rf "$CANDIDATE_ROOT"
+  [[ -z "$PACK_LOCK" ]] || rmdir "$PACK_LOCK" 2>/dev/null || true
 }
 trap cleanup EXIT
+mkdir -p "$ARTIFACTS_DIR"
+lock_path="${ARCHIVE}.pack-lock"
+if ! mkdir "$lock_path" 2>/dev/null; then
+  echo "Engine artifact is being packed, or an interrupted pack lock needs inspection: $lock_path" >&2
+  exit 1
+fi
+PACK_LOCK="$lock_path"
+# A concurrent pack may have published between our first cache check and lock.
+if [[ -e "$ARCHIVE" ]]; then
+  if [[ "$PE_SIGNING_ENABLED" -eq 1 ]]; then
+    echo "Refusing to reuse/overwrite a PE-signed engine archive; choose a new engine version label." >&2
+    exit 1
+  elif [[ "$FORCE" -ne 1 ]]; then
+    echo "Engine artifact present: $ARCHIVE"
+    exit 0
+  fi
+fi
+STAGING="$(mktemp -d "${TMPDIR:-/tmp}/cyder-engine-pack.XXXXXX")"
 ENGINE_TREE="$STAGING/wine-x86_64"
 
 echo "==> Staging engine tree ($ENGINE_VERSION_LABEL)"
@@ -340,6 +364,10 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
+# Candidates live on the destination filesystem so the final archive rename is atomic.
+CANDIDATE_ROOT="$(mktemp -d "$ARTIFACTS_DIR/.cyder-engine-publish.XXXXXX")"
+CANDIDATE_ARCHIVE="$CANDIDATE_ROOT/$(basename "$ARCHIVE")"
+
 case "$FORMAT" in
   zst)
     echo "==> Compressing with zstd (-22 --ultra)"
@@ -347,14 +375,14 @@ case "$FORMAT" in
       cd "$STAGING"
       zstd_args=(-22 --ultra -T0)
       if [[ "$FORCE" -eq 1 ]]; then zstd_args+=(--force); fi
-      tar -cf - wine-x86_64 | "$ZSTD_BIN" "${zstd_args[@]}" -o "$ARCHIVE"
+      tar -cf - wine-x86_64 | "$ZSTD_BIN" "${zstd_args[@]}" -o "$CANDIDATE_ARCHIVE"
     )
     ;;
   xz)
     echo "==> Compressing with xz (-9e -T0)"
     (
       cd "$STAGING"
-      tar -cf - wine-x86_64 | xz -9e -T0 -c >"$ARCHIVE"
+      tar -cf - wine-x86_64 | xz -9e -T0 -c >"$CANDIDATE_ARCHIVE"
     )
     ;;
 esac
@@ -365,10 +393,10 @@ VERIFY_ROOT="$STAGING/archive-verify"
 mkdir -p "$VERIFY_ROOT"
 case "$FORMAT" in
   zst)
-    "$ZSTD_BIN" -dc "$ARCHIVE" | tar -xf - -C "$VERIFY_ROOT"
+    "$ZSTD_BIN" -dc "$CANDIDATE_ARCHIVE" | tar -xf - -C "$VERIFY_ROOT"
     ;;
   xz)
-    tar -xJf "$ARCHIVE" -C "$VERIFY_ROOT"
+    tar -xJf "$CANDIDATE_ARCHIVE" -C "$VERIFY_ROOT"
     ;;
 esac
 if [[ "$PE_SIGNING_ENABLED" -eq 1 ]]; then
@@ -384,7 +412,7 @@ while IFS= read -r -d '' signed_path; do
 done < <(find "$VERIFY_ROOT/wine-x86_64" -type f -print0)
 echo "==> Verified $verified_macho Mach-O signatures after archive extraction"
 
-printf '%s\n' "$ENGINE_VERSION_LABEL" >"$VERSION_FILE"
+printf '%s\n' "$ENGINE_VERSION_LABEL" >"$CANDIDATE_ROOT/engine-version.txt"
 {
   echo "version=$ENGINE_VERSION_LABEL"
   echo "slug=$ENGINE_VERSION_SLUG"
@@ -396,16 +424,24 @@ printf '%s\n' "$ENGINE_VERSION_LABEL" >"$VERSION_FILE"
     echo "wine=$(arch -x86_64 "$WINE_INSTALL/bin/wine" --version 2>/dev/null || true)"
   fi
   echo "packed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-} >"$STAMP_FILE"
-ARTIFACT_SHA256="$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')"
-printf '%s  %s\n' "$ARTIFACT_SHA256" "$(basename "$ARCHIVE")" >"${ARCHIVE}.sha256"
+} >"$CANDIDATE_ROOT/.pack-stamp"
+ARTIFACT_SHA256="$(shasum -a 256 "$CANDIDATE_ARCHIVE" | awk '{print $1}')"
+printf '%s  %s\n' "$ARTIFACT_SHA256" "$(basename "$ARCHIVE")" >"${CANDIDATE_ARCHIVE}.sha256"
 bash "$SCRIPT_DIR/write-engine-manifest.sh" \
-  --output "${ARCHIVE}.manifest.json" \
+  --output "${CANDIDATE_ARCHIVE}.manifest.json" \
   --version "$ENGINE_VERSION_LABEL" \
   --ntdll-sha256 "$NTDLL_SHA256" \
   --pe-provenance-sha256 "$PE_PROVENANCE_SHA256" \
   --artifact "$(basename "$ARCHIVE")" \
   --artifact-sha256 "$ARTIFACT_SHA256"
+
+# Sidecars are ready before publication. On interruption readers may see a
+# digest mismatch, but never an unverified candidate accepted as a valid cache.
+mv -f "${CANDIDATE_ARCHIVE}.sha256" "${ARCHIVE}.sha256"
+mv -f "${CANDIDATE_ARCHIVE}.manifest.json" "${ARCHIVE}.manifest.json"
+mv -f "$CANDIDATE_ARCHIVE" "$ARCHIVE"
+mv -f "$CANDIDATE_ROOT/engine-version.txt" "$VERSION_FILE"
+mv -f "$CANDIDATE_ROOT/.pack-stamp" "$STAMP_FILE"
 
 echo "==> Created $ARCHIVE ($(du -sh "$ARCHIVE" | awk '{print $1}'))"
 echo "==> Version file: $VERSION_FILE"
