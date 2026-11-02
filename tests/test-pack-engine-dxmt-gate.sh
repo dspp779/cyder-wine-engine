@@ -94,7 +94,7 @@ with tempfile.TemporaryDirectory(prefix='cyder-engine-compress-') as tmp:
     (root / 'wine-x86_64/payload').write_text('new payload\n')
     archive = root / 'engine.tar.zst'
     archive.write_bytes(b'keep old archive')
-    env = dict(os.environ, FORMAT='zst', STAGING=str(root), ARCHIVE=str(archive), ZSTD_BIN=sys.argv[2])
+    env = dict(os.environ, FORMAT='zst', STAGING=str(root), ARCHIVE=str(archive), CANDIDATE_ARCHIVE=str(archive), ZSTD_BIN=sys.argv[2])
     def run(force):
         return subprocess.run(['bash', '-c', 'set -euo pipefail\n' + branch],
                               env=dict(env, FORCE=str(force)), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
