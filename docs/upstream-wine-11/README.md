@@ -78,6 +78,8 @@
 
 ## 驗證與限制
 
+最新 [2026-11-02 合併前審查](premerge-review-2026-11-02.md) 區分 #2／#3／#6 的包含關係、已解決的 main 測試清單衝突、最新完整回歸、#6 Retina 補驗及仍需外部環境的缺口。以下建置數量保留原始時間線，不代表本輪再次完整建置。
+
 - 已通過：兩個新測試會對 CX26.3 pristine 函式套 patch、編譯實際函式、驗證四邊 client overflow／decorated／shaped／present override 與 style mask 四種組合、Quicken early return，並 reverse 還原逐位元比較；manifest 記錄與順序檢查、test-build-wine、test-engine-manifest。
 - 完整 runtime 建置與回歸已補驗：CX26.3／Wine 11.0，full-video GStreamer，43 個 Shell 回歸入口與 8 項 Python 單元測試通過（含 PR #2 與最新 main）；98 個 host Mach-O 的架構、minOS 10.15、ad-hoc 簽章與 runtime 內依賴檢查通過。新 prefix 的 32／64 位元 Win32 檔案與 BCrypt、22 個媒體插件／10 個元件及預設憑證驗證 HTTPS 探測通過。唯一 skip 為可選 MoltenVK source live round-trip 子檢查。詳見 [完整建置紀錄與限制](build-validation.md)。
 - 尚需：macOS GUI／Steam session／CS2／DXMT／其他遊戲與較舊 macOS 實機驗證；正式發行還需對應 graphics payload、Developer ID 與封裝流程。PR 保持 draft，函式與 API 測試不代替遊戲驗收。

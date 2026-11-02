@@ -1,5 +1,7 @@
 # PR 3 Runtime 建置驗證
 
+本頁保留 2026-10-30 的建置時間線；最新提交關係、與 main 的整合、重新執行的回歸及未完成項目見 [2026-11-02 合併前審查](premerge-review-2026-11-02.md)。
+
 目標：CX26.3／Wine 11.0，加上 PR #3 的兩項視窗 backport，以及合併 PR #2 的 OpenGL front-buffer present。這是隔離 install 的開發驗證，不會替換使用者的 Cyder runtime。
 
 ## 環境與已修正問題
@@ -134,4 +136,4 @@ PR 保持 draft；以上結果建立了可測試的 CX engine，未把上游 sto
 
 已另以獨立 test engineId／版本封裝，安裝／還原方式、checksum 與實機清單隨測試包提供，見 [測試包驗證紀錄](test-runtime-kit-validation.md)。封裝後 94 個核心 Mach-O 簽章通過，並完成真實安裝及 32／64 位元探測。
 
-新增實際 D3D11 探測顯示 builtin OpenGL 可建立 feature level 10.1 裝置，但 DXMT 在 winemetal.dll 載入階段失敗（0xc0000135），尚未解決。這是比先前一般 Win32／媒體 smoke 更窄且新的結果，不得將前述通過項目延伸為 DXMT 或 CS2 初始化成功。
+當時新增的 D3D11 探測顯示 builtin OpenGL 可建立 feature level 10.1 裝置，而 DXMT 在 winemetal.dll 載入階段失敗（0xc0000135）。此歷史阻塞後由 `6aaf0ef` 修正 prefix discovery；[修正與裝置建立證據](dxmt-prefix-discovery-fix.md)記錄 feature level 11.0 及 native winemetal 載入。仍不能把裝置建立成功延伸為 CS2 遊戲驗收。
