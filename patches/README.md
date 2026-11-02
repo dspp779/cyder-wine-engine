@@ -480,3 +480,15 @@ that first frame. Only realized, nonempty, previously used hidden views get
 the exception. First-use, unrealized, empty and clipped views remain deferred.
 The actual Cocoa method is exercised with Foundation mocks and a visible
 GL-red → GDI-green → recreated-GL-blue control verifies first-frame behavior.
+
+### Native fullscreen: missing window-server ordering anchor
+
+`cyder-winemac-missing-order-anchor.patch` follows the Cocoa client-view patches.
+A sibling can be absent from `windowNumbersWithOptions:` during a native
+fullscreen transition. The old `order:childWindow:relativeTo:` inserted at
+`NSNotFound`, throwing `NSRangeException` from the run-loop request drain.
+The fallback reorders known siblings using Cocoa's back-to-front child list;
+normal snapshot ordering is unchanged and unknown children are not attached.
+`tests/test-winemac-missing-order-anchor.sh` executes the actual Objective-C
+method before/after application, exercises above/below, missing/self/unknown
+anchors, and verifies patch reversal. Marker: `Use Cocoa's back-to-front child`.
