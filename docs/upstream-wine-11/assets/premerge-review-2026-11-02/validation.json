@@ -1,0 +1,44 @@
+{
+  "date": "2026-11-02",
+  "review": [
+    {
+      "pr": "pr3",
+      "shell_entrypoints": 52,
+      "python_tests": 43,
+      "python_passed": 42,
+      "python_skipped": 1,
+      "regression_exit_code": 0,
+      "frame_walk_supplement": "passed",
+      "skip_reasons": [
+        "optional MoltenVK patched-source live round-trip absent",
+        "optional real Authenticode test tool paths not supplied"
+      ]
+    },
+    {
+      "pr": "pr6",
+      "shell_entrypoints": 53,
+      "python_tests": 43,
+      "python_passed": 42,
+      "python_skipped": 1,
+      "regression_exit_code": 0,
+      "frame_walk_supplement": "passed",
+      "skip_reasons": [
+        "optional MoltenVK patched-source live round-trip absent",
+        "optional real Authenticode test tool paths not supplied"
+      ]
+    }
+  ],
+  "private_log_sha256": {
+    "cyder-pr3-review-regression-explicit.log": "ffd99b0e3f487d18a896d3c6542dac65405b408cba91734ac373cded98f05409",
+    "cyder-pr6-review-regression-explicit.log": "4faa4d535d5616a370874720a48e83e86578c811337daea322c02e2b2c2f5652",
+    "cyder-pr3-review-framewalk.log": "e2271d20ee73a456b0ea9c224dfcddcb3ac92e658b110282e4a3052a4461b8b5",
+    "cyder-pr6-review-framewalk.log": "33c6533dd3789c58e81964f6db826309ab768bc5cacf58747b156fb12b364e8d",
+    "cyder-pr6-review-order-expanded.log": "dd9baf82c27b277a5beae3936740f4fc5be15954932aba949addd6c8c29c624e"
+  },
+  "pr2_head": "92f813baf5e90754b1adbd04b18aa71fd0957d60",
+  "pr2_is_ancestor_of_pr3": true,
+  "main_integrated": "a7f4847e0061df69d0e622c5e0346baea10aab8b",
+  "pr3_integration_commit": "f36ba20992ce2aaa59d706dc24866e43875a1b0a",
+  "runtime_rebuilt_this_round": false,
+  "production_runtime_changed": false
+}
