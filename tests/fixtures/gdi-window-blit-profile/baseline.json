@@ -1,0 +1,147 @@
+{
+  "dc.c": {
+    "upstream_source_sha256": "ac37f1348740cbc8c5083b62deb24f1a88a5b510b8344c3e8dc6b148ac138914",
+    "source_line_count": 2910,
+    "fragments": [
+      {
+        "start_line": 1,
+        "lines": [
+          "/*\n",
+          " * GDI Device Context functions\n",
+          " *\n",
+          " * Copyright 1993, 1994 Alexandre Julliard\n",
+          " * Copyright 1997 Bertho A. Stultiens\n",
+          " *           1999 Huw D M Davies\n",
+          " * Copyright 2021 Jacek Caban for CodeWeavers\n",
+          " *\n",
+          " * This library is free software; you can redistribute it and/or\n",
+          " * modify it under the terms of the GNU Lesser General Public\n",
+          " * License as published by the Free Software Foundation; either\n",
+          " * version 2.1 of the License, or (at your option) any later version.\n",
+          " *\n",
+          " * This library is distributed in the hope that it will be useful,\n",
+          " * but WITHOUT ANY WARRANTY; without even the implied warranty of\n",
+          " * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU\n",
+          " * Lesser General Public License for more details.\n",
+          " *\n",
+          " * You should have received a copy of the GNU Lesser General Public\n",
+          " * License along with this library; if not, write to the Free Software\n",
+          " * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA\n",
+          " */\n",
+          "\n",
+          "#include \"gdi_private.h\"\n",
+          "#include \"ntuser.h\"\n",
+          "#include \"ddrawgdi.h\"\n"
+        ]
+      },
+      {
+        "start_line": 31,
+        "lines": [
+          "#include \"wine/debug.h\"\n",
+          "\n",
+          "WINE_DEFAULT_DEBUG_CHANNEL(gdi);\n",
+          "\n",
+          "static struct list drivers = LIST_INIT( drivers );\n",
+          "\n"
+        ]
+      },
+      {
+        "start_line": 1940,
+        "lines": [
+          " *           BitBlt    (GDI32.@)\n",
+          " */\n",
+          "BOOL WINAPI DECLSPEC_HOTPATCH BitBlt( HDC hdc_dst, INT x_dst, INT y_dst, INT width, INT height,\n",
+          "                                      HDC hdc_src, INT x_src, INT y_src, DWORD rop )\n",
+          "{\n",
+          "    DC_ATTR *dc_attr;\n",
+          "\n",
+          "    if (is_meta_dc( hdc_dst )) return METADC_BitBlt( hdc_dst, x_dst, y_dst, width, height,\n",
+          "                                                 hdc_src, x_src, y_src, rop );\n",
+          "    if (!(dc_attr = get_dc_attr( hdc_dst ))) return FALSE;\n",
+          "    if (dc_attr->print) print_call_start_page( dc_attr );\n",
+          "    if (dc_attr->emf && !EMFDC_BitBlt( dc_attr, x_dst, y_dst, width, height,\n",
+          "                                       hdc_src, x_src, y_src, rop ))\n",
+          "        return FALSE;\n",
+          "    return NtGdiBitBlt( hdc_dst, x_dst, y_dst, width, height,\n",
+          "                        hdc_src, x_src, y_src, rop, 0 /* FIXME */, 0 /* FIXME */ );\n",
+          "}\n",
+          "\n",
+          "/***********************************************************************\n",
+          " *           StretchBlt    (GDI32.@)\n",
+          " */\n",
+          "BOOL WINAPI StretchBlt( HDC hdc, INT x_dst, INT y_dst, INT width_dst, INT height_dst,\n",
+          "                        HDC hdc_src, INT x_src, INT y_src, INT width_src, INT height_src,\n",
+          "                        DWORD rop )\n",
+          "{\n",
+          "    DC_ATTR *dc_attr;\n",
+          "\n",
+          "    if (is_meta_dc( hdc )) return METADC_StretchBlt( hdc, x_dst, y_dst, width_dst, height_dst,\n",
+          "                                                     hdc_src, x_src, y_src, width_src,\n",
+          "                                                     height_src, rop );\n",
+          "    if (!(dc_attr = get_dc_attr( hdc ))) return FALSE;\n",
+          "    if (dc_attr->print) print_call_start_page( dc_attr );\n",
+          "    if (dc_attr->emf && !EMFDC_StretchBlt( dc_attr, x_dst, y_dst, width_dst, height_dst,\n",
+          "                                           hdc_src, x_src, y_src, width_src,\n",
+          "                                           height_src, rop ))\n",
+          "        return FALSE;\n",
+          "    return NtGdiStretchBlt( hdc, x_dst, y_dst, width_dst, height_dst,\n",
+          "                            hdc_src, x_src, y_src, width_src,\n",
+          "                            height_src, rop, 0 /* FIXME */ );\n",
+          "}\n",
+          "\n",
+          "/***********************************************************************\n"
+        ]
+      }
+    ]
+  },
+  "objects.c": {
+    "upstream_source_sha256": "00ec65b7f04e298a2146b56b95e1f1dc2fb55339ef2eda04c1e07b8f4ba03bc4",
+    "source_line_count": 1097,
+    "fragments": [
+      {
+        "start_line": 1,
+        "lines": [
+          "/*\n",
+          " * GDI functions\n",
+          " *\n",
+          " * Copyright 1993 Alexandre Julliard\n",
+          " * Copyright 2021 Jacek Caban for CodeWeavers\n",
+          " *\n",
+          " * This library is free software; you can redistribute it and/or\n",
+          " * modify it under the terms of the GNU Lesser General Public\n",
+          " * License as published by the Free Software Foundation; either\n",
+          " * version 2.1 of the License, or (at your option) any later version.\n",
+          " *\n",
+          " * This library is distributed in the hope that it will be useful,\n",
+          " * but WITHOUT ANY WARRANTY; without even the implied warranty of\n",
+          " * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU\n",
+          " * Lesser General Public License for more details.\n",
+          " *\n",
+          " * You should have received a copy of the GNU Lesser General Public\n",
+          " * License along with this library; if not, write to the Free Software\n",
+          " * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA\n",
+          " */\n",
+          "\n",
+          "#include <stdlib.h>\n",
+          "\n",
+          "#include \"ntstatus.h\"\n",
+          "#define WIN32_NO_STATUS\n",
+          "#include \"gdi_private.h\"\n"
+        ]
+      },
+      {
+        "start_line": 136,
+        "lines": [
+          " *\n",
+          " * GDI initialization.\n",
+          " */\n",
+          "BOOL WINAPI DllMain( HINSTANCE inst, DWORD reason, LPVOID reserved )\n",
+          "{\n",
+          "    if (reason != DLL_PROCESS_ATTACH) return TRUE;\n",
+          "\n",
+          "    DisableThreadLibraryCalls( inst );\n"
+        ]
+      }
+    ]
+  }
+}

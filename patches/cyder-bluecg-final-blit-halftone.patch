@@ -1,0 +1,89 @@
+--- a/dlls/gdi32/dc.c
++++ b/dlls/gdi32/dc.c
+@@ -1978,6 +1978,40 @@
+ /***********************************************************************
+  *           StretchBlt    (GDI32.@)
+  */
++/* Experimental final-window filter; deliberately opt-in and BlueCG-only. */
++static INIT_ONCE bluecg_filter_once = INIT_ONCE_STATIC_INIT;
++static BOOL bluecg_filter_enabled;
++
++static BOOL CALLBACK bluecg_filter_init(INIT_ONCE *once, void *param, void **context)
++{
++    WCHAR path[MAX_PATH], *base;
++    char value[16];
++    DWORD length;
++
++    if (GetEnvironmentVariableA("CYDER_BLUECG_BLIT_FILTER", value, sizeof(value)) != 8
++            || strcmp(value, "halftone")) return TRUE;
++    length = GetModuleFileNameW(NULL, path, ARRAY_SIZE(path));
++    if (!length || length >= ARRAY_SIZE(path)) return TRUE;
++    base = wcsrchr(path, '\\');
++    bluecg_filter_enabled = !wcsicmp(base ? base + 1 : path, L"bluecg.exe");
++    return TRUE;
++}
++
++static BOOL bluecg_filter_matches(HDC dc, HDC src, INT x, INT y, INT width, INT height,
++        INT sx, INT sy, INT sw, INT sh, DWORD rop)
++{
++    HWND window;
++    RECT rect;
++    InitOnceExecuteOnce(&bluecg_filter_once, bluecg_filter_init, NULL, NULL);
++    if (!bluecg_filter_enabled || dc == src || x || y || sx || sy || rop != SRCCOPY
++            || width < 320 || height < 240 || sw < 320 || sh < 240
++            || (width == sw && height == sh)) return FALSE;
++    window = NtUserWindowFromDC(dc);
++    return window && (DWORD_PTR)NtUserQueryWindow(window, WindowProcess) == GetCurrentProcessId()
++            && NtUserGetClientRect(window, &rect, 0) && !rect.left && !rect.top
++            && rect.right == width && rect.bottom == height;
++}
++
+ BOOL WINAPI StretchBlt( HDC hdc, INT x_dst, INT y_dst, INT width_dst, INT height_dst,
+                         HDC hdc_src, INT x_src, INT y_src, INT width_src, INT height_src,
+                         DWORD rop )
+@@ -1986,7 +2020,10 @@
+     uint64_t begin = 0;
+     HWND window = NULL;
+     BOOL result;
+-    DWORD saved_error;
++    DWORD saved_error, filter_error;
++    INT old_mode = 0;
++    POINT old_origin;
++    BOOL filter = FALSE;
+ 
+     if (is_meta_dc( hdc )) return METADC_StretchBlt( hdc, x_dst, y_dst, width_dst, height_dst,
+                                                      hdc_src, x_src, y_src, width_src,
+@@ -2003,6 +2040,19 @@
+         if ((begin = cyder_gdi_profile_begin())) window = NtUserWindowFromDC(hdc);
+         SetLastError(saved_error);
+     }
++    filter_error = GetLastError();
++    if (!dc_attr->print && !dc_attr->emf && bluecg_filter_matches(hdc, hdc_src,
++            x_dst, y_dst, width_dst, height_dst, x_src, y_src, width_src, height_src, rop)
++            && GetBrushOrgEx(hdc, &old_origin))
++    {
++        old_mode = SetStretchBltMode(hdc, HALFTONE);
++        if (old_mode)
++        {
++            filter = SetBrushOrgEx(hdc, 0, 0, NULL);
++            if (!filter) SetStretchBltMode(hdc, old_mode);
++        }
++    }
++    SetLastError(filter_error);
+     result = NtGdiStretchBlt( hdc, x_dst, y_dst, width_dst, height_dst,
+                             hdc_src, x_src, y_src, width_src, height_src,
+                             rop, 0 /* FIXME */ );
+@@ -2011,6 +2061,13 @@
+         saved_error = GetLastError();
+         cyder_gdi_profile_record(window, hdc, x_dst, y_dst, width_dst, height_dst,
+                 width_src, height_src, rop, 2, begin, result);
++        SetLastError(saved_error);
++    }
++    if (filter)
++    {
++        saved_error = GetLastError();
++        SetBrushOrgEx(hdc, old_origin.x, old_origin.y, NULL);
++        SetStretchBltMode(hdc, old_mode);
+         SetLastError(saved_error);
+     }
+     return result;
