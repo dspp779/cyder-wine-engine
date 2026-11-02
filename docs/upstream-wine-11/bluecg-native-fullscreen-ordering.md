@@ -3,6 +3,8 @@
 日期：2026-11-01（Asia/Taipei）。追蹤：[engine #4](https://github.com/dspp779/cyder-wine-engine/issues/4)。
 本文件接續 [三遊戲補測](three-game-soak-2026-10-30.md)，區分原生 macOS 全螢幕與遊戲 Alt+Enter。
 
+2026-11-02 已追加下方 Retina 遊戲內補驗與 AX 還原反控制；最新完整回歸、#2／#3 包含關係及合併前剩餘缺口見 [合併前審查](premerge-review-2026-11-02.md)。原有 1× 測試保留為當日時間線。
+
 ## 直接證據與原因
 
 原先 GL、no3d 退出全螢幕後皆曾出現持續裁切，最小化／還原 helper 40 秒逾時，
@@ -94,3 +96,41 @@ Windows 遊戲執行緒停在 `macdrv_set_cocoa_parent_window` → `OnMainThread
 輸入來源已還原；原始 runtime 兩個模組的 hashes 完全不變。
 本機只驗證上述 1x、單開、單螢幕序列；未把先前一般視窗的 2x Retina 結果算作
 本修正的 2x 原生全螢幕回歸，也未重跑一小時效能／記憶體長測。
+
+## 2026-11-02 Retina 補驗
+
+另建乾淨 #6 審查工作樹，先同步 #3 與 main 的測試清單整合。完整回歸 exit 0：53 個頂層 Shell 入口、43 個頂層 Python tests（42 pass、1 個選用 crypto skip）；frame-walk 另指定診斷 runtime 補跑通過。缺少 patched MoltenVK source 的選用 live round-trip 仍跳過，content checks 通過。
+
+新增四 sibling 排序、同一請求重複、反向恢復原順序的 native Objective-C assertions；原版仍先重現 NSRangeException，修正版全部通過。這次只擴充測試與文件，沒有改動 Wine patch 本體或重建 runtime。
+
+### 真實 Retina 場景與結果
+
+使用本頁相同 `fe31b28d…` winemac／`26f79904…` win32u 隔離 runtime，重新驗證 strict ad-hoc 簽章，並以遊戲 PID 確認實際載入 winemac／win32u／builtin ddraw／wined3d。遊戲與 prefix 以 APFS clone 另建副本；未改原副本、正式 runtime 或遊戲 DLL。
+
+Apple M4／macOS 27.2，單一 1680×945 points／2× 螢幕。GL、HD[1]、RetinaMode=y、96 DPI，原啟動器登入既有角色的召喚之間。
+
+| 驗證 | 結果 |
+|---|---|
+| 一般視窗 | 481×393 points，原生 capture 962×786 pixels；Win32 client 962×722 |
+| 真正 macOS fullscreen Space | AXFullScreen false→true→false；1680×945 points／3360×1890 pixels，沒有用 Alt+Enter 或 CNC 代替 |
+| 完整重複序列 | 3 輪 fullscreen→window→Win32 minimize／restore；每輪幾何與位置恢復，IsIconic 0→1→0 |
+| 返回／還原字體 | 固定 ROI `(110,770)-(600,784)`；6 張與初始圖 RGB MAE=0、最大通道差=0 |
+| 選單輸入 | 全螢幕點左下狀態實際開面板；返回一般視窗後可關閉 |
+| 標準退出 | 再次進原生全螢幕後走正常退出流程，觀察遊戲程序結束；之後才停止本輪 prefix 服務 |
+| 同類 AppKit 例外 | 本輪遊戲 PID 的 NSRangeException 為 0 |
+
+![Retina 基準固定底部文字裁圖](assets/native-fullscreen-retina-2026-11-02/safe-font-baseline.png)
+
+![第三輪最小化還原後同一原生像素裁圖](assets/native-fullscreen-retina-2026-11-02/safe-font-restored.png)
+
+圖片只裁固定底部選單片段，不含標題、帳號、角色名稱或聊天；沒有重採樣。這只證明選定靜態 ROI 可逆，不代表動畫逐像素相同，也不表示非整數放大已變成平滑取樣。原生 Space 的比例策略與本 patch 的 sibling 排序是不同問題。
+
+### 保留的 AX-only 還原失敗
+
+首輪 fullscreen 返回後，以 AXMinimized=true 最小化成功；再設 false 雖回傳成功，讀回仍為 1、視窗不可見，Win32 client 為 0×0。既有 Win32 `SW_RESTORE` 可恢復 962×722；上表 3 輪明確使用 `SW_MINIMIZE`／`SW_RESTORE`，不將 AX 失敗隱藏成全入口通過。
+
+反控制改用不含 #6 的 #3 runtime、相同 clone 與 Retina 設定；尚未進 fullscreen、停在登入前，就重現 AX 讀回保持 1，而 Win32 還原成功。本輪因此沒有證據將 AX 限制歸因於排序 patch。此項仍需獨立調查，Dock／所有 Accessibility 入口未驗收。
+
+兩組正常退出後僅停止本輪新建 prefix 的服務，原輸入來源已還原。私人 clone 保留供重現；原始遊戲／prefix 與兩套 runtime 的模組 hash 不變。沒有新增 BlueCG CompatDB、HALFTONE／GPU helper 或其他遊戲設定。
+
+[去識別化幾何、各輪回讀、字體指標、模組核對與私有日誌 SHA-256](assets/native-fullscreen-retina-2026-11-02/measurements.json)。仍未補 Retina no3d、多開原生 Space、混合比例多螢幕與舊 macOS；#6 保持 Draft，engine #4 保持 open。

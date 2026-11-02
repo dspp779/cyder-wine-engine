@@ -1,0 +1,363 @@
+{
+  "date": "2026-11-02",
+  "renderer": "GL",
+  "mode": "HD[1]",
+  "retina_registry": "y",
+  "dpi": 96,
+  "single_display": true,
+  "screen_points": [
+    1680,
+    945
+  ],
+  "screen_backing_scale": 2,
+  "normal_window_points": [
+    481,
+    393
+  ],
+  "normal_window_capture_pixels": [
+    962,
+    786
+  ],
+  "normal_client_pixels": [
+    962,
+    722
+  ],
+  "fullscreen_capture_pixels": [
+    3360,
+    1890
+  ],
+  "cycles": [
+    {
+      "start_epoch": 1793611912.408698,
+      "cycle": "2",
+      "on": {
+        "action": "on",
+        "after": true,
+        "after_status": 0,
+        "AX_status": 0,
+        "before": false,
+        "bounds": {
+          "Height": 945,
+          "Width": 1680,
+          "X": 0,
+          "Y": 0
+        },
+        "screens": [
+          {
+            "backing_scale": 2,
+            "frame": "{{0, 0}, {1680, 945}}"
+          }
+        ],
+        "settable": true
+      },
+      "full": {
+        "pid": 32187,
+        "window_id": 143405,
+        "bounds": {
+          "Height": 945,
+          "Width": 1680,
+          "X": 0,
+          "Y": 0
+        },
+        "layer": 0,
+        "capture": "cycle-2-full.png"
+      },
+      "off": {
+        "action": "off",
+        "after": false,
+        "after_status": 0,
+        "AX_status": 0,
+        "before": true,
+        "bounds": {
+          "Height": 393,
+          "Width": 481,
+          "X": 2,
+          "Y": 30
+        },
+        "screens": [
+          {
+            "backing_scale": 2,
+            "frame": "{{0, 0}, {1680, 945}}"
+          }
+        ],
+        "settable": true
+      },
+      "returned": {
+        "pid": 32187,
+        "window_id": 143405,
+        "bounds": {
+          "Height": 393,
+          "Width": 481,
+          "X": 2,
+          "Y": 30
+        },
+        "layer": 0,
+        "capture": "cycle-2-returned.png"
+      },
+      "minimize_method": "Win32 ShowWindow SW_MINIMIZE/SW_RESTORE",
+      "minimize_restore": "before_iconic=0\nminimized=1\nrestored_iconic=0\nclient=962x722 window=0,94,970,850 cursor_client=316,452 dpi=96 foreground=1",
+      "restored": {
+        "pid": 32187,
+        "window_id": 143405,
+        "bounds": {
+          "Height": 393,
+          "Width": 481,
+          "X": 2,
+          "Y": 30
+        },
+        "layer": 0,
+        "capture": "cycle-2-restored.png"
+      }
+    },
+    {
+      "start_epoch": 1793611972.704156,
+      "cycle": "3",
+      "on": {
+        "action": "on",
+        "after": true,
+        "after_status": 0,
+        "AX_status": 0,
+        "before": false,
+        "bounds": {
+          "Height": 945,
+          "Width": 1680,
+          "X": 0,
+          "Y": 0
+        },
+        "screens": [
+          {
+            "backing_scale": 2,
+            "frame": "{{0, 0}, {1680, 945}}"
+          }
+        ],
+        "settable": true
+      },
+      "full": {
+        "pid": 32187,
+        "window_id": 143405,
+        "bounds": {
+          "Height": 945,
+          "Width": 1680,
+          "X": 0,
+          "Y": 0
+        },
+        "layer": 0,
+        "capture": "cycle-3-full.png"
+      },
+      "off": {
+        "action": "off",
+        "after": false,
+        "after_status": 0,
+        "AX_status": 0,
+        "before": true,
+        "bounds": {
+          "Height": 393,
+          "Width": 481,
+          "X": 2,
+          "Y": 30
+        },
+        "screens": [
+          {
+            "backing_scale": 2,
+            "frame": "{{0, 0}, {1680, 945}}"
+          }
+        ],
+        "settable": true
+      },
+      "returned": {
+        "pid": 32187,
+        "window_id": 143405,
+        "bounds": {
+          "Height": 393,
+          "Width": 481,
+          "X": 2,
+          "Y": 30
+        },
+        "layer": 0,
+        "capture": "cycle-3-returned.png"
+      },
+      "minimize_method": "Win32 ShowWindow SW_MINIMIZE/SW_RESTORE",
+      "minimize_restore": "before_iconic=0\nminimized=1\nrestored_iconic=0\nclient=962x722 window=0,94,970,850 cursor_client=316,452 dpi=96 foreground=1",
+      "restored": {
+        "pid": 32187,
+        "window_id": 143405,
+        "bounds": {
+          "Height": 393,
+          "Width": 481,
+          "X": 2,
+          "Y": 30
+        },
+        "layer": 0,
+        "capture": "cycle-3-restored.png"
+      }
+    },
+    {
+      "start_epoch": 1793612015.521798,
+      "cycle": "4",
+      "on": {
+        "action": "on",
+        "after": true,
+        "after_status": 0,
+        "AX_status": 0,
+        "before": false,
+        "bounds": {
+          "Height": 945,
+          "Width": 1680,
+          "X": 0,
+          "Y": 0
+        },
+        "screens": [
+          {
+            "backing_scale": 2,
+            "frame": "{{0, 0}, {1680, 945}}"
+          }
+        ],
+        "settable": true
+      },
+      "full": {
+        "pid": 32187,
+        "window_id": 143405,
+        "bounds": {
+          "Height": 945,
+          "Width": 1680,
+          "X": 0,
+          "Y": 0
+        },
+        "layer": 0,
+        "capture": "cycle-4-full.png"
+      },
+      "off": {
+        "action": "off",
+        "after": false,
+        "after_status": 0,
+        "AX_status": 0,
+        "before": true,
+        "bounds": {
+          "Height": 393,
+          "Width": 481,
+          "X": 2,
+          "Y": 30
+        },
+        "screens": [
+          {
+            "backing_scale": 2,
+            "frame": "{{0, 0}, {1680, 945}}"
+          }
+        ],
+        "settable": true
+      },
+      "returned": {
+        "pid": 32187,
+        "window_id": 143405,
+        "bounds": {
+          "Height": 393,
+          "Width": 481,
+          "X": 2,
+          "Y": 30
+        },
+        "layer": 0,
+        "capture": "cycle-4-returned.png"
+      },
+      "minimize_method": "Win32 ShowWindow SW_MINIMIZE/SW_RESTORE",
+      "minimize_restore": "before_iconic=0\nminimized=1\nrestored_iconic=0\nclient=962x722 window=0,94,970,850 cursor_client=316,452 dpi=96 foreground=1",
+      "restored": {
+        "pid": 32187,
+        "window_id": 143405,
+        "bounds": {
+          "Height": 393,
+          "Width": 481,
+          "X": 2,
+          "Y": 30
+        },
+        "layer": 0,
+        "capture": "cycle-4-restored.png"
+      }
+    }
+  ],
+  "font_roi_pixels": [
+    110,
+    770,
+    600,
+    784
+  ],
+  "font_measurements": {
+    "cycle-1-returned.png": {
+      "size": [
+        962,
+        786
+      ],
+      "font_roi_mae": 0.0,
+      "font_roi_max": 0
+    },
+    "cycle-2-restored.png": {
+      "size": [
+        962,
+        786
+      ],
+      "font_roi_mae": 0.0,
+      "font_roi_max": 0
+    },
+    "cycle-2-returned.png": {
+      "size": [
+        962,
+        786
+      ],
+      "font_roi_mae": 0.0,
+      "font_roi_max": 0
+    },
+    "cycle-3-restored.png": {
+      "size": [
+        962,
+        786
+      ],
+      "font_roi_mae": 0.0,
+      "font_roi_max": 0
+    },
+    "cycle-3-returned.png": {
+      "size": [
+        962,
+        786
+      ],
+      "font_roi_mae": 0.0,
+      "font_roi_max": 0
+    },
+    "cycle-4-restored.png": {
+      "size": [
+        962,
+        786
+      ],
+      "font_roi_mae": 0.0,
+      "font_roi_max": 0
+    },
+    "cycle-4-returned.png": {
+      "size": [
+        962,
+        786
+      ],
+      "font_roi_mae": 0.0,
+      "font_roi_max": 0
+    }
+  },
+  "loaded_module_checks": {
+    "winemac.so": true,
+    "win32u.so": true,
+    "ddraw.dll": true,
+    "wined3d.dll": true
+  },
+  "same_appkit_NSRangeException_rows": 0,
+  "AX_restore": {
+    "result": "failed; readback remained minimized",
+    "pr3_before_fullscreen_control": "same failure",
+    "Win32_restore": "passed in both runtimes",
+    "attribution": "not evidence of a PR6 regression; Dock not validated"
+  },
+  "standard_game_exit_observed": true,
+  "owned_prefix_server_stopped": true,
+  "private_log_sha256": {
+    "pr6-game.log": "51af344af14363f48f350968e3ee8ffe88d0ad57655be3e53b7edfa6a834cec0",
+    "cycles.jsonl": "a49eb0026527046a72580b81a041289318df5a610cb5dfb2d6f896110d9cfd33",
+    "appkit-events-final.txt": "9f56fca152030dba9e8ee76dee4fc8967ab667507b5878f0f9ab819d55b6b9a6"
+  },
+  "private_runtime_modified": false,
+  "production_runtime_changed": false
+}
