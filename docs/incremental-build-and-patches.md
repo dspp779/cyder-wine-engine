@@ -181,6 +181,7 @@ otherwise accept an already-patched source tree and duplicate a helper/guard.
 | `cyder-wineserver-registry-fsync.patch` | `fsync( fileno( f ) )` in `server/registry.c` |
 | `cyder-winemac-hide-ime-only-klid.patch` | `leaks IME-only HKLs` in `dlls/winemac.drv/keyboard.c` |
 | `cyder-winemac-gl-front-buffer-present.patch` | `if (flags & GL_FLUSH_PRESENT)` in `dlls/winemac.drv/opengl.c` |
+| `cyder-winemac-ax-unminimize.patch` | `Explicit AX unminimize uses Cocoa's restore path` in `dlls/winemac.drv/cocoa_window.m` |
 | `cyder-kernelbase-disk-free-space-fallback.patch` | `retry a real mapped volume instead of inventing free space` in `dlls/kernelbase/volume.c` |
 | `maplestory-cx26-no-sched-yield.patch` | `if (is_maplestory_process()) return STATUS_NO_YIELD_PERFORMED;` |
 | `maplestory-cx26-file-cache-adaptive.patch` | `CYDER_MAPLESTORY_FILE_CACHE` in `dlls/ntdll/unix/file.c` |

@@ -492,3 +492,16 @@ normal snapshot ordering is unchanged and unknown children are not attached.
 `tests/test-winemac-missing-order-anchor.sh` executes the actual Objective-C
 method before/after application, exercises above/below, missing/self/unknown
 anchors, and verifies patch reversal. Marker: `Use Cocoa's back-to-front child`.
+
+### Accessibility restore after iconic style changes
+
+`cyder-winemac-ax-unminimize.patch` follows the ordering fix. On macOS 27,
+Win32's iconic geometry can clear the Cocoa Miniaturizable style; AppKit then
+accepts AXMinimized=false without calling `deminiaturize:`. WineWindow explicitly
+uses its existing native restore/notification path when AX requests restoration
+of an actually miniaturized window. Minimize and already-restored requests still
+delegate to AppKit. No renderer, game settings or driver ABI changes.
+`tests/test-winemac-ax-unminimize.sh` compiles the actual added method, checks
+delegation and restored/hidden/minimize-policy cases, and applies through the
+production helper twice before a patch round-trip. Marker:
+`Explicit AX unminimize uses Cocoa's restore path`.

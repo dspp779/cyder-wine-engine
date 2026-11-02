@@ -1,0 +1,540 @@
+{
+  "schema": 1,
+  "date": "2026-11-02",
+  "base_commit": "cbb51ab9d5e144bd9f7e83b62846f0a699f1d651",
+  "patch_commit": "2ce14d1",
+  "host": {
+    "chip": "Apple M4",
+    "os": "macOS 27.2",
+    "screen_points": [
+      1680,
+      945
+    ],
+    "backing_scale": 2
+  },
+  "module": {
+    "winemac_sha256": "d6c34a212f7a27dcb8a7fa72ac68de631fe1e1c33d6dda5a384e7746f61966d9",
+    "architecture": "x86_64",
+    "minos": "10.15",
+    "strict_adhoc": true,
+    "dependencies_unchanged": true,
+    "changed_files": [
+      "lib/wine/x86_64-unix/winemac.so"
+    ]
+  },
+  "regression": {
+    "exit_code": 0,
+    "shell_entrypoints": 54,
+    "python_tests": 43,
+    "python_passed": 42,
+    "python_optional_crypto_skipped": 1,
+    "frame_walk": "pass with explicit private runtime",
+    "real_gl_flushes": 8,
+    "real_gl_swaps": 8,
+    "file_bcrypt_architectures": [
+      "i686",
+      "x86_64"
+    ],
+    "moltenvk_patched_source_roundtrip": "skip: source unavailable; content checks pass"
+  },
+  "synthetic": {
+    "32": {
+      "cycles": [
+        {
+          "cycle": 1,
+          "phase": "native-fullscreen",
+          "returned_geometry": true
+        },
+        {
+          "cycle": 2,
+          "phase": "native-fullscreen",
+          "returned_geometry": true
+        },
+        {
+          "cycle": 1,
+          "minimized_readback": true,
+          "phase": "AX-only",
+          "restored_readback": false,
+          "returned_geometry": true,
+          "same_window_visible": true
+        },
+        {
+          "cycle": 2,
+          "minimized_readback": true,
+          "phase": "AX-only",
+          "restored_readback": false,
+          "returned_geometry": true,
+          "same_window_visible": true
+        },
+        {
+          "cycle": 3,
+          "minimized_readback": true,
+          "phase": "AX-only",
+          "restored_readback": false,
+          "returned_geometry": true,
+          "same_window_visible": true
+        }
+      ],
+      "win32_minimize": 3,
+      "win32_restore": 3,
+      "wm_close": true,
+      "message_loop_exit": true,
+      "timeout": false,
+      "owner_exited": true
+    },
+    "64": {
+      "cycles": [
+        {
+          "cycle": 1,
+          "phase": "native-fullscreen",
+          "returned_geometry": true
+        },
+        {
+          "cycle": 2,
+          "phase": "native-fullscreen",
+          "returned_geometry": true
+        },
+        {
+          "cycle": 1,
+          "minimized_readback": true,
+          "phase": "AX-only",
+          "restored_readback": false,
+          "returned_geometry": true,
+          "same_window_visible": true
+        },
+        {
+          "cycle": 2,
+          "minimized_readback": true,
+          "phase": "AX-only",
+          "restored_readback": false,
+          "returned_geometry": true,
+          "same_window_visible": true
+        },
+        {
+          "cycle": 3,
+          "minimized_readback": true,
+          "phase": "AX-only",
+          "restored_readback": false,
+          "returned_geometry": true,
+          "same_window_visible": true
+        }
+      ],
+      "win32_minimize": 3,
+      "win32_restore": 3,
+      "wm_close": true,
+      "message_loop_exit": true,
+      "timeout": false,
+      "owner_exited": true
+    }
+  },
+  "bluecg": {
+    "gl": {
+      "retina": true,
+      "dpi": 96,
+      "mode": "HD[1]",
+      "concurrent_clients": 2,
+      "renderer_log": "Using the OpenGL renderer",
+      "cycles": [
+        {
+          "label": "cycle-1",
+          "checks": [
+            {
+              "cycle": 1,
+              "phase": "native-fullscreen",
+              "returned_geometry": true
+            },
+            {
+              "cycle": 1,
+              "minimized_readback": true,
+              "phase": "AX-only",
+              "restored_readback": false,
+              "returned_geometry": true,
+              "same_window_visible": true
+            }
+          ],
+          "returned_bounds": {
+            "Height": 393,
+            "Width": 481,
+            "X": 2,
+            "Y": 30
+          }
+        },
+        {
+          "label": "cycle-2",
+          "checks": [
+            {
+              "cycle": 1,
+              "phase": "native-fullscreen",
+              "returned_geometry": true
+            },
+            {
+              "cycle": 1,
+              "minimized_readback": true,
+              "phase": "AX-only",
+              "restored_readback": false,
+              "returned_geometry": true,
+              "same_window_visible": true
+            }
+          ],
+          "returned_bounds": {
+            "Height": 393,
+            "Width": 481,
+            "X": 2,
+            "Y": 30
+          }
+        },
+        {
+          "label": "cycle-3",
+          "checks": [
+            {
+              "cycle": 1,
+              "phase": "native-fullscreen",
+              "returned_geometry": true
+            },
+            {
+              "cycle": 1,
+              "minimized_readback": true,
+              "phase": "AX-only",
+              "restored_readback": false,
+              "returned_geometry": true,
+              "same_window_visible": true
+            }
+          ],
+          "returned_bounds": {
+            "Height": 393,
+            "Width": 481,
+            "X": 2,
+            "Y": 30
+          }
+        }
+      ],
+      "native_fullscreen_points": [
+        1680,
+        945
+      ],
+      "native_fullscreen_pixels": [
+        3360,
+        1890
+      ],
+      "returned_pixels": [
+        962,
+        786
+      ],
+      "fixed_winemac_loaded": true,
+      "no_trace_injection": true,
+      "status_panel_input_verified": true,
+      "game_process_exited": true,
+      "close_from": "native-fullscreen",
+      "ordering_exception_count": 0
+    },
+    "gdi": {
+      "retina": true,
+      "dpi": 96,
+      "mode": "HD[1]",
+      "concurrent_clients": 2,
+      "renderer_log": "Disabling 3D support",
+      "cycles": [
+        {
+          "label": "cycle-1",
+          "checks": [
+            {
+              "cycle": 1,
+              "phase": "native-fullscreen",
+              "returned_geometry": true
+            },
+            {
+              "cycle": 1,
+              "minimized_readback": true,
+              "phase": "AX-only",
+              "restored_readback": false,
+              "returned_geometry": true,
+              "same_window_visible": true
+            }
+          ],
+          "returned_bounds": {
+            "Height": 393,
+            "Width": 481,
+            "X": 2,
+            "Y": 30
+          }
+        },
+        {
+          "label": "cycle-2",
+          "checks": [
+            {
+              "cycle": 1,
+              "phase": "native-fullscreen",
+              "returned_geometry": true
+            },
+            {
+              "cycle": 1,
+              "minimized_readback": true,
+              "phase": "AX-only",
+              "restored_readback": false,
+              "returned_geometry": true,
+              "same_window_visible": true
+            }
+          ],
+          "returned_bounds": {
+            "Height": 393,
+            "Width": 481,
+            "X": 2,
+            "Y": 30
+          }
+        },
+        {
+          "label": "cycle-3",
+          "checks": [
+            {
+              "cycle": 1,
+              "phase": "native-fullscreen",
+              "returned_geometry": true
+            },
+            {
+              "cycle": 1,
+              "minimized_readback": true,
+              "phase": "AX-only",
+              "restored_readback": false,
+              "returned_geometry": true,
+              "same_window_visible": true
+            }
+          ],
+          "returned_bounds": {
+            "Height": 393,
+            "Width": 481,
+            "X": 2,
+            "Y": 30
+          }
+        }
+      ],
+      "native_fullscreen_points": [
+        1680,
+        945
+      ],
+      "native_fullscreen_pixels": [
+        3360,
+        1890
+      ],
+      "returned_pixels": [
+        962,
+        786
+      ],
+      "fixed_winemac_loaded": true,
+      "no_trace_injection": true,
+      "status_panel_input_verified": true,
+      "game_process_exited": true,
+      "close_from": "window",
+      "ordering_exception_count": 0
+    }
+  },
+  "font_comparisons": [
+    {
+      "candidate": "gl-cycle-1.png",
+      "capture_pixels": [
+        962,
+        786
+      ],
+      "mae": 0,
+      "max_channel_difference": 0,
+      "reference": "gl-baseline.png",
+      "roi": [
+        110,
+        770,
+        600,
+        784
+      ]
+    },
+    {
+      "candidate": "gl-cycle-2.png",
+      "capture_pixels": [
+        962,
+        786
+      ],
+      "mae": 0,
+      "max_channel_difference": 0,
+      "reference": "gl-baseline.png",
+      "roi": [
+        110,
+        770,
+        600,
+        784
+      ]
+    },
+    {
+      "candidate": "gl-cycle-3.png",
+      "capture_pixels": [
+        962,
+        786
+      ],
+      "mae": 0,
+      "max_channel_difference": 0,
+      "reference": "gl-baseline.png",
+      "roi": [
+        110,
+        770,
+        600,
+        784
+      ]
+    },
+    {
+      "candidate": "gdi-cycle-1.png",
+      "capture_pixels": [
+        962,
+        786
+      ],
+      "mae": 0,
+      "max_channel_difference": 0,
+      "reference": "gdi-baseline.png",
+      "roi": [
+        110,
+        770,
+        600,
+        784
+      ]
+    },
+    {
+      "candidate": "gdi-cycle-2.png",
+      "capture_pixels": [
+        962,
+        786
+      ],
+      "mae": 0,
+      "max_channel_difference": 0,
+      "reference": "gdi-baseline.png",
+      "roi": [
+        110,
+        770,
+        600,
+        784
+      ]
+    },
+    {
+      "candidate": "gdi-cycle-3.png",
+      "capture_pixels": [
+        962,
+        786
+      ],
+      "mae": 0,
+      "max_channel_difference": 0,
+      "reference": "gdi-baseline.png",
+      "roi": [
+        110,
+        770,
+        600,
+        784
+      ]
+    }
+  ],
+  "dock": {
+    "result": "not validated",
+    "reason": "no unique exact-title AXMinimizedWindowDockItem found",
+    "cleanup": "AX restore requested, then normal WM_CLOSE and message-loop exit"
+  },
+  "hybrid": {
+    "phases": [
+      "GL red",
+      "GDI green",
+      "recreated GL blue"
+    ],
+    "capture_center_srgb": [
+      [
+        255,
+        38,
+        0
+      ],
+      [
+        7,
+        249,
+        0
+      ],
+      [
+        4,
+        51,
+        255
+      ]
+    ],
+    "normal_completion": true
+  },
+  "original_engine_tracked_diff_sha256": "3f2d10dfee35bbd2fe542ac658d1125367c86a71ef96e9c73192dd0554457fce",
+  "private_evidence_sha256": {
+    "full-regression.log": "fdf6f37cdfa2f8668c5486dd21283c5724a79b496e122b23f94a3c30c2b21320",
+    "build-module.log": "ea5ed32d65a56242417a833c2d1dc384ce74b804cfc820e1cc2769ef2966c37a",
+    "configure.log": "8bd775d66d39e018bbeca099de1d19ae648a98aa2ee252831a1617cf8da5a56c",
+    "fixed-module.json": "44b44eb3fa0e4bba71a078ab3c0e57bda30ee86df8ed15a11371cef454ff5d4d",
+    "wine-baseline-ax.json": "cad2171ad1d47f49f9b7621818aab3497aa436166031ee98e1a6f941168f8c0d",
+    "wine-traced-direct.log": "b662c787ab2fe7247aa5782dc840cb9814627d059b4781a8c41ff712c8bbe06a",
+    "native-ax-cycle.json": "7dbf00763ac7dadb60679b4bce67423f3dd61f616a89f1da73e0fd6217b32ef6",
+    "drop-style-ax.json": "ae16e30b38cff54312142d9cd589768b3a14cccd8567ba66a0523aac24f6d30b",
+    "drop-style.log": "173a93f92b065c60c7636882a48511a6a6441b0acdc1368882d5ba9fac554090",
+    "keep-mini-ax.json": "9ade2a4cd4cc05f56ac85d9dc5fdbd9b3f4407cea5780195de789f3f6bc34851",
+    "keep-mini.log": "b534eadbf7b1523afde8d1d20c38e5b110e99df879d7ba6aee791a64a2725838",
+    "wine-candidate-ax.json": "585a40cd49104e6d0cac22b833ad9ad4bf357e442c2530ee4d4eb2460aa7f6a0",
+    "wine-explicit-restore-ax.json": "2b6f29eeb24b0a64fb58250427f3ca3d409f5b5cd2768443f03a072f865fd5f6",
+    "fixed-x64-original-helper.json": "6a4ef2194c023a452482b4e07ff5a28c29428ce028d72c63433571c4034c1cb1",
+    "fixed-x64-ax.json": "dad832cc0ded7e3626bcbfc550e6697adde027f2486ae46cbe858ef633e5a0d0",
+    "fixed-x64-cycles.jsonl": "ff6815f49fc4bd2cf11cfe2c798d1a5450b035f820039f82a68cd0146ff4e182",
+    "fixed-x64-cycles.err": "08831fe423aa7b87cbd75649221ba7c319ce80c730ec2a4ed669102e649f89e7",
+    "final-control32.log": "4f22be36ab12f63fabe05b368895d22a33ece4db59a6bbae00a8bcc68cd18c4f",
+    "final32-cycles.jsonl": "ff6815f49fc4bd2cf11cfe2c798d1a5450b035f820039f82a68cd0146ff4e182",
+    "final-control64.log": "df0d5e8577c23400a98017946896a4444fbebdf1936bd71d3b880752beb1eef6",
+    "final64-cycles.jsonl": "ff6815f49fc4bd2cf11cfe2c798d1a5450b035f820039f82a68cd0146ff4e182",
+    "bluecg-gl.log": "8a150172a593fa5f4aa6cdc006c4a2b0da55981852bf764ddd8e4a4262e4fadb",
+    "bluecg-gdi.log": "d9a83b14ddd0255bbb0166f4d86a9357d9274a7c78161df70ffe378e2b5ecb9a",
+    "game-cycles.jsonl": "09b8023d6a472bcb3a05443c25052862e4c44eb724ae39750b3666a52a3f11e6",
+    "font-results.json": "4c086441483088726311e76784fbbd65f7518570971f08b2ccfbc4a05ba3bb0e",
+    "game-normal-exit.json": "bcb48173320a78e38f0354b971c048c4d39f208f3d3bad6d87ccc125cdf858b6",
+    "dock-cycle.err": "8204810369d12760f2eeadd6f73ccc8439b79dedc53c5df30e27d5c0fff9f787",
+    "dock-control.log": "32d40568283431a9deaf2b2f6d73798920b1d876557c0e53a007e4ae9e4949e8",
+    "hybrid-fixed.log": "884abbac76dc3cfcc30e8ee5fe1857d8d01d79ae1d1d707a4270b5e2ad8b5ce5",
+    "hybrid-result.json": "346b6263027139909d6ab83ce61433079a6aa1cd0cf48a112d36cbd1321b54db",
+    "hybrid-pixels.txt": "b0973fdfde492fd047d3e1b3b1b4f0849a11df94b17f837f1199778315351d58",
+    "cleanup.json": "f3e83493cd470209a75912aa9c590ae4f63749c669e65b86b6e2b3c91c9e0b7c",
+    "ax-patch-final-test.log": "7c36d8e6b8239b7a7f7dbd4e1c74b57b8eb10b69e5b99fa031b9dbdd4460374b"
+  },
+  "cleanup": {
+    "prefixes": {
+      "prefix": {
+        "stop_returncode": 1,
+        "wait_returncode": 0
+      },
+      "bluecg-prefix-gl": {
+        "stop_returncode": 1,
+        "wait_returncode": 0
+      },
+      "bluecg-prefix-gdi": {
+        "stop_returncode": 1,
+        "wait_returncode": 0
+      }
+    },
+    "observed_owned_processes_absent": true,
+    "wine_windows_remaining": 0,
+    "input_source": "restored after protected input"
+  },
+  "final_patch_format_recheck": {
+    "actual_source_byte_identical_after_reverse_forward": true,
+    "git_apply_check": true,
+    "native_actual_method_retested": true
+  },
+  "private_evidence_snapshot_notes": {
+    "bluecg-gl.log": {
+      "snapshot_bytes": 48275,
+      "snapshot_sha256": "8a150172a593fa5f4aa6cdc006c4a2b0da55981852bf764ddd8e4a4262e4fadb",
+      "snapshot_phase": "after gameplay/normal-close verification, before final wineserver atexit log append",
+      "final_bytes": 48304,
+      "final_sha256": "39fdd5e26085db6fffe294a2bfd6b7c0b1b50edf8050ddf5899814fb3c9d926b",
+      "append_bytes": 29,
+      "append_description": "one wineserver normal atexit diagnostic line; process ID omitted",
+      "snapshot_is_exact_final_file_prefix": true
+    },
+    "bluecg-gdi.log": {
+      "snapshot_bytes": 47843,
+      "snapshot_sha256": "d9a83b14ddd0255bbb0166f4d86a9357d9274a7c78161df70ffe378e2b5ecb9a",
+      "snapshot_phase": "after gameplay/normal-close verification, before final wineserver atexit log append",
+      "final_bytes": 47872,
+      "final_sha256": "cef324098a293e6892597e984aafa0074232c86a67548792fb5ad7855950b47f",
+      "append_bytes": 29,
+      "append_description": "one wineserver normal atexit diagnostic line; process ID omitted",
+      "snapshot_is_exact_final_file_prefix": true
+    }
+  }
+}
