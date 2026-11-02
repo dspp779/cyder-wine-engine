@@ -514,5 +514,27 @@
     "actual_source_byte_identical_after_reverse_forward": true,
     "git_apply_check": true,
     "native_actual_method_retested": true
+  },
+  "private_evidence_snapshot_notes": {
+    "bluecg-gl.log": {
+      "snapshot_bytes": 48275,
+      "snapshot_sha256": "8a150172a593fa5f4aa6cdc006c4a2b0da55981852bf764ddd8e4a4262e4fadb",
+      "snapshot_phase": "after gameplay/normal-close verification, before final wineserver atexit log append",
+      "final_bytes": 48304,
+      "final_sha256": "39fdd5e26085db6fffe294a2bfd6b7c0b1b50edf8050ddf5899814fb3c9d926b",
+      "append_bytes": 29,
+      "append_description": "one wineserver normal atexit diagnostic line; process ID omitted",
+      "snapshot_is_exact_final_file_prefix": true
+    },
+    "bluecg-gdi.log": {
+      "snapshot_bytes": 47843,
+      "snapshot_sha256": "d9a83b14ddd0255bbb0166f4d86a9357d9274a7c78161df70ffe378e2b5ecb9a",
+      "snapshot_phase": "after gameplay/normal-close verification, before final wineserver atexit log append",
+      "final_bytes": 47872,
+      "final_sha256": "cef324098a293e6892597e984aafa0074232c86a67548792fb5ad7855950b47f",
+      "append_bytes": 29,
+      "append_description": "one wineserver normal atexit diagnostic line; process ID omitted",
+      "snapshot_is_exact_final_file_prefix": true
+    }
   }
 }

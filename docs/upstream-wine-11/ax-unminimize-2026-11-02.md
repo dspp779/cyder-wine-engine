@@ -7,6 +7,13 @@
 [去識別化數據、模組身分與私有證據 SHA-256](assets/ax-unminimize-2026-11-02/validation.json)。
 原始遊戲畫面、角色／帳號、憑證及詳細程序日誌不公開。
 
+SHA 快照補註：`private_evidence_sha256` 保留原始取樣結果。其中 `bluecg-gl.log`
+與 `bluecg-gdi.log` 的快照長度分別為 48,275／47,843 bytes，取於遊戲正常退出驗證後、
+wineserver 最終退出訊息寫入前。兩份日誌其後各追加一行 29 bytes 的正常 `atexit`
+診斷；已逐位元確認原 SHA 對應最終檔案的完整前綴。`private_evidence_snapshot_notes`
+另列快照長度、原 SHA、最終長度與最終 SHA，不覆蓋原證據，也不公開程序 ID。
+
+
 ## 直接證據支持的原因
 
 舊版 `AXMinimized=true` 可以最小化；設為 false 雖回傳成功，讀回仍為 true，
