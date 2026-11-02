@@ -1,0 +1,23 @@
+winemac: Attach a replacement context to an established hidden GL client view.
+
+After the upstream GDI client-view hide repair (1a1d1f3f), a new context on
+that view can otherwise remain latent until viewWillDraw. Its first GL
+commands then have no drawable; the first subsequent SwapBuffers reveals
+old content. A previously used, realized, nonempty view can be attached
+while hidden. Keep first-use, unrealized and zero-sized views deferred.
+
+--- a/dlls/winemac.drv/cocoa_window.m
++++ b/dlls/winemac.drv/cocoa_window.m
+@@ -602,7 +602,11 @@
+         if (!pendingGlContexts)
+             pendingGlContexts = [[NSMutableArray alloc] init];
+ 
+-        if ([[self window] windowNumber] > 0 && !NSIsEmptyRect([self visibleRect]))
++        /* GDI can hide an established GL client view. Attach its replacement context
++           before the first GL commands, rather than waiting for a later viewWillDraw.
++           First-use, unrealized and zero-sized views must still remain deferred. */
++        if ([[self window] windowNumber] > 0 && (!NSIsEmptyRect([self visibleRect]) ||
++            (hadContext && [self isHidden] && !NSIsEmptyRect([self bounds]))))
+         {
+             [glContexts addObject:context];
+             context.needsUpdate = TRUE;

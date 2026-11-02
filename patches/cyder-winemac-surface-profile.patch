@@ -1,0 +1,127 @@
+winemac: Add opt-in GDI surface update cadence and submission timing.
+
+CYDER_SURFACE_PROFILE=1 enables fixed-size per-surface interval histograms and
+five-second aggregate reports. Disabled surfaces allocate nothing and read no
+clock. Intervals describe GDI surface submissions, not actual display scanout,
+GPU completion, or the game's logical frame boundaries. No rendering policy change.
+
+--- a/dlls/winemac.drv/surface.c
++++ b/dlls/winemac.drv/surface.c
+@@ -28,6 +28,7 @@
+ 
+ #include "macdrv.h"
+ #include "winuser.h"
++#include "cyder_surface_profile.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(bitblt);
+ 
+@@ -48,6 +49,7 @@
+     struct window_surface   header;
+     macdrv_window           window;
+     CGDataProviderRef       provider;
++    struct cyder_surface_profile *profile;
+ };
+ 
+ static struct macdrv_window_surface *get_mac_surface(struct window_surface *surface);
+@@ -85,6 +87,7 @@
+     CGImageAlphaInfo alpha_info = (window_surface->alpha_mask ? kCGImageAlphaPremultipliedFirst : kCGImageAlphaNoneSkipFirst);
+     CGColorSpaceRef colorspace;
+     CGImageRef image;
++    uint64_t profile_begin = cyder_surface_profile_now(surface->profile);
+ 
+     colorspace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+     image = CGImageCreate(color_info->bmiHeader.biWidth, abs(color_info->bmiHeader.biHeight), 8, 32,
+@@ -94,6 +97,8 @@
+ 
+     macdrv_window_set_color_image(surface->window, image, cgrect_from_rect(*rect), cgrect_from_rect(*dirty));
+     CGImageRelease(image);
++    cyder_surface_profile_record(surface->profile, profile_begin, cyder_surface_profile_now(surface->profile),
++                                 color_info->bmiHeader.biWidth, abs(color_info->bmiHeader.biHeight));
+ 
+     if (shape_changed)
+     {
+@@ -131,6 +136,10 @@
+     struct macdrv_window_surface *surface = get_mac_surface(window_surface);
+ 
+     TRACE("freeing %p\n", surface);
++    cyder_surface_profile_report(surface->profile, cyder_surface_profile_now(surface->profile),
++                                 surface->header.rect.right - surface->header.rect.left,
++                                 surface->header.rect.bottom - surface->header.rect.top, 1);
++    free(surface->profile);
+     CGDataProviderRelease(surface->provider);
+ }
+ 
+@@ -202,6 +211,7 @@
+         surface = get_mac_surface(window_surface);
+         surface->window = window;
+         surface->provider = provider;
++        surface->profile = cyder_surface_profile_create();
+     }
+ 
+     return window_surface;
+--- /dev/null
++++ b/dlls/winemac.drv/cyder_surface_profile.h
+@@ -0,0 +1,63 @@
++/* Opt-in GDI surface submission timing; not display scanout or game-frame timing. */
++#ifndef CYDER_SURFACE_PROFILE_H
++#define CYDER_SURFACE_PROFILE_H
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <time.h>
++#include <unistd.h>
++
++struct cyder_surface_profile
++{
++    uint64_t start, previous, updates, intervals, submit_ns, interval_ns, max_interval_ns;
++    uint64_t over_50ms, over_100ms;
++    unsigned bins[2001]; /* 1 ms bins; final bin is >= 2000 ms. */
++};
++static uint64_t cyder_surface_profile_now(const struct cyder_surface_profile *p)
++{
++    struct timespec t;
++    if (!p || clock_gettime(CLOCK_MONOTONIC, &t)) return 0;
++    return (uint64_t)t.tv_sec * 1000000000 + t.tv_nsec;
++}
++static struct cyder_surface_profile *cyder_surface_profile_create(void)
++{
++    const char *enabled = getenv("CYDER_SURFACE_PROFILE");
++    return enabled && !strcmp(enabled, "1") ? calloc(1, sizeof(struct cyder_surface_profile)) : NULL;
++}
++static void cyder_surface_profile_report(struct cyder_surface_profile *p, uint64_t end, int width, int height, int final)
++{
++    unsigned i;
++    if (!p || !p->start || !p->updates || end < p->start) return;
++    flockfile(stderr);
++    fprintf(stderr, "CYDER_SURFACE_PROFILE pid=%ld surface=%p final=%d width=%d height=%d elapsed_ns=%llu updates=%llu intervals=%llu submit_ns=%llu interval_ns=%llu max_interval_ns=%llu over_50ms=%llu over_100ms=%llu bins=",
++            (long)getpid(), (void *)p, final, width, height,
++            (unsigned long long)(end-p->start), (unsigned long long)p->updates,
++            (unsigned long long)p->intervals, (unsigned long long)p->submit_ns,
++            (unsigned long long)p->interval_ns, (unsigned long long)p->max_interval_ns,
++            (unsigned long long)p->over_50ms, (unsigned long long)p->over_100ms);
++    for (i=0; i<2001; ++i) if (p->bins[i]) fprintf(stderr, "%u:%u,", i, p->bins[i]);
++    fputc('\n', stderr);
++    funlockfile(stderr);
++    p->start = 0; p->updates = p->intervals = p->submit_ns = p->interval_ns = p->max_interval_ns = 0;
++    p->over_50ms = p->over_100ms = 0;
++    memset(p->bins, 0, sizeof(p->bins));
++}
++static void cyder_surface_profile_record(struct cyder_surface_profile *p, uint64_t begin, uint64_t end, int width, int height)
++{
++    uint64_t gap;
++    unsigned bin;
++    if (!p || !begin || end < begin) return;
++    if (!p->start) p->start = begin;
++    ++p->updates; p->submit_ns += end-begin;
++    if (p->previous && begin >= p->previous)
++    {
++        gap = begin-p->previous; ++p->intervals; p->interval_ns += gap;
++        if (p->max_interval_ns < gap) p->max_interval_ns = gap;
++        p->over_50ms += gap>50000000; p->over_100ms += gap>100000000;
++        bin = gap/1000000 < 2000 ? gap/1000000 : 2000; ++p->bins[bin];
++    }
++    p->previous = begin;
++    if (end-p->start >= 5000000000ULL) cyder_surface_profile_report(p,end,width,height,0);
++}
++#endif

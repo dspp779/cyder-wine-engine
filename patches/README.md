@@ -18,28 +18,32 @@ Patch order for the CX26.3 / Wine 11.0 Cyder engine:
 14. `cyder-wineserver-macos-timezone-bias.patch`
 15. `cyder-wineserver-registry-fsync.patch`
 16. `cyder-winemac-hide-ime-only-klid.patch`
-17. `cyder-kernelbase-disk-free-space-fallback.patch`
-18. `maplestory-cx26-message-wait-handoff.patch`
-19. `maplestory-cx26-core.patch`
-20. `maplestory-cx26-window-resizable-flag.patch`
-21. `maplestory-cx26-tmp-module-name.patch`
-22. `maplestory-cx26-dbghelp-dwarf-guard.patch`
-23. `maplestory-cx26-d3d11-shared-texture-test.patch`
-24. `maplestory-cx26-d3dmetal-legacy-surface.patch`
-25. `maplestory-cx26-plain-metal-layer.patch`
-26. `maplestory-cx26-d3d11-full-clear.patch`
-27. `maplestory-cx26-dxgi-shared-handle.patch`
-28. `maplestory-cx26-texture-user-memory-reload.patch`
-29. `maplestory-cx26-blackxchg-foreground.patch`
-30. `maplestory-cx26-fullscreen-restore.patch`
-31. `maplestory-cx26-no-sched-yield.patch`
-32. `maplestory-cx26-file-cache-adaptive.patch`
-33. `maplestory-cx26-io-ring.patch`
-34. `maplestory-cx26-io-ring-arm.patch`
-35. `maplestory-cx26-io-summary.patch`
-36. `maplestory-cx26-io-timeline.patch`
-37. `maplestory-cx26-io-cache-stats.patch`
-38. `maplestory-cx26-section-map-summary.patch`
+17. `cyder-winemac-gl-front-buffer-present.patch`
+    - First apply `wine-win32u-preserve-flush-flags.patch` (b3c408b3), then
+      `wine-win32u-no-present-on-context-bind.patch` (62da9c02).
+    - Then apply `cyder-winemac-gl-profile.patch` (opt-in diagnostics).
+18. `cyder-kernelbase-disk-free-space-fallback.patch`
+19. `maplestory-cx26-message-wait-handoff.patch`
+20. `maplestory-cx26-core.patch`
+21. `maplestory-cx26-window-resizable-flag.patch`
+22. `maplestory-cx26-tmp-module-name.patch`
+23. `maplestory-cx26-dbghelp-dwarf-guard.patch`
+24. `maplestory-cx26-d3d11-shared-texture-test.patch`
+25. `maplestory-cx26-d3dmetal-legacy-surface.patch`
+26. `maplestory-cx26-plain-metal-layer.patch`
+27. `maplestory-cx26-d3d11-full-clear.patch`
+28. `maplestory-cx26-dxgi-shared-handle.patch`
+29. `maplestory-cx26-texture-user-memory-reload.patch`
+30. `maplestory-cx26-blackxchg-foreground.patch`
+31. `maplestory-cx26-fullscreen-restore.patch`
+32. `maplestory-cx26-no-sched-yield.patch`
+33. `maplestory-cx26-file-cache-adaptive.patch`
+34. `maplestory-cx26-io-ring.patch`
+35. `maplestory-cx26-io-ring-arm.patch`
+36. `maplestory-cx26-io-summary.patch`
+37. `maplestory-cx26-io-timeline.patch`
+38. `maplestory-cx26-io-cache-stats.patch`
+39. `maplestory-cx26-section-map-summary.patch`
 
 `w1-win32u-vulkan-soname.patch` is not part of the default patch set. It is a
 special-case build-only fallback for CX26 source trees where `win32u/vulkan.c`
@@ -271,6 +275,17 @@ a process-lifetime cache, so DST can still refresh on the next second.
 before `fclose` in `save_branch()`, so `user.reg` / `system.reg` are less
 likely to stay in the libc buffer across an abnormal wineserver exit.
 
+`cyder-winemac-gl-front-buffer-present.patch` backports upstream Wine b5ab3b15: winemac now handles
+`GL_FLUSH_PRESENT` by flushing the NSOpenGLContext and calling
+`client_surface_present`. Without it, OpenGL front-buffer rendering never reaches
+the screen, so windowed DirectDraw games that also create a D3D device (wined3d
+blits the primary surface into the GL front buffer) stay black. It retains A6's
+conditional backing synchronization and guards a missing context during swap.
+`tests/test-winemac-front-buffer.sh` compiles the actual flush/swap functions,
+checks all flag combinations and presentation order, and verifies null-context
+and pending/non-pending backing-sync behavior. GUI acceptance is still required
+for BlueCG resize/fullscreen/minimize/restore and other GL consumers.
+
 `cyder-winemac-hide-ime-only-klid.patch` stops encoding IME-only TIS sources as
 KLID `0xe0000000`. `GetKeyboardLayoutNameW` otherwise leaks those values into
 games that parse the layout id as a keyboard layout.
@@ -310,6 +325,7 @@ strings as “already applied”:
 | `cyder-wineserver-macos-timezone-bias.patch` | `get_timezone_bias` (`server/fd.c`) |
 | `cyder-wineserver-registry-fsync.patch` | `fsync( fileno( f ) )` (`server/registry.c`) |
 | `cyder-winemac-hide-ime-only-klid.patch` | `leaks IME-only HKLs` (`dlls/winemac.drv/keyboard.c`) |
+| `cyder-winemac-gl-front-buffer-present.patch` | `if (flags & GL_FLUSH_PRESENT)` (`dlls/winemac.drv/opengl.c`) |
 | `cyder-kernelbase-disk-free-space-fallback.patch` | `retry a real mapped volume instead of inventing free space` (`dlls/kernelbase/volume.c`) |
 | `maplestory-cx26-message-wait-handoff.patch` | `MapleStoryPort: preserve one driver wait result` (`dlls/win32u/message.c`) |
 | `maplestory-cx26-no-sched-yield.patch` | `if (is_maplestory_process()) return STATUS_NO_YIELD_PERFORMED;` (`dlls/ntdll/unix/sync.c`) |
@@ -387,3 +403,80 @@ Undo with `--undo --install-runtime`.
 
 The former App-side RC overlay is retained only as historical documentation:
 [`docs/moltenvk-timeline-wait-poll-app-overlay.md`](../docs/moltenvk-timeline-wait-poll-app-overlay.md).
+
+## Full client visible rectangle
+
+`wine-win32u-full-client-visible-rect.patch` backports Alexandre Julliard's
+Wine commit 6cfa941df3f385ab025aa2c458753c017aa49ccc (2026-10-07), after
+the disk-space fallback and before the MapleStory stack. If decoration
+clipping excludes any client edge, get_visible_rect returns the full window
+rectangle. This addresses frameless/CEF window geometry, not fullscreen
+swapchain retirement or Steam authentication. The unchanged hunk has no later
+overlap; forward/reverse patch checks provide idempotence.
+Source: https://github.com/wine-mirror/wine/commit/6cfa941df3f385ab025aa2c458753c017aa49ccc
+GUI and game acceptance are still required; see the upstream CS2 audit in docs.
+
+`wine-winemac-initialize-style-masks.patch` backports Jactry Zeng's
+48e2d50404d0b67f30cf0a149df361f4d50eac64 before the visible-rect fix. It
+initializes both output masks, retaining the CX Quicken early return. This
+prevents uninitialized extended-style bits affecting decoration calculations.
+The independent hunk uses forward/reverse idempotence checks.
+
+## Context binding must not present a frame
+
+`wine-win32u-no-present-on-context-bind.patch` backports upstream
+62da9c02a7b349e10601e4e2430ed824c1a074fe (Wine 11.3), before the b5ab3b15
+winemac present backport (Wine 11.4). CX26 still sent GL_FLUSH_PRESENT while
+binding a new drawable; after b5ab3b15 that notification invokes native
+NSOpenGLContext.flushBuffer before an application frame exists. Keep the
+binding synchronization but pass flags=0, matching the upstream predecessor.
+
+A separate diagnostic engine retaining A6, the original present backport and
+flushBuffer, with only this one-line win32u fix, restores BlueCG HD mode 1
+loading/login. This supersedes the earlier no-buffer-swap workaround, which
+also avoided startup black but removed legitimate presentation behavior.
+That patch remains under `obsolete/` only for incremental-tree migration;
+build-wine removes it when its marker is found and restores upstream flush.
+
+Tests compile the actual context_sync_drawables function and cover same/split
+read/draw bindings, current-context reuse, failed binding, no premature present,
+patch idempotence/round-trip and legacy-workaround migration. The winemac tests
+retain all 32 real flag combinations and native flush-before-present behavior.
+The manifest writer reads the canonical ordered release config.
+See `docs/upstream-wine-11/bluecg-a6-present-regression.md` for evidence/limits.
+
+`wine-win32u-preserve-flush-flags.patch` backports Wine b3c408b3 (11.3),
+before the context-bind and winemac presentation patches. Interval updates OR
+`GL_FLUSH_INTERVAL` into the existing flags, preserving simultaneous PRESENT,
+UPDATED, FINISHED and FORCE_SWAP notifications. The regression compiles the
+actual patched function and covers every flag combination, changed/unchanged
+intervals, updated surfaces and non-window drawables, plus patch round-trip.
+
+`cyder-winemac-gl-profile.patch` follows the front-buffer patch. `CYDER_GL_PROFILE=1`
+enables bounded per-context wall-time aggregates, every five seconds and at context
+destruction. It preserves flush/swap/present ordering, A6 and NULL handling. Disabled
+contexts perform no clock reads or log output. The build safely reverse-checks and
+unwinds all profiler hunks before overlapping A6/present application and restores
+profiling afterward; partial trees fail closed. See the profiling guide in docs.
+
+`cyder-winemac-surface-profile.patch` follows GL profiling and adds opt-in
+`CYDER_SURFACE_PROFILE=1` GDI submission counts, wall time and 1 ms interval
+histograms. Five-second reports and destruction tails are bounded, disabled
+surfaces have no allocation/clocks, and no drawing policy changes. These are
+submission intervals, not display/GPU completion or logical game frames.
+
+`wine-winemac-hide-client-view-on-gdi-flush.patch` backports upstream 1a1d1f3f.
+After a D3D/OpenGL client surface has presented, switching the same window to
+GDI must hide the previous client view; otherwise stale GL content can occlude
+the newly drawn GDI image. Apply before GDI profiling; both patches remain
+independently reversible. This fixes a b5ab3b15 presentation regression, not
+flush cost. The regression compiles the actual flush body and covers missing
+window data, NULL/non-NULL views and shape updates.
+
+`cyder-winemac-reattach-hidden-gl-client-view.patch` completes the return to GL
+after GDI hides a previously presented client view. A replacement context must
+attach before its first drawing commands; waiting for viewWillDraw discards
+that first frame. Only realized, nonempty, previously used hidden views get
+the exception. First-use, unrealized, empty and clipped views remain deferred.
+The actual Cocoa method is exercised with Foundation mocks and a visible
+GL-red → GDI-green → recreated-GL-blue control verifies first-frame behavior.

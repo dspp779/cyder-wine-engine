@@ -80,7 +80,7 @@ real="$UNIX_LIB/libMoltenVK.real.dylib"
 real_file="$(cd "$UNIX_LIB" && /usr/bin/python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$real")"
 local_shim="$STAGE/libMoltenVK-dual-$$.dylib"
 
-arch -x86_64 /usr/bin/clang -arch x86_64 \
+arch -x86_64 env "${CYDER_HOST_CLANG:-/usr/bin/clang}" -arch x86_64 \
   -mmacosx-version-min="${MACOSX_DEPLOYMENT_TARGET}" \
   -isysroot "$sdk" \
   -dynamiclib \

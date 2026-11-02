@@ -325,8 +325,8 @@ if [[ "$MAPLESTORY" -eq 1 ]]; then
   # must remain backend-neutral. D3DMetal builds use no MoltenVK; they still
   # need the isolated GStreamer stack for winegstreamer.
   PKG_PC_PATH="$MEDIA_INSTALL/lib/pkgconfig:$PKG_PC_PATH"
-  export LIBRARY_PATH="$MEDIA_INSTALL/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
-  for _gst_pc in gstreamer-1.0 gstreamer-base-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0; do
+  export LIBRARY_PATH="$MEDIA_INSTALL/lib:$HOMEBREW_PREFIX/opt/gettext/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
+  for _gst_pc in gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0; do
     require_x86_dep "$_gst_pc"
   done
   unset _gst_pc
@@ -430,6 +430,9 @@ apply_cyder_patch() {
   elif [[ "$(basename "$patch_file")" == "cyder-wineserver-registry-fsync.patch" ]] &&
        grep -Fq 'fsync( fileno( f ) )' "$WINE_SRC/server/registry.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-winemac-gl-front-buffer-present.patch" ]] &&
+       grep -Fq 'if (flags & GL_FLUSH_PRESENT)' "$WINE_SRC/dlls/winemac.drv/opengl.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
   elif [[ "$(basename "$patch_file")" == "cyder-winemac-hide-ime-only-klid.patch" ]] &&
        grep -Fq 'leaks IME-only HKLs' "$WINE_SRC/dlls/winemac.drv/keyboard.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
@@ -471,6 +474,15 @@ remove_obsolete_cyder_patch() {
 }
 
 if [[ "$CX_VERSION" == "26" ]]; then
+  # Unwind profiling before overlapping A6/present checks, then restore it below.
+  # Verify every reverse hunk first: partial instrumentation must fail closed.
+  if [[ "$DRY_RUN" -eq 0 ]] && { [[ -f "$WINE_SRC/dlls/winemac.drv/cyder_gl_profile.h" ]] ||
+       grep -Fq 'cyder_gl_profile_record(' "$WINE_SRC/dlls/winemac.drv/opengl.c"; }; then
+    patch --reverse --forward --batch --fuzz=0 --dry-run -s -d "$WINE_SRC" -p1 < "$OGOM/patches/cyder-winemac-gl-profile.patch" || {
+      echo "Incomplete/incompatible GL profiling patch; restore a complete source tree" >&2; exit 1;
+    }
+    patch --reverse --forward --batch --fuzz=0 -s -d "$WINE_SRC" -p1 < "$OGOM/patches/cyder-winemac-gl-profile.patch"
+  fi
   apply_cyder_patch "$OGOM/patches/a6-final-same-view-backing-sync.patch"
   if [[ "$VULKAN_SONAME_FALLBACK" -eq 1 ]]; then
     apply_cyder_patch "$OGOM/patches/w1-win32u-vulkan-soname.patch"
@@ -499,7 +511,20 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-macos-timezone-bias.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-registry-fsync.patch"
   apply_cyder_patch "$OGOM/patches/cyder-winemac-hide-ime-only-klid.patch"
+  # Migrate the earlier diagnostic workaround back to upstream presentation.
+  if [[ "$DRY_RUN" -eq 1 ]] || grep -Fq 'GL_FLUSH_PRESENT is not a buffer-swap request' "$WINE_SRC/dlls/winemac.drv/opengl.c"; then
+    remove_obsolete_cyder_patch "$OGOM/patches/obsolete/cyder-winemac-gl-flush-no-buffer-swap.patch"
+  fi
+  apply_cyder_patch "$OGOM/patches/wine-win32u-preserve-flush-flags.patch"
+  apply_cyder_patch "$OGOM/patches/wine-win32u-no-present-on-context-bind.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-winemac-gl-front-buffer-present.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-winemac-gl-profile.patch"
+  apply_cyder_patch "$OGOM/patches/wine-winemac-hide-client-view-on-gdi-flush.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-winemac-reattach-hidden-gl-client-view.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-winemac-surface-profile.patch"
   apply_cyder_patch "$OGOM/patches/cyder-kernelbase-disk-free-space-fallback.patch"
+  apply_cyder_patch "$OGOM/patches/wine-winemac-initialize-style-masks.patch"
+  apply_cyder_patch "$OGOM/patches/wine-win32u-full-client-visible-rect.patch"
 
   apply_maplestory_patch() {
       local patch_name="$1"
@@ -611,6 +636,9 @@ CONFIGURE_CMD=(
   --with-mingw=llvm-mingw
   --prefix="$WINE_INSTALL"
 )
+if [[ "$MAPLESTORY" -eq 1 ]]; then
+  CONFIGURE_CMD+=(--with-gstreamer)
+fi
 if [[ "$BUILD_TESTS" -eq 0 ]]; then
   CONFIGURE_CMD+=(--disable-tests)
 fi
@@ -654,7 +682,11 @@ if [[ "$CONFIGURE_ONLY" -eq 0 ]]; then
   fi
   ENGINE_VERSION_LABEL="$(head -n 1 "$SCRIPT_DIR/../config/engine-version.txt" 2>/dev/null || true)"
   if [[ -n "$ENGINE_VERSION_LABEL" ]]; then
-    printf '%s\n' "$ENGINE_VERSION_LABEL" >"$WINE_INSTALL/version"
-    echo "Wrote engine version: $WINE_INSTALL/version"
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      echo "+ write engine version: $WINE_INSTALL/version"
+    else
+      printf '%s\n' "$ENGINE_VERSION_LABEL" >"$WINE_INSTALL/version"
+      echo "Wrote engine version: $WINE_INSTALL/version"
+    fi
   fi
 fi

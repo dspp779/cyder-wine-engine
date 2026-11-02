@@ -90,6 +90,37 @@ def install_id(path: Path) -> str:
     return deps[0] if deps else str(path)
 
 
+def resolve_dependency(owner: Path, dep: str):
+    """Resolve dylib tokens only within the configured runtime inputs."""
+    if dep.startswith(("/usr/lib/", "/System/")):
+        return None
+    # Wine's own .so modules retain their existing loader ABI.
+    if dep.startswith("@") and not dep.endswith(".dylib"):
+        return None
+    candidates = []
+    if dep.startswith("@loader_path/"):
+        candidates.append(owner.parent / dep[len("@loader_path/"):])
+    elif dep.startswith("@rpath/"):
+        out = subprocess.check_output(["otool", "-l", str(owner)], text=True)
+        for rpath in re.findall(r"cmd LC_RPATH\s+cmdsize \d+\s+path (.*?) \(offset", out):
+            expanded = rpath.replace("@loader_path", str(owner.parent))
+            expanded = expanded.replace("@executable_path", str(wine_root / "bin"))
+            candidates.append(Path(expanded) / dep[len("@rpath/"):])
+        # CMake installs can retain a removed build RPATH. Search only the
+        # explicitly configured inputs, never arbitrary host library paths.
+        name = Path(dep).name
+        candidates.extend(root / name for root in (media_lib, graphics_lib, brew / "lib", unix_lib) if root)
+        candidates.extend(root / "lib" / name for root in sorted((brew / "opt").glob("*")))
+    elif dep.startswith("@executable_path/"):
+        candidates.append(wine_root / "bin" / dep[len("@executable_path/"):])
+    elif not dep.startswith("@"):
+        candidates.append(Path(dep))
+    for candidate in candidates:
+        if candidate.is_file() and allowed_root(candidate):
+            return candidate.resolve()
+    return None
+
+
 seeds = []
 for name in (
     "libfreetype.6.dylib",
@@ -166,11 +197,9 @@ if media_lib and media_lib.is_dir():
     # dependencies without placing the scanner itself in x86_64-unix.
     if media_scanner and media_scanner.is_file():
         for dep in otool_deps(media_scanner):
-            if dep.startswith("/usr/lib/") or dep.startswith("/System/") or dep.startswith("@"):
-                continue
-            candidate = Path(dep)
-            if candidate.exists() and allowed_root(candidate):
-                seeds.append(candidate.resolve())
+            candidate = resolve_dependency(media_scanner, dep)
+            if candidate:
+                seeds.append(candidate)
 
 # Follow existing dylibs and the dependencies of every Mach-O Unix module.
 # winegstreamer.so is the important non-dylib case: it introduces the bundled
@@ -182,11 +211,9 @@ for p in unix_lib.iterdir():
         except FileNotFoundError:
             pass
     for dep in otool_deps(p):
-        if dep.startswith("/usr/lib/") or dep.startswith("/System/") or dep.startswith("@"):
-            continue
-        candidate = Path(dep)
-        if candidate.exists() and allowed_root(candidate):
-            seeds.append(candidate.resolve())
+        candidate = resolve_dependency(p, dep)
+        if candidate:
+            seeds.append(candidate)
 
 need = {}  # basename(install_id) -> resolved path
 queue = list(seeds)
@@ -230,17 +257,9 @@ while queue:
     if base not in need or source_priority(p) > source_priority(need[base]):
         need[base] = p
     for d in otool_deps(p):
-        if d.startswith("/usr/lib/") or d.startswith("/System/"):
-            continue
-        if d.startswith("@"):
-            continue
-        dp = Path(d)
-        if not dp.exists():
-            continue
-        dp = dp.resolve()
-        if not allowed_root(dp):
-            continue
-        queue.append(dp)
+        dependency = resolve_dependency(p, d)
+        if dependency:
+            queue.append(dependency)
 
 print(f"Bundling {len(need)} dylibs into {unix_lib}")
 
@@ -304,8 +323,6 @@ for base, dst in bundled.items():
     subprocess.check_call(["install_name_tool", "-id", f"@loader_path/{base}", str(dst)])
     for dep in otool_deps(dst):
         if dep.startswith("/usr/lib/") or dep.startswith("/System/"):
-            continue
-        if dep.startswith("@loader_path/") or dep.startswith("@rpath/"):
             continue
         dep_base = Path(dep).name
         if dep_base in bundled:
@@ -420,7 +437,8 @@ if media_scanner and media_scanner.is_file():
             )
     print(f"Bundled GStreamer plugin scanner into {scanner_bundle}")
 
-# Verify no remaining references into brew-x86
+# Verify relocated dependencies exist inside the engine; never report a
+# successful bundle with missing token dependencies or host-only paths.
 verification_consumers = list(consumers)
 verification_consumers.extend(
     p for p in plugin_bundle_dir.glob("*.dylib") if p.is_file()
@@ -432,9 +450,17 @@ for dst in verification_consumers:
     for dep in otool_deps(dst):
         if ".brew-x86" in dep or str(brew) in dep or (media_lib and str(media_lib.resolve()) in dep):
             bad.append((dst.name, dep))
+        elif dep.endswith(".dylib") and dep.startswith("@loader_path/"):
+            target = (dst.parent / dep[len("@loader_path/"):]).resolve()
+            if not target.is_file() or not target.is_relative_to(wine_root):
+                bad.append((dst.name, dep))
+        elif dep.endswith(".dylib") and dep.startswith("@"):
+            bad.append((dst.name, dep))
+        elif dep.startswith("/") and not dep.startswith(("/usr/lib/", "/System/")):
+            bad.append((dst.name, dep))
 
 if bad:
-    print("ERROR: unresolved brew paths remain:", file=sys.stderr)
+    print("ERROR: unresolved runtime dependency paths remain:", file=sys.stderr)
     for b, d in bad:
         print(f"  {b} -> {d}", file=sys.stderr)
     sys.exit(1)

@@ -66,9 +66,19 @@ cat >"$output"
 EOF
 chmod +x "$fake_zstd"
 
+# Full-video must still fail closed without its media payload. The graphics-only
+# fixture below explicitly opts into minimal instead of depending on this host.
+if MEDIA_INSTALL="$tmp/missing-media" CYDER_ENGINE_ARTIFACTS_DIR="$artifacts" \
+   CYDER_ENGINE_VERSION_LABEL=test CYDER_ZSTD="$fake_zstd" WINE_INSTALL="$engine" \
+   bash "$ROOT/scripts/pack-engine-artifact.sh" --media-profile full-video >"$tmp/media-error" 2>&1; then
+  echo 'full-video pack accepted missing media' >&2; exit 1
+fi
+assert_contains "$(cat "$tmp/media-error")" 'Missing full-video GStreamer plugins' \
+  'full-video media requirement must remain enforced'
+
 CYDER_ENGINE_ARTIFACTS_DIR="$artifacts" CYDER_ENGINE_VERSION_LABEL="test" \
   CYDER_ZSTD="$fake_zstd" WINE_INSTALL="$engine" \
-  bash "$ROOT/scripts/pack-engine-artifact.sh"
+  bash "$ROOT/scripts/pack-engine-artifact.sh" --media-profile minimal
 assert test -f "$artifacts/graphics/dxvk-unknown.tar.zst"
 assert test -f "$artifacts/graphics/dxmt-unknown.tar.zst"
 assert test -f "$artifacts/graphics/dxvk2-unknown.tar.zst"

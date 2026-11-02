@@ -1,0 +1,20 @@
+win32u: Do not present a drawable merely because a context is bound.
+
+Backport upstream 62da9c02a7b349e10601e4e2430ed824c1a074fe (Wine 11.3),
+which predates b5ab3b155a58823595a6a7bdbefb5b4e98736957 (Wine 11.4).
+Binding/synchronizing a drawable is not a rendered-frame notification.
+Keep the synchronization flush, but remove the premature PRESENT flag.
+This allows the winemac present backport, including native flushBuffer,
+to remain intact without the BlueCG startup-black regression.
+
+--- a/dlls/win32u/opengl.c
++++ b/dlls/win32u/opengl.c
+@@ -1704,7 +1704,7 @@
+         if (new_read != new_draw) opengl_drawable_set_context( new_draw, context );
+ 
+         opengl_drawable_flush( new_read, new_read->interval, 0 );
+-        opengl_drawable_flush( new_draw, new_draw->interval, GL_FLUSH_PRESENT );
++        opengl_drawable_flush( new_draw, new_draw->interval, 0 );
+     }
+ 
+     if (ret)

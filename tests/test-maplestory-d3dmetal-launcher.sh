@@ -84,7 +84,7 @@ if [[ "$output" == *"MoltenVK"* || "$output" == *"moltenvk"* ]]; then
 fi
 
 mkdir -p "$tmp/wine/lib/wine/gstreamer-1.0"
-bundled_output="$(bash "$LAUNCHER" \
+bundled_output="$(env -u MEDIA_INSTALL bash "$LAUNCHER" \
   --launch-exe "$tmp/MapleStory.exe" \
   --wine-install "$tmp/wine" \
   --gptk-root "$tmp/gptk" \
