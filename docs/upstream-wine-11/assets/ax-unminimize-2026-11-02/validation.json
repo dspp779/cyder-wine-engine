@@ -488,7 +488,8 @@
     "hybrid-fixed.log": "884abbac76dc3cfcc30e8ee5fe1857d8d01d79ae1d1d707a4270b5e2ad8b5ce5",
     "hybrid-result.json": "346b6263027139909d6ab83ce61433079a6aa1cd0cf48a112d36cbd1321b54db",
     "hybrid-pixels.txt": "b0973fdfde492fd047d3e1b3b1b4f0849a11df94b17f837f1199778315351d58",
-    "cleanup.json": "f3e83493cd470209a75912aa9c590ae4f63749c669e65b86b6e2b3c91c9e0b7c"
+    "cleanup.json": "f3e83493cd470209a75912aa9c590ae4f63749c669e65b86b6e2b3c91c9e0b7c",
+    "ax-patch-final-test.log": "7c36d8e6b8239b7a7f7dbd4e1c74b57b8eb10b69e5b99fa031b9dbdd4460374b"
   },
   "cleanup": {
     "prefixes": {
@@ -508,5 +509,10 @@
     "observed_owned_processes_absent": true,
     "wine_windows_remaining": 0,
     "input_source": "restored after protected input"
+  },
+  "final_patch_format_recheck": {
+    "actual_source_byte_identical_after_reverse_forward": true,
+    "git_apply_check": true,
+    "native_actual_method_retested": true
   }
 }

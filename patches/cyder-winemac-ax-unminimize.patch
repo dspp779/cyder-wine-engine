@@ -13,7 +13,7 @@ to AppKit, preserving its validation.  No renderer or game-specific policy.
 @@ -2763,6 +2763,17 @@
          [self sendEditMenuCommand:EDIT_COMMAND_UNDO];
      }
- 
+
 +    - (void) setAccessibilityMinimized:(BOOL)minimized
 +    {
 +        /* Explicit AX unminimize uses Cocoa's restore path.  Win32 can remove

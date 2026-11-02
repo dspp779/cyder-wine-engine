@@ -23,4 +23,3 @@
         if ([parent isKindOfClass:[WineWindow class]])
             [parent grabDockIconSnapshotFromWindow:self force:YES];
     }
-
