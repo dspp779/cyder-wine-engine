@@ -32,8 +32,8 @@ static void check(WineWindow *parent,NSArray *before,NSArray *numbers,WineWindow
  [parent setChildWineWindows:before];snapshot=numbers;[parent order:mode childWindow:child relativeTo:other];assert([parent->kids isEqual:expected]);
 }
 int main(int argc,char **argv){(void)argv;@autoreleasepool{
- WineWindow *p=[WineWindow new],*a=[WineWindow new],*b=[WineWindow new],*c=[WineWindow new],*unknown=[WineWindow new];
- p->number=10;a->number=1;b->number=2;c->number=3;unknown->number=9;
+ WineWindow *p=[WineWindow new],*a=[WineWindow new],*b=[WineWindow new],*c=[WineWindow new],*d=[WineWindow new],*unknown=[WineWindow new];
+ p->number=10;a->number=1;b->number=2;c->number=3;d->number=4;unknown->number=9;
  NSArray *abc=@[a,b,c],*numbers=@[@3,@2,@1,@10];
  /* Ordinary window-server path, including nil reference, remains unchanged. */
  check(p,abc,numbers,a,b,NSWindowAbove,@[b,a,c]);
@@ -50,11 +50,19 @@ int main(int argc,char **argv){(void)argv;@autoreleasepool{
   check(p,abc,@[],a,a,NSWindowAbove,abc);
   check(p,abc,@[],a,unknown,NSWindowBelow,abc);
   check(p,abc,@[],unknown,b,NSWindowAbove,abc);
+  /* Four siblings: moving a middle child preserves every unrelated sibling. */
+  check(p,@[a,b,c,d],@[@4,@2,@1],b,c,NSWindowAbove,@[a,c,b,d]);
+  check(p,@[a,b,c,d],@[@4,@3,@1],c,b,NSWindowBelow,@[a,c,b,d]);
+  /* Repeating the same request is idempotent; reversing it restores order. */
+  check(p,@[a,c,b,d],@[],b,c,NSWindowAbove,@[a,c,b,d]);
+  check(p,@[a,c,b,d],@[],b,c,NSWindowBelow,@[a,b,c,d]);
+  check(p,@[a,b,c,d],@[],a,d,NSWindowAbove,@[b,c,d,a]);
+  check(p,@[b,c,d,a],@[],a,b,NSWindowBelow,@[a,b,c,d]);
  } @catch(NSException *e) {
   if(argc>1 && [e.name isEqual:NSRangeException]){puts("PASS original actual method reproduces NSRangeException for missing anchor");return 0;}
   fprintf(stderr,"Unexpected exception: %s\n",e.name.UTF8String);return 2;
  }
- assert(argc==1);[p->kids release];[p release];[a release];[b release];[c release];[unknown release];
+ assert(argc==1);[p->kids release];[p release];[a release];[b release];[c release];[d release];[unknown release];
  puts("PASS actual Cocoa ordering: normal, missing, empty, self and unknown anchor cases");
  }return 0;
 }
