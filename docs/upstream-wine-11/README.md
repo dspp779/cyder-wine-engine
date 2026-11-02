@@ -78,6 +78,8 @@
 
 ## 驗證與限制
 
+最新補驗：[AX-only 還原原因、修正與本機 GL／GDI 雙開驗證](ax-unminimize-2026-11-02.md)。修正版僅在獨立診斷 runtime 驗證；另列硬體／系統環境與軟體／發行缺口。
+
 最新 [2026-11-02 合併前審查](premerge-review-2026-11-02.md) 區分 #2／#3／#6 的包含關係、已解決的 main 測試清單衝突、最新完整回歸、#6 Retina 補驗及仍需外部環境的缺口。以下建置數量保留原始時間線，不代表本輪再次完整建置。
 
 - 已通過：兩個新測試會對 CX26.3 pristine 函式套 patch、編譯實際函式、驗證四邊 client overflow／decorated／shaped／present override 與 style mask 四種組合、Quicken early return，並 reverse 還原逐位元比較；manifest 記錄與順序檢查、test-build-wine、test-engine-manifest。

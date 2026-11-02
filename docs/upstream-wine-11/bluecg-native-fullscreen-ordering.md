@@ -127,6 +127,8 @@ Apple M4／macOS 27.2，單一 1680×945 points／2× 螢幕。GL、HD[1]、Reti
 
 ### 保留的 AX-only 還原失敗
 
+> 後續已在獨立 AX patch 修正並補測 GL／GDI Retina 雙開，詳見 [2026-11-02 AX 還原報告](ax-unminimize-2026-11-02.md)。下文是 #6 原版本的失敗紀錄，沒有回寫成通過；Dock 入口仍未獨立驗收。
+
 首輪 fullscreen 返回後，以 AXMinimized=true 最小化成功；再設 false 雖回傳成功，讀回仍為 1、視窗不可見，Win32 client 為 0×0。既有 Win32 `SW_RESTORE` 可恢復 962×722；上表 3 輪明確使用 `SW_MINIMIZE`／`SW_RESTORE`，不將 AX 失敗隱藏成全入口通過。
 
 反控制改用不含 #6 的 #3 runtime、相同 clone 與 Retina 設定；尚未進 fullscreen、停在登入前，就重現 AX 讀回保持 1，而 Win32 還原成功。本輪因此沒有證據將 AX 限制歸因於排序 patch。此項仍需獨立調查，Dock／所有 Accessibility 入口未驗收。
