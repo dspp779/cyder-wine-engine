@@ -183,6 +183,7 @@ otherwise accept an already-patched source tree and duplicate a helper/guard.
 | `cyder-winemac-gl-front-buffer-present.patch` | `if (flags & GL_FLUSH_PRESENT)` in `dlls/winemac.drv/opengl.c` |
 | `cyder-winemac-ax-unminimize.patch` | `Explicit AX unminimize uses Cocoa's restore path` in `dlls/winemac.drv/cocoa_window.m` |
 | `cyder-kernelbase-disk-free-space-fallback.patch` | `retry a real mapped volume instead of inventing free space` in `dlls/kernelbase/volume.c` |
+| `cyder-wined3d-gl-sm5-feature-level-11.patch` | `CyderGLShaderModel5` in `dlls/wined3d/wined3d_main.c` |
 | `maplestory-cx26-no-sched-yield.patch` | `if (is_maplestory_process()) return STATUS_NO_YIELD_PERFORMED;` |
 | `maplestory-cx26-file-cache-adaptive.patch` | `CYDER_MAPLESTORY_FILE_CACHE` in `dlls/ntdll/unix/file.c` |
 | `maplestory-cx26-io-ring.patch` | `CYDER_MAPLESTORY_IO_RING_EVENTS` in `dlls/ntdll/unix/file.c` |

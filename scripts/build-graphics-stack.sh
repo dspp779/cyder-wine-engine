@@ -210,6 +210,7 @@ build_moltenvk() {
   # timeline-wait stays in the wait-poll shim (libMoltenVK.dylib), never in reals.
   local capability_stamp="none"
   local present_stamp="none"
+  local msl_cap_stamp="none"
   if [[ "$MOLTENVK_SOURCE" == "upstream" ]]; then
     apply_capability_patch
     capability_stamp="cyder-moltenvk-crossover-capability-hacks"
@@ -218,6 +219,11 @@ build_moltenvk() {
       'Cyder: Metal scheduled-handler threads' \
       "$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKImage.mm"
     present_stamp="cyder-moltenvk-present-autoreleasepool"
+    apply_source_patch \
+      cyder-moltenvk-legacy-gpu-msl-cap.patch \
+      'Cyder: GPUs below GPU Family Mac 2' \
+      "$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm"
+    msl_cap_stamp="cyder-moltenvk-legacy-gpu-msl-cap"
   else
     echo "Skipping Cyder MoltenVK source patches for MOLTENVK_SOURCE=$MOLTENVK_SOURCE"
   fi
@@ -332,6 +338,7 @@ deployment-target ${MOLTENVK_DEPLOYMENT_TARGET}
 source ${MOLTENVK_SOURCE}
 capability-patch ${capability_stamp}
 patch ${present_stamp}
+patch ${msl_cap_stamp}
 ports-fix wait-poll-shim
 EOF
   echo "Installed MoltenVK -> $marker"

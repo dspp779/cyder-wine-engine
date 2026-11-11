@@ -39,6 +39,7 @@
     "cyder-winemac-missing-order-anchor.patch",
     "cyder-winemac-ax-unminimize.patch",
     "cyder-kernelbase-disk-free-space-fallback.patch",
+    "cyder-wined3d-gl-sm5-feature-level-11.patch",
     "wine-winemac-initialize-style-masks.patch",
     "wine-win32u-full-client-visible-rect.patch",
     "maplestory-cx26-message-wait-handoff.patch",

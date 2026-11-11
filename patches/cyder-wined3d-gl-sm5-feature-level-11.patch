@@ -1,0 +1,146 @@
+diff -ru a/dlls/wined3d/adapter_gl.c b/dlls/wined3d/adapter_gl.c
+--- a/dlls/wined3d/adapter_gl.c
++++ b/dlls/wined3d/adapter_gl.c
+@@ -1274,6 +1274,10 @@
+                 && gl_info->supported[ARB_TEXTURE_COMPRESSION_BPTC])
+             return WINED3D_FEATURE_LEVEL_11_1;
+ 
++        /* Cyder: see shader_glsl_get_shader_model(). */
++        if (shader_model >= 5 && wined3d_settings.cyder_gl_sm5)
++            return WINED3D_FEATURE_LEVEL_11;
++
+         if (shader_model >= 4)
+         {
+             if (gl_info->supported[ARB_TEXTURE_CUBE_MAP_ARRAY]
+diff -ru a/dlls/wined3d/glsl_shader.c b/dlls/wined3d/glsl_shader.c
+--- a/dlls/wined3d/glsl_shader.c
++++ b/dlls/wined3d/glsl_shader.c
+@@ -4287,6 +4287,7 @@
+ static void shader_glsl_map2gl(const struct wined3d_shader_instruction *ins)
+ {
+     struct wined3d_string_buffer *buffer = ins->ctx->buffer;
++    const struct shader_glsl_ctx_priv *priv = ins->ctx->backend_data;
+     struct glsl_src_param src_param;
+     const char *instruction;
+     DWORD write_mask;
+@@ -4325,6 +4326,17 @@
+             break;
+     }
+ 
++    /* Cyder: GL 4.1 (macOS) lacks ARB_derivative_control. Plain dFdx/dFdy
++     * leave coarse vs fine precision to the implementation, which is a valid
++     * substitute for both. */
++    if (!priv->gl_info->supported[ARB_DERIVATIVE_CONTROL])
++    {
++        if (ins->handler_idx == WINED3DSIH_DSX_COARSE || ins->handler_idx == WINED3DSIH_DSX_FINE)
++            instruction = "dFdx";
++        else if (ins->handler_idx == WINED3DSIH_DSY_COARSE || ins->handler_idx == WINED3DSIH_DSY_FINE)
++            instruction = "dFdy";
++    }
++
+     write_mask = shader_glsl_append_dst(buffer, ins);
+ 
+     /* In D3D bits are numbered from the most significant bit. */
+@@ -4599,6 +4611,7 @@
+ static void shader_glsl_to_int(const struct wined3d_shader_instruction *ins)
+ {
+     struct wined3d_string_buffer *buffer = ins->ctx->buffer;
++    const struct shader_glsl_ctx_priv *priv = ins->ctx->backend_data;
+     struct glsl_src_param src_param;
+     unsigned int mask_size;
+     DWORD write_mask;
+@@ -4607,6 +4620,23 @@
+     mask_size = shader_glsl_get_write_mask_size(write_mask);
+     shader_glsl_add_src_param(ins, &ins->src[0], write_mask, &src_param);
+ 
++    /* Cyder: Apple GL lacks EXT_shader_integer_mix (see HACK 23019), so
++     * integer mix() fails to compile. 2147483520.0 is the largest float
++     * below 2^31; adding 127 for x >= 2^31 yields 0x7fffffff, NaN yields 0. */
++    if (!priv->gl_info->supported[EXT_SHADER_INTEGER_MIX])
++    {
++        if (mask_size > 1)
++            shader_addline(buffer, "(ivec%u(clamp(%s, vec%u(-2147483648.0), vec%u(2147483520.0)))"
++                    " + ivec%u(greaterThanEqual(%s, vec%u(2147483648.0))) * 127) * ivec%u(not(isnan(%s))));\n",
++                    mask_size, src_param.param_str, mask_size, mask_size,
++                    mask_size, src_param.param_str, mask_size, mask_size, src_param.param_str);
++        else
++            shader_addline(buffer, "(int(clamp(%s, -2147483648.0, 2147483520.0))"
++                    " + int(%s >= 2147483648.0) * 127) * int(!isnan(%s)));\n",
++                    src_param.param_str, src_param.param_str, src_param.param_str);
++        return;
++    }
++
+     if (mask_size > 1)
+         shader_addline(buffer, "mix(mix(ivec%u(max(%s, vec%u(-2147483648.0))), ivec%u(0x7fffffff), greaterThanEqual(%s, vec%u(2147483648.0))), ivec%u(0), isnan(%s)));\n",
+                 mask_size, src_param.param_str, mask_size, mask_size, src_param.param_str, mask_size, mask_size, src_param.param_str);
+@@ -4618,6 +4648,7 @@
+ static void shader_glsl_to_uint(const struct wined3d_shader_instruction *ins)
+ {
+     struct wined3d_string_buffer *buffer = ins->ctx->buffer;
++    const struct shader_glsl_ctx_priv *priv = ins->ctx->backend_data;
+     struct glsl_src_param src_param;
+     unsigned int mask_size;
+     DWORD write_mask;
+@@ -4626,6 +4657,21 @@
+     mask_size = shader_glsl_get_write_mask_size(write_mask);
+     shader_glsl_add_src_param(ins, &ins->src[0], write_mask, &src_param);
+ 
++    /* Cyder: see shader_glsl_to_int(); 4294967040.0 + 255 == 0xffffffff. */
++    if (!priv->gl_info->supported[EXT_SHADER_INTEGER_MIX])
++    {
++        if (mask_size > 1)
++            shader_addline(buffer, "(uvec%u(clamp(%s, vec%u(0.0), vec%u(4294967040.0)))"
++                    " + uvec%u(greaterThanEqual(%s, vec%u(4294967296.0))) * 255u) * uvec%u(not(isnan(%s))));\n",
++                    mask_size, src_param.param_str, mask_size, mask_size,
++                    mask_size, src_param.param_str, mask_size, mask_size, src_param.param_str);
++        else
++            shader_addline(buffer, "(uint(clamp(%s, 0.0, 4294967040.0))"
++                    " + uint(%s >= 4294967296.0) * 255u) * uint(!isnan(%s)));\n",
++                    src_param.param_str, src_param.param_str, src_param.param_str);
++        return;
++    }
++
+     if (mask_size > 1)
+         shader_addline(buffer, "mix(uvec%u(max(%s, vec%u(0.0))), uvec%u(0xffffffffu), greaterThanEqual(%s, vec%u(4294967296.0))));\n",
+                 mask_size, src_param.param_str, mask_size, mask_size, src_param.param_str, mask_size);
+@@ -11410,6 +11456,15 @@
+             && gl_info->supported[ARB_TESSELLATION_SHADER]
+             && gl_info->supported[ARB_TEXTURE_GATHER]
+             && gl_info->supported[ARB_TRANSFORM_FEEDBACK3])
++        return 5;
++
++    /* Cyder: macOS GL 4.1 lacks compute, image load/store and atomic
++     * counters, which keeps it at SM4 / FL10_1. Some D3D11 games request
++     * only FL11_0 but draw with plain SM5 VS/PS that GLSL 4.x can express.
++     * Compute dispatch stays a no-op without ARB_compute_shader. */
++    if (shader_model_4 && wined3d_settings.cyder_gl_sm5
++            && gl_info->glsl_version >= MAKEDWORD_VERSION(4, 0)
++            && gl_info->supported[ARB_GPU_SHADER5])
+         return 5;
+ 
+     if (shader_model_4)
+diff -ru a/dlls/wined3d/wined3d_main.c b/dlls/wined3d/wined3d_main.c
+--- a/dlls/wined3d/wined3d_main.c
++++ b/dlls/wined3d/wined3d_main.c
+@@ -462,6 +462,9 @@
+             TRACE("Limiting PS shader model to %u.\n", wined3d_settings.max_sm_ps);
+         if (!get_config_key_dword(hkey, appkey, env, "MaxShaderModelCS", &wined3d_settings.max_sm_cs))
+             TRACE("Limiting CS shader model to %u.\n", wined3d_settings.max_sm_cs);
++        if (!get_config_key_dword(hkey, appkey, env, "CyderGLShaderModel5", &wined3d_settings.cyder_gl_sm5)
++                && wined3d_settings.cyder_gl_sm5)
++            ERR_(winediag)("Cyder: allowing shader model 5 / feature level 11_0 on GL without compute.\n");
+         if (!get_config_key(hkey, appkey, env, "renderer", buffer, size))
+         {
+             if (!strcmp(buffer, "vulkan"))
+diff -ru a/dlls/wined3d/wined3d_private.h b/dlls/wined3d/wined3d_private.h
+--- a/dlls/wined3d/wined3d_private.h
++++ b/dlls/wined3d/wined3d_private.h
+@@ -493,6 +493,8 @@
+     bool check_float_constants;
+     bool cb_access_map_w;
+     bool ffp_hlsl;
++    /* Cyder: allow SM5 / FL11_0 on GL 4.x drivers without compute (macOS GL 4.1). */
++    unsigned int cyder_gl_sm5;
+ };
+ 
+ extern struct wined3d_settings wined3d_settings;

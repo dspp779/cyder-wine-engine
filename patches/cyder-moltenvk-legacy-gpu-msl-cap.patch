@@ -1,0 +1,24 @@
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm
+@@ -2624,9 +2624,21 @@
+ 		_metalFeatures.mslVersionEnum = MTLLanguageVersion3_0;
+ 		setMSLVersion(3, 0);
+ 	} else {
++		_metalFeatures.mslVersionEnum = MTLLanguageVersion2_4;
++		setMSLVersion(2, 4);
++	}
++
++#if MVK_MACOS
++	// Cyder: GPUs below GPU Family Mac 2 (e.g. NVIDIA Kepler kept alive on
++	// macOS 13+ by OpenCore Legacy Patcher) use a Metal 2.x-era backend
++	// compiler. It rejects MSL 3.2 and crashes MTLCompilerService on some
++	// MSL 3.x shaders, so stay at the newest version those drivers shipped with.
++	if ( !supportsMTLGPUFamily(Mac2) && !supportsMTLGPUFamily(Apple1) &&
++		 _metalFeatures.mslVersionEnum > MTLLanguageVersion2_4 ) {
+ 		_metalFeatures.mslVersionEnum = MTLLanguageVersion2_4;
+ 		setMSLVersion(2, 4);
+ 	}
++#endif
+ 
+ 	_metalFeatures.programmableSamplePositions = _mtlDevice.areProgrammableSamplePositionsSupported;
+ 	_metalFeatures.rasterOrderGroups = _mtlDevice.areRasterOrderGroupsSupported;
