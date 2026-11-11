@@ -5,7 +5,7 @@
 錯誤的 engine install、舊 wineserver、污染的 build tree 或過量 log 而得到
 無法比較的結果。
 
-目前 CX26 產品基準為 `CX26.3.0-W11-Cyder012`，以
+目前 CX26 產品基準為 `CX26.3.0-W11-Cyder013`，以
 `config/engine-release.json` 與 `config/engine-version.txt` 為 canonical contract。
 引擎工作一律在
 `/Users/jjc/cyder-wine-engine` 進行，不要透過 Cyder.app 來替代引擎測試。

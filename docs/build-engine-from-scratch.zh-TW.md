@@ -1,6 +1,6 @@
 # 從零建置 Cyder Wine Engine
 
-本文件以目前 Cyder012 目標為例，說明如何從空白 checkout 建立可供 Cyder
+本文件以目前 Cyder013 目標為例，說明如何從空白 checkout 建立可供 Cyder
 測試的完整 engine 與 graphics payload。它涵蓋兩個 sibling repository：
 
 - `cyder-wine-engine`：CrossOver/Wine、MoltenVK、host dylib、CompatDB、簽署與
@@ -16,10 +16,10 @@ Canonical contract 為 [`config/engine-release.json`](../config/engine-release.j
 與 [`config/engine-version.txt`](../config/engine-version.txt)；兩者 label 必須一致。
 下列 pack 範例直接讀 config，不另寫死 release label。
 
-| 項目 | Cyder012 目標 |
+| 項目 | Cyder013 目標 |
 |---|---|
 | CrossOver / Wine | CrossOver 26.3.0 / Wine 11.0 |
-| Engine label | `CX26.3.0-W11-Cyder012` |
+| Engine label | `CX26.3.0-W11-Cyder013` |
 | Host | macOS x86_64，Apple Silicon 以 Rosetta 2 執行 |
 | Host minOS | 10.15；DXMT 可到 15.0，MoltenVK 1.4.2／1.2.10 reals 可到 12.0 |
 | MapleStory | CX26 MapleStory compatibility stack；D3DMetal / Apple GPTK 為主要路徑 |
@@ -430,9 +430,9 @@ copy（排除 lib/dxvk、lib/dxvk2、lib/dxmt）
 輸出：
 
 ```text
-dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder012.tar.xz
-dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder012.tar.xz.sha256
-dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder012.tar.xz.manifest.json
+dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder013.tar.xz
+dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder013.tar.xz.sha256
+dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder013.tar.xz.manifest.json
 dist/artifacts/graphics/dxvk-1.10.3.tar.zst
 dist/artifacts/graphics/dxvk2-2.7.1.tar.zst
 dist/artifacts/graphics/dxmt-0.80.tar.zst
@@ -441,7 +441,7 @@ dist/artifacts/graphics/dxmt-0.80.tar.zst
 確認 engine archive 含 dual-variant MoltenVK：
 
 ```bash
-tar -tJf dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder012.tar.xz \
+tar -tJf dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder013.tar.xz \
   | grep -E 'libMoltenVK|lib/dxvk|lib/dxmt'
 ```
 

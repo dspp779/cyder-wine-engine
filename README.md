@@ -11,7 +11,7 @@ bundle a pinned engine artifact during the first extraction phase.
 
 ## Current release target
 
-- Engine: `CX26.3.0-W11-Cyder012`
+- Engine: `CX26.3.0-W11-Cyder013`
 - Base: CrossOver 26.3.0 / Wine 11.0
 - Host: macOS x86_64; native on Intel, Rosetta on Apple Silicon
 - Product deployment floor: macOS 10.15 (`.env` / `MACOSX_DEPLOYMENT_TARGET`, default 10.15)

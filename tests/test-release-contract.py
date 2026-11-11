@@ -37,6 +37,11 @@ HISTORICAL_FILES = {
     "docs/wineserver-teardown-hardening-cyder008.md": "Cyder007/Cyder008 teardown investigation",
     "docs/maplestory-classic-cx26-frame-walk-debug.md": "Cyder005/006/007 frame-walk investigation",
     "docs/moltenvk-timeline-wait-poll-app-overlay.md": "Pre-dual-variant Cyder007 app-overlay design",
+    "docs/arm64-native-build-experiment-2026-09-21.zh-TW.md": "Dated 2026-09-21 arm64 experiment on Cyder012",
+    "docs/maplestory-cx26-first-hit-materialize-findings.zh-TW.md": "Cyder012 first-hit measurement record",
+    "docs/maplestory-cx26-wz-cache-experiments.zh-TW.md": "Cyder012 WZ cache experiment record",
+    "docs/maplestory-exit-hang-20261029.zh-TW.md": "Dated 2026-10-29 exit-hang investigation on Cyder012",
+    "docs/upstream-wine-11/test-runtime-kit-validation.md": "Cyder012-based PR2/PR3 test kit validation record",
 }
 HISTORICAL_SECTIONS = {
     "docs/maplestory-cx26-worklog.zh-TW.md": {
@@ -47,6 +52,22 @@ HISTORICAL_SECTIONS = {
 # Exact lines only: legacy compatibility logic must not exempt nearby examples
 # or defaults. New exceptions require a reason and a reviewable scope here.
 HISTORICAL_LINES = {
+    RELEASE_SKILL: {
+        "  producing Cyder012+ release tarballs or repairing adhoc/broken graphics packs":
+            "Dual-variant layout introduction threshold",
+    },
+    GUIDE: {
+        "| 打包後缺少 versioned MoltenVK 或 shim | 未跑 `install-moltenvk-dual-variant.sh` | 組裝 dual layout 後再 pack；Cyder012+ 需要雙 real + `.real` + wait-poll shim |":
+            "Dual-variant layout introduction threshold",
+    },
+    INTEGRATION: {
+        "Cyder012+ ships a **dual-variant** MoltenVK layout: versioned reals":
+            "Dual-variant layout introduction threshold",
+    },
+    "docs/upstream-wine-11/README.md": {
+        '版本公告只是變更索引，不是 Cyder 相容性證明。本 PR 不升級 Wine base、不宣稱 CS2 已可玩、不替換使用者 runtime。保留現有 Cyder012 identity，正式打包前需按 repository 發行流程決定新版本識別。':
+            "PR3 review record written against Cyder012",
+    },
     README: {
         "The patch application is idempotent and can migrate a Cyder006 combined":
             "Supported migration from the obsolete combined frame-walk patch",
@@ -56,6 +77,8 @@ HISTORICAL_LINES = {
             "Supported obsolete patch migration",
     },
     PACKER: {
+        "# Cyder012+ dual-variant MoltenVK: two versioned reals + wait-poll shim + .real symlink.":
+            "Dual-variant layout introduction threshold",
         "# Cyder008/009 kept the older single-real + shim pair without versioned siblings.":
             "Historical layout introduction",
         'if [[ "$ENGINE_VERSION_LABEL" == *Cyder008* || "$ENGINE_VERSION_LABEL" == *Cyder009* ]]; then':
@@ -88,8 +111,15 @@ def read_corpus():
     for directory in ("docs", "scripts", "examples", ".agents/skills"):
         paths.update(p for p in (ROOT / directory).rglob("*")
                      if p.is_file() and "__pycache__" not in p.parts)
-    return {str(path.relative_to(ROOT)): path.read_text(encoding="utf-8")
-            for path in sorted(paths) if path.is_file()}
+    corpus = {}
+    for path in sorted(paths):
+        if not path.is_file():
+            continue
+        try:
+            corpus[str(path.relative_to(ROOT))] = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue  # binary evidence (screenshots) carries no release claims
+    return corpus
 
 
 def current_lines(name, text):
