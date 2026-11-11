@@ -16,8 +16,8 @@ cat >"$tmp/probe.c" <<'EOF'
 int cyder_moltenvk_dual_probe = 1;
 EOF
 for ver in 1.4.2 1.2.10; do
-  arch -x86_64 /usr/bin/clang -arch x86_64 \
-    -mmacosx-version-min=12.0 \
+  arch -x86_64 env "${CYDER_HOST_CLANG:-/usr/bin/clang}" -arch x86_64 \
+    -mmacosx-version-min=10.15 \
     -isysroot "$sdk" \
     -dynamiclib \
     -o "$tmp/reals/libMoltenVK-$ver.dylib" \

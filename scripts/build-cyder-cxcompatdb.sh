@@ -45,7 +45,7 @@ clang_args+=(
   -Wl,-undefined,dynamic_lookup \
   -Wl,-install_name,@loader_path/cxcompatdb.so \
 )
-arch -x86_64 /usr/bin/clang "${clang_args[@]}" -o "$OUTPUT" "$SOURCE"
+arch -x86_64 env "${CYDER_HOST_CLANG:-/usr/bin/clang}" "${clang_args[@]}" -o "$OUTPUT" "$SOURCE"
 
 echo "Built Cyder cxcompatdb: $OUTPUT"
 otool -l "$OUTPUT" | awk '/minos/{print "  " $0; exit}'

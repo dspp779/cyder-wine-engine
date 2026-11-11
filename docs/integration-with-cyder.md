@@ -26,3 +26,14 @@ capability + present patches only; timeline-wait stays in the shim. See
 
 Cross-repository changes cannot be atomic. A Cyder commit therefore pins an
 already published immutable engine release rather than a moving branch name.
+
+## DXMT prefix discovery
+
+Selecting/prepending a backend directory alone is insufficient on Wine 11.
+Before launching DXMT in an initialized prefix, the application must prepare
+its original x86_64/i386 `winemetal.dll` discovery files under system32/syswow64.
+The PE loader normally requires the prefix file to exist before the Unix builtin
+resolver can redirect it. CyderBits already implements this contract in
+`cyder_ensure_dxmt_winemetal_prefix`; standalone test launchers must do it too.
+The test-kit helper refuses unknown existing DLLs, links and external prefixes.
+See [the controlled reproduction and D3D11 validation](upstream-wine-11/dxmt-prefix-discovery-fix.md).

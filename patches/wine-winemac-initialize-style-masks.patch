@@ -1,0 +1,17 @@
+From: Jactry Zeng <jzeng@codeweavers.com>
+Subject: winemac.drv: Fix a typo to avoid usage of an uninitialized variable.
+
+Backport of Wine 48e2d50404d0b67f30cf0a149df361f4d50eac64.
+Context adjusted for the CX26.3 Quicken decoration exception.
+
+--- a/dlls/winemac.drv/window.c
++++ b/dlls/winemac.drv/window.c
+@@ -28,7 +28,7 @@
+     /* CW HACK 16933: No Cocoa window decorations for the Quicken main window. */
+     if (is_main_quicken_window(hwnd)) return FALSE;
+ 
+-    *style_mask = ex_style = 0;
++    *style_mask = *ex_style_mask = 0;
+     if (wf.title_bar)
+     {
+         *style_mask |= WS_CAPTION;

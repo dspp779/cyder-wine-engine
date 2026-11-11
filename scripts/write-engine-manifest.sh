@@ -9,6 +9,7 @@ VERSION_LABEL=""
 NTDLL_SHA256=""
 ARTIFACT=""
 ARTIFACT_SHA256=""
+PE_PROVENANCE_SHA256=""
 RELEASE_CONFIG="${CYDER_ENGINE_RELEASE_CONFIG:-$ROOT/config/engine-release.json}"
 
 while [[ $# -gt 0 ]]; do
@@ -18,6 +19,7 @@ while [[ $# -gt 0 ]]; do
     --ntdll-sha256) NTDLL_SHA256="$2"; shift 2 ;;
     --artifact) ARTIFACT="$2"; shift 2 ;;
     --artifact-sha256) ARTIFACT_SHA256="$2"; shift 2 ;;
+    --pe-provenance-sha256) PE_PROVENANCE_SHA256="$2"; shift 2 ;;
     --config) RELEASE_CONFIG="$2"; shift 2 ;;
     *)
       echo "Unknown argument: $1" >&2
@@ -43,6 +45,10 @@ if [[ -n "$ARTIFACT_SHA256" && ! "$ARTIFACT_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
   exit 1
 fi
 
+if [[ -n "$PE_PROVENANCE_SHA256" && ! "$PE_PROVENANCE_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "Invalid PE provenance SHA-256" >&2
+  exit 1
+fi
 mkdir -p "$(dirname "$OUTPUT")"
 [[ -f "$RELEASE_CONFIG" ]] || {
   echo "Missing engine release metadata: $RELEASE_CONFIG" >&2
@@ -53,11 +59,11 @@ mkdir -p "$(dirname "$OUTPUT")"
 # patch list in one canonical file. The version and checksums are build outputs
 # and intentionally replace their config counterparts here.
 python3 - "$RELEASE_CONFIG" "$OUTPUT" "$VERSION_LABEL" "$NTDLL_SHA256" \
-  "$ARTIFACT" "$ARTIFACT_SHA256" <<'PY'
+  "$ARTIFACT" "$ARTIFACT_SHA256" "$PE_PROVENANCE_SHA256" <<'PY'
 import json
 import sys
 
-config_path, output_path, version, ntdll_sha, artifact, artifact_sha = sys.argv[1:]
+config_path, output_path, version, ntdll_sha, artifact, artifact_sha, pe_sha = sys.argv[1:]
 with open(config_path, encoding="utf-8") as stream:
     manifest = json.load(stream)
 
@@ -65,6 +71,10 @@ manifest["versionLabel"] = version
 manifest["ntdllSHA256"] = ntdll_sha
 manifest["artifact"] = artifact or None
 manifest["artifactSHA256"] = artifact_sha or None
+# Never inherit a release claim from a static config or an older package.
+manifest.pop("peAuthenticode", None)
+if pe_sha:
+    manifest["peAuthenticode"] = {"status": "verified", "provenance": "cyder-pe-provenance.json", "sha256": pe_sha}
 
 with open(output_path, "w", encoding="utf-8") as stream:
     json.dump(manifest, stream, ensure_ascii=False, indent=2)

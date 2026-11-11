@@ -58,6 +58,9 @@ Build a compressed engine artifact from install/wine-cx26-x86_64 (or WINE_INSTAL
 The default label comes from config/engine-version.txt.
 Set CYDER_ENGINE_VERSION_LABEL to override it for an explicit candidate pack.
 Set CYDER_ENGINE_FORMAT=zstd or pass --zstd to build with zstd -22 --ultra.
+PE Authenticode is optional: CYDER_PE_SIGNING=off (default), or required to
+sign reviewed PE and enforce the independent Authenticode release gate.
+Apple Developer ID signing remains controlled by SIGN_IDENTITY.
 The default media profile is full-video; use --media-profile minimal only for
 an explicitly reduced/non-video engine build.
 EOF
@@ -149,6 +152,23 @@ ARCHIVE="$(cyder_engine_archive_path_for_format "$ENGINE_VERSION" "$ARTIFACTS_DI
 VERSION_FILE="$ARTIFACTS_DIR/engine-version.txt"
 STAMP_FILE="$ARTIFACTS_DIR/.pack-stamp"
 
+# PE Authenticode is an explicit opt-in, independent of Apple Developer ID.
+PE_SIGNING_ENABLED=0
+PE_PROVENANCE_SHA256=""
+case "${CYDER_PE_SIGNING:-off}" in
+  off) ;;
+  required) PE_SIGNING_ENABLED=1 ;;
+  *) echo "Invalid CYDER_PE_SIGNING (expected off or required)" >&2; exit 1 ;;
+esac
+if [[ "$PE_SIGNING_ENABLED" -eq 1 ]]; then
+  : "${CYDER_PE_SIGNING_POLICY:?Set a reviewed PE signing policy when CYDER_PE_SIGNING=required}"
+  python3 "$SCRIPT_DIR/pe-signing.py" preflight --policy "$CYDER_PE_SIGNING_POLICY"
+  if [[ -e "$ARCHIVE" && "$DRY_RUN" -ne 1 ]]; then
+    echo "Refusing to reuse/overwrite a PE-signed engine archive; choose a new engine version label." >&2
+    exit 1
+  fi
+fi
+
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "DRY RUN: would pack separate DXVK/DXMT graphics payloads"
 else
@@ -168,11 +188,35 @@ if [[ -f "$ARCHIVE" && "$FORCE" -ne 1 ]]; then
   exit 0
 fi
 
-STAGING="$(mktemp -d "${TMPDIR:-/tmp}/cyder-engine-pack.XXXXXX")"
+# Hold one publisher per artifact, and never expose an unverified candidate
+# at the final archive path (where the next invocation would reuse it as cache).
+STAGING=""
+CANDIDATE_ROOT=""
+PACK_LOCK=""
 cleanup() {
-  rm -rf "$STAGING"
+  [[ -z "$STAGING" ]] || rm -rf "$STAGING"
+  [[ -z "$CANDIDATE_ROOT" ]] || rm -rf "$CANDIDATE_ROOT"
+  [[ -z "$PACK_LOCK" ]] || rmdir "$PACK_LOCK" 2>/dev/null || true
 }
 trap cleanup EXIT
+mkdir -p "$ARTIFACTS_DIR"
+lock_path="${ARCHIVE}.pack-lock"
+if ! mkdir "$lock_path" 2>/dev/null; then
+  echo "Engine artifact is being packed, or an interrupted pack lock needs inspection: $lock_path" >&2
+  exit 1
+fi
+PACK_LOCK="$lock_path"
+# A concurrent pack may have published between our first cache check and lock.
+if [[ -e "$ARCHIVE" ]]; then
+  if [[ "$PE_SIGNING_ENABLED" -eq 1 ]]; then
+    echo "Refusing to reuse/overwrite a PE-signed engine archive; choose a new engine version label." >&2
+    exit 1
+  elif [[ "$FORCE" -ne 1 ]]; then
+    echo "Engine artifact present: $ARCHIVE"
+    exit 0
+  fi
+fi
+STAGING="$(mktemp -d "${TMPDIR:-/tmp}/cyder-engine-pack.XXXXXX")"
 ENGINE_TREE="$STAGING/wine-x86_64"
 
 echo "==> Staging engine tree ($ENGINE_VERSION_LABEL)"
@@ -181,6 +225,7 @@ echo "==> Embedding GStreamer media profile $MEDIA_PROFILE from $MEDIA_INSTALL"
 rsync -a --delete \
   --exclude 'lib64/apple_gptk' \
   --exclude 'apple_gptk' \
+  --exclude '/cyder-pe-provenance.json' \
   --exclude 'lib/dxvk' \
   --exclude 'lib/dxvk2' \
   --exclude 'lib/dxmt' \
@@ -283,6 +328,11 @@ if [[ "$ENGINE_VERSION_LABEL" == *Cyder008* || "$ENGINE_VERSION_LABEL" == *Cyder
 elif [[ "$ENGINE_VERSION_LABEL" == *Cyder012* || "$ENGINE_VERSION_LABEL" == *Cyder01[3-9]* || "$ENGINE_VERSION_LABEL" == *Cyder0[2-9]* ]]; then
   cyder_validate_moltenvk_dual_layout "$ENGINE_TREE/lib/wine/x86_64-unix" || exit 1
 fi
+# Strip/bundle first, then PE-sign staging only, before final hashes/manifests.
+if [[ "$PE_SIGNING_ENABLED" -eq 1 && "$DRY_RUN" -ne 1 ]]; then
+  python3 "$SCRIPT_DIR/pe-signing.py" prepare --root "$ENGINE_TREE" --policy "$CYDER_PE_SIGNING_POLICY"
+  PE_PROVENANCE_SHA256="$(shasum -a 256 "$ENGINE_TREE/cyder-pe-provenance.json" | awk '{print $1}')"
+fi
 bash "$SCRIPT_DIR/sign-wine.sh" --root "$ENGINE_TREE" --entitlements "$ENTITLEMENTS_PLIST"
 
 PACKED_CXCOMPATDB="$ENGINE_TREE/lib/wine/x86_64-unix/cxcompatdb.so"
@@ -306,13 +356,18 @@ NTDLL_SHA256="$(shasum -a 256 "$NTDLL" | awk '{print $1}')"
 bash "$SCRIPT_DIR/write-engine-manifest.sh" \
   --output "$ENGINE_TREE/engine-manifest.json" \
   --version "$ENGINE_VERSION_LABEL" \
-  --ntdll-sha256 "$NTDLL_SHA256"
+  --ntdll-sha256 "$NTDLL_SHA256" \
+  --pe-provenance-sha256 "$PE_PROVENANCE_SHA256"
 
 mkdir -p "$ARTIFACTS_DIR"
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "DRY RUN: would create $ARCHIVE from $ENGINE_TREE"
   exit 0
 fi
+
+# Candidates live on the destination filesystem so the final archive rename is atomic.
+CANDIDATE_ROOT="$(mktemp -d "$ARTIFACTS_DIR/.cyder-engine-publish.XXXXXX")"
+CANDIDATE_ARCHIVE="$CANDIDATE_ROOT/$(basename "$ARCHIVE")"
 
 case "$FORMAT" in
   zst)
@@ -321,14 +376,14 @@ case "$FORMAT" in
       cd "$STAGING"
       zstd_args=(-22 --ultra -T0)
       if [[ "$FORCE" -eq 1 ]]; then zstd_args+=(--force); fi
-      tar -cf - wine-x86_64 | "$ZSTD_BIN" "${zstd_args[@]}" -o "$ARCHIVE"
+      tar -cf - wine-x86_64 | "$ZSTD_BIN" "${zstd_args[@]}" -o "$CANDIDATE_ARCHIVE"
     )
     ;;
   xz)
     echo "==> Compressing with xz (-9e -T0)"
     (
       cd "$STAGING"
-      tar -cf - wine-x86_64 | xz -9e -T0 -c >"$ARCHIVE"
+      tar -cf - wine-x86_64 | xz -9e -T0 -c >"$CANDIDATE_ARCHIVE"
     )
     ;;
 esac
@@ -339,12 +394,16 @@ VERIFY_ROOT="$STAGING/archive-verify"
 mkdir -p "$VERIFY_ROOT"
 case "$FORMAT" in
   zst)
-    "$ZSTD_BIN" -dc "$ARCHIVE" | tar -xf - -C "$VERIFY_ROOT"
+    "$ZSTD_BIN" -dc "$CANDIDATE_ARCHIVE" | tar -xf - -C "$VERIFY_ROOT"
     ;;
   xz)
-    tar -xJf "$ARCHIVE" -C "$VERIFY_ROOT"
+    tar -xJf "$CANDIDATE_ARCHIVE" -C "$VERIFY_ROOT"
     ;;
 esac
+if [[ "$PE_SIGNING_ENABLED" -eq 1 ]]; then
+  test "$(shasum -a 256 "$VERIFY_ROOT/wine-x86_64/cyder-pe-provenance.json" | awk '{print $1}')" = "$PE_PROVENANCE_SHA256"
+  python3 "$SCRIPT_DIR/pe-signing.py" verify --root "$VERIFY_ROOT/wine-x86_64" --policy "$CYDER_PE_SIGNING_POLICY"
+fi
 verified_macho=0
 while IFS= read -r -d '' signed_path; do
   if file -b "$signed_path" | grep -q 'Mach-O'; then
@@ -354,7 +413,7 @@ while IFS= read -r -d '' signed_path; do
 done < <(find "$VERIFY_ROOT/wine-x86_64" -type f -print0)
 echo "==> Verified $verified_macho Mach-O signatures after archive extraction"
 
-printf '%s\n' "$ENGINE_VERSION_LABEL" >"$VERSION_FILE"
+printf '%s\n' "$ENGINE_VERSION_LABEL" >"$CANDIDATE_ROOT/engine-version.txt"
 {
   echo "version=$ENGINE_VERSION_LABEL"
   echo "slug=$ENGINE_VERSION_SLUG"
@@ -366,15 +425,24 @@ printf '%s\n' "$ENGINE_VERSION_LABEL" >"$VERSION_FILE"
     echo "wine=$(arch -x86_64 "$WINE_INSTALL/bin/wine" --version 2>/dev/null || true)"
   fi
   echo "packed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-} >"$STAMP_FILE"
-ARTIFACT_SHA256="$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')"
-printf '%s  %s\n' "$ARTIFACT_SHA256" "$(basename "$ARCHIVE")" >"${ARCHIVE}.sha256"
+} >"$CANDIDATE_ROOT/.pack-stamp"
+ARTIFACT_SHA256="$(shasum -a 256 "$CANDIDATE_ARCHIVE" | awk '{print $1}')"
+printf '%s  %s\n' "$ARTIFACT_SHA256" "$(basename "$ARCHIVE")" >"${CANDIDATE_ARCHIVE}.sha256"
 bash "$SCRIPT_DIR/write-engine-manifest.sh" \
-  --output "${ARCHIVE}.manifest.json" \
+  --output "${CANDIDATE_ARCHIVE}.manifest.json" \
   --version "$ENGINE_VERSION_LABEL" \
   --ntdll-sha256 "$NTDLL_SHA256" \
+  --pe-provenance-sha256 "$PE_PROVENANCE_SHA256" \
   --artifact "$(basename "$ARCHIVE")" \
   --artifact-sha256 "$ARTIFACT_SHA256"
+
+# Sidecars are ready before publication. On interruption readers may see a
+# digest mismatch, but never an unverified candidate accepted as a valid cache.
+mv -f "${CANDIDATE_ARCHIVE}.sha256" "${ARCHIVE}.sha256"
+mv -f "${CANDIDATE_ARCHIVE}.manifest.json" "${ARCHIVE}.manifest.json"
+mv -f "$CANDIDATE_ARCHIVE" "$ARCHIVE"
+mv -f "$CANDIDATE_ROOT/engine-version.txt" "$VERSION_FILE"
+mv -f "$CANDIDATE_ROOT/.pack-stamp" "$STAMP_FILE"
 
 echo "==> Created $ARCHIVE ($(du -sh "$ARCHIVE" | awk '{print $1}'))"
 echo "==> Version file: $VERSION_FILE"

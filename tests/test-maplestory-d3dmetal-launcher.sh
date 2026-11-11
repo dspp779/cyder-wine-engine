@@ -115,7 +115,7 @@ assert_contains "$dxmt_output" 'ensure_dxmt_winemetal_prefix' \
   "DXMT dry-run should plan winemetal prefix provision"
 
 mkdir -p "$tmp/wine/lib/wine/gstreamer-1.0"
-bundled_output="$(bash "$LAUNCHER" \
+bundled_output="$(env -u MEDIA_INSTALL bash "$LAUNCHER" \
   --launch-exe "$tmp/MapleStory.exe" \
   --wine-install "$tmp/wine" \
   --gptk-root "$tmp/gptk" \

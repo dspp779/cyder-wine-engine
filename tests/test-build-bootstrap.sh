@@ -194,6 +194,7 @@ HOMEBREW_PREFIX=/fake/brew
 VULKAN_PKG_PC_PATH=/fake/brew/lib/pkgconfig
 WINE_INSTALL=/fake/install
 BUILD_TESTS=0
+MAPLESTORY=0
 CONFIGURE_ONLY=0
 JOBS=2
 CONFIGURE_VULKAN_FLAG=(--without-vulkan)

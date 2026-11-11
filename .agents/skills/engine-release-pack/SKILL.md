@@ -26,6 +26,26 @@ export OGOM="$PWD"   # config and build/install paths belong to the engine repo
    extracted engine — **never** symlink `lib/dxvk`, `lib/dxvk2`, or `lib/dxmt`.
    Symlink sources pack into stub archives; `pack-graphics-payloads.sh` refuses them.
 
+## Optional PE Authenticode
+
+Read `docs/pe-authenticode-release-signing.zh-TW.md` when PE signing is requested.
+`CYDER_PE_SIGNING=off` is the default: Apple Developer ID release packs do not
+require an Authenticode purchase, policy, signer or PE verifier. Keep the normal
+Apple signing/notarization and graphics release checks; preserve upstream PE
+signatures unchanged, including while stripping debug data. Unsigned PE alone
+is not an integrity failure, and prefix integrity diagnostics remain necessary.
+
+Only explicit `CYDER_PE_SIGNING=required` enables PE signing. It then requires
+a reviewed policy, provider adapter, osslsigncode and code-signing/TSA trust
+stores. Missing configuration or failed verification stops that opt-in pack;
+never silently downgrade or substitute test certificates. Credentials/provider
+adapter are not provisioned and are not required for the default workflow.
+
+When opted in, sign reviewed Cyder-built PE in staging after stripping, generate
+final hashes/provenance and verify the extracted archive. Existing archives are
+not reused/overwritten in this mode even with `--force`; use an unused label.
+Default off retains existing cache/force behavior without a PE verification claim.
+
 ## Commands
 
 ```bash
@@ -38,7 +58,7 @@ bash scripts/pack-graphics-payloads.sh --engine "$WINE_INSTALL" \
   --channel release --revision "$CYDER_GRAPHICS_PACKAGE_REVISION"
 
 CYDER_ENGINE_VERSION_LABEL="$(head -n 1 config/engine-version.txt)" \
-  bash scripts/pack-engine-artifact.sh --zst --force
+  bash scripts/pack-engine-artifact.sh --zst
 ```
 
 ## DXMT source and signature policy

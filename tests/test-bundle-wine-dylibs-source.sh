@@ -46,7 +46,7 @@ mkdir -p "$TMP/wine/lib/wine/x86_64-unix" "$TMP/brew/lib" \
   "$TMP/empty-graphics/lib" "$TMP/empty-media/lib"
 # Build a tiny x86_64 dylib with minos 14.0 (above the 10.15 floor).
 echo 'int ogom_bundle_minos_probe=1;' > "$TMP/probe.c"
-arch -x86_64 /usr/bin/clang -arch x86_64 -dynamiclib -mmacosx-version-min=14.0 \
+arch -x86_64 env "${CYDER_HOST_CLANG:-/usr/bin/clang}" -arch x86_64 -dynamiclib -mmacosx-version-min=14.0 \
   "$TMP/probe.c" -o "$TMP/brew/lib/libffi.8.dylib"
 assert_eq "$(lipo -archs "$TMP/brew/lib/libffi.8.dylib")" "x86_64" \
   "the high-minos fixture must exercise the x86_64 runtime library path"
@@ -112,5 +112,56 @@ if "$TMP/run.sh" "$ROOT" "$TMP/wine" "$TMP/brew" \
 fi
 assert_contains "$(cat "$TMP/shim-high.out")" 'libMoltenVK.dylib minos=12.0' \
   'unversioned MoltenVK keeps the general product floor'
+
+# Real transitive token dependencies: a removed build RPATH must not cause
+# media plugins or loader-relative runtime dependencies to be silently omitted.
+fixture="$TMP/token-graph"
+brew="$fixture/brew"
+media="$fixture/media"
+wine="$fixture/wine"
+unix="$wine/lib/wine/x86_64-unix"
+mkdir -p "$brew/lib" "$media/lib/gstreamer-1.0" "$unix"
+compiler="${CYDER_HOST_CLANG:-/usr/bin/clang}"
+printf 'int nested(void) { return 7; }\n' > "$fixture/nested.c"
+printf 'extern int nested(void); int helper(void) { return nested(); }\n' > "$fixture/helper.c"
+printf 'extern int helper(void); int plugin(void) { return helper(); }\n' > "$fixture/plugin.c"
+"$compiler" -arch x86_64 -dynamiclib -mmacosx-version-min=10.15 \
+  "$fixture/nested.c" -Wl,-install_name,@loader_path/libnested.1.dylib -o "$brew/lib/libnested.1.dylib"
+"$compiler" -arch x86_64 -dynamiclib -mmacosx-version-min=10.15 \
+  "$fixture/helper.c" "$brew/lib/libnested.1.dylib" \
+  -Wl,-install_name,@rpath/libhelper.1.dylib -o "$media/lib/libhelper.1.dylib"
+"$compiler" -arch x86_64 -dynamiclib -mmacosx-version-min=10.15 \
+  "$fixture/plugin.c" "$media/lib/libhelper.1.dylib" \
+  -Wl,-install_name,@rpath/libgstfixture.dylib -Wl,-rpath,/removed/build/temp \
+  -o "$media/lib/gstreamer-1.0/libgstfixture.dylib"
+# helper's @loader_path dependency lives beside its source, as brotli's does.
+cp "$brew/lib/libnested.1.dylib" "$media/lib/libnested.1.dylib"
+"$TMP/run.sh" "$ROOT" "$wine" "$brew" "$TMP/empty-graphics" "$media" > "$fixture/bundle.log" 2>&1
+[[ -f "$unix/libhelper.1.dylib" && -f "$unix/libnested.1.dylib" ]] || {
+  cat "$fixture/bundle.log"; echo 'transitive dylibs were not bundled' >&2; exit 1
+}
+plugin="$wine/lib/wine/gstreamer-1.0/libgstfixture.dylib"
+assert_contains "$(otool -L "$plugin")" '@loader_path/../x86_64-unix/libhelper.1.dylib' 'plugin dependency must relocate'
+# Actually load and call through the complete relocated graph.
+cat > "$fixture/load.c" <<'C'
+#include <dlfcn.h>
+int main(int argc, char **argv) {
+  if (argc != 2) return 1;
+  void *lib = dlopen(argv[1], RTLD_NOW);
+  if (!lib) return 2;
+  int (*plugin)(void) = dlsym(lib, "plugin");
+  return plugin && plugin() == 7 ? 0 : 3;
+}
+C
+"$compiler" -arch x86_64 -mmacosx-version-min=10.15 "$fixture/load.c" -o "$fixture/load"
+env -u DYLD_LIBRARY_PATH -u DYLD_FALLBACK_LIBRARY_PATH arch -x86_64 "$fixture/load" "$plugin"
+# Missing loader-relative libraries must fail closed rather than report OK.
+cp "$unix/libhelper.1.dylib" "$unix/libbroken.dylib"
+install_name_tool -id @loader_path/libbroken.dylib \
+  -change @loader_path/libnested.1.dylib @loader_path/libmissing.1.dylib "$unix/libbroken.dylib"
+if "$TMP/run.sh" "$ROOT" "$wine" "$brew" "$TMP/empty-graphics" "$media" > "$fixture/missing.log" 2>&1; then
+  echo 'missing transitive dependency escaped bundle validation' >&2; exit 1
+fi
+assert_contains "$(cat "$fixture/missing.log")" 'libmissing.1.dylib' 'missing dependency must be named'
 
 echo "PASS test-bundle-wine-dylibs-source"

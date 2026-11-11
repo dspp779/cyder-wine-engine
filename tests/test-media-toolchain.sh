@@ -53,31 +53,42 @@ MESON_PACKAGE="$(find "$HOMEBREW_PREFIX/lib" -type d -path '*/site-packages/meso
 export PYTHON_SITE="${MESON_PACKAGE%/mesonbuild}"
 export MEDIA_BUILD="$tmp/real"
 export MEDIA_INSTALL="$tmp/install"
-export SYSTEM_PYTHON=/usr/bin/python3
+export SYSTEM_PYTHON="${CYDER_HOST_PYTHON:-/usr/bin/python3}"
+if [[ -n "${CYDER_HOST_CLANG:-}" ]]; then
+  export CC="$CYDER_HOST_CLANG -arch x86_64" OBJC="$CYDER_HOST_CLANG -arch x86_64"
+  export CXX="${CYDER_HOST_CLANGXX:-${CYDER_HOST_CLANG}++} -arch x86_64"
+  export OBJCXX="$CXX"
+fi
 export MESON
 export MIN_FLAG=-mmacosx-version-min=10.15
 export MACOSX_DEPLOYMENT_TARGET=10.15
 media_prepare_native_file
-mkdir -p "$tmp/source"
+mkdir -p "$tmp/source" "$MEDIA_INSTALL/include" "$MEDIA_INSTALL/lib"
+# A non-pkg-config dependency in the media prefix must be discoverable too.
+printf '#ifdef __cplusplus\nextern "C" {\n#endif\nint media_dependency(void);\n#ifdef __cplusplus\n}\n#endif\n' > "$MEDIA_INSTALL/include/media_dependency.h"
+printf 'int media_dependency(void) { return 0; }\n' > "$tmp/dependency.c"
+"${CYDER_HOST_CLANG:-/usr/bin/clang}" -arch x86_64 -dynamiclib "$MIN_FLAG" \
+  "$tmp/dependency.c" -o "$MEDIA_INSTALL/lib/libmedia_dependency.dylib"
 cat > "$tmp/source/meson.build" <<'MESON'
 project('media-compiler-contract', 'c', 'cpp', 'objc', 'objcpp')
+dependency = meson.get_compiler('c').find_library('media_dependency', required: true)
 foreach item : [['c', 'c'], ['cpp', 'cpp'], ['objc', 'm'], ['objcpp', 'mm']]
-  executable('probe-' + item[0], 'probe.' + item[1])
+  executable('probe-' + item[0], 'probe.' + item[1], dependencies: dependency)
 endforeach
 MESON
 for ext in c cpp m mm; do
-  printf 'int main(void) { return 0; }\n' > "$tmp/source/probe.$ext"
+  printf '#include <media_dependency.h>\nint main(void) { return media_dependency(); }\n' > "$tmp/source/probe.$ext"
 done
 # Extract the production command array without running the media build itself.
 python3 - "$ROOT/scripts/build-media-stack.sh" "$tmp/meson-env.sh" <<'PY'
 import pathlib, sys
 s = pathlib.Path(sys.argv[1]).read_text()
-a = s.index('BUILD_PATH=')
+a = s.index('HOST_TOOLS=')
 b = s.index('\nmedia_prepare_native_file', a)
 pathlib.Path(sys.argv[2]).write_text(s[a:b])
 PY
 source "$tmp/meson-env.sh"
-"${MESON_CMD[@]}" setup "$tmp/real-build" "$tmp/source" --native-file "$MEDIA_BUILD/cyder-native.ini" >/dev/null
+"${MESON_CMD[@]}" setup "$tmp/real-build" "$tmp/source" --native-file "$MEDIA_BUILD/cyder-native.ini" >"$tmp/setup.log" 2>&1 || { cat "$tmp/setup.log"; exit 1; }
 "${MESON_CMD[@]}" compile -C "$tmp/real-build" >/dev/null
 media_verify_x86_64 "$tmp/real-build"
 python3 "$ROOT/scripts/pack-minos-scan.py" "$tmp/real-build" 10.15 >/dev/null
