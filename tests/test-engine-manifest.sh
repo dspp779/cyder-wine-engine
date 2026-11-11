@@ -53,6 +53,8 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-macos-tim
   "manifest should record the macOS wineserver timezone bias patch"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-registry-fsync.patch" \
   "manifest should record the registry fsync patch"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-winemac-gl-front-buffer-present.patch" \
+  "manifest should record the winemac front-buffer present patch"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-winemac-hide-ime-only-klid.patch" \
   "manifest should record the winemac IME-only KLID patch"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-kernelbase-disk-free-space-fallback.patch" \

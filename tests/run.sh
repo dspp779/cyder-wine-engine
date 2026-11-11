@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 tests=(
+  test-release-contract.sh
   test-engine-development-workflow.sh
   test-build-wine.sh
   test-build-bootstrap.sh
@@ -22,6 +23,7 @@ tests=(
   test-cyder-engine-version.sh
   test-engine-manifest.sh
   test-winemac-a6-patch.sh
+  test-winemac-front-buffer-present.sh
   test-ntdll-frame-walk-guard.sh
   test-wineserver-poll-guard-patches.sh
   test-wineserver-exit-diagnostics.sh

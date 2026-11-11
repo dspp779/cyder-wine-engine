@@ -1,0 +1,15 @@
+{
+  "cases": [
+    {
+      "case": "upload",
+      "returncode": 0
+    },
+    {
+      "case": "overflow",
+      "returncode": 1
+    }
+  ],
+  "overlay": "v0.80-cyder-pso-lab-cb6fa6f818d66dad",
+  "dll_sha256": "be4913fea6371c526bb62870d8d106e1a1bb4ae20017c2f70af452e068ec70b3",
+  "scope": "Synthetic resource tests; not MapleStory performance"
+}

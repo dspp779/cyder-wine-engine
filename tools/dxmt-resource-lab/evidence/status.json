@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-03",
+  "phase": "1: initializer correctness and initial diagnostics",
+  "build": "passed, 69 PE source files compiled and DLL linked/marked",
+  "cpu_statistics": "passed",
+  "patch_reproduction": "passed: fresh pinned-source preparation matches built source tree byte-for-byte",
+  "gpu_acceptance": "not_run: x86_64 execution unavailable, no Rosetta receipt",
+  "game_acceptance": "not_run",
+  "production_runtime_changed": false,
+  "source_sha256": {
+    "src/dxmt/dxmt_resource_initializer.cpp": "72d35081ec54dcde1d8ccce80b8c54a2f3525da1915922e4e25505b9170150fd",
+    "src/dxmt/dxmt_resource_initializer.hpp": "ff471e40e92bbeb6315a715803536737a65199abbc893b4721102bd24f19ebef",
+    "src/d3d11/d3d11_device.cpp": "c5e15101538e34acdb357697b71886071e12bdf48dbe616f9cdfb5adde954300",
+    "src/dxmt/dxmt_statistics.hpp": "1f8beb490e70ded126cb88edc765147f36d00fe8f65f9697d62622352a4e0920",
+    "src/dxmt/dxmt_command_queue.hpp": "85661684dce965f6d885f924995139e2bc74588fa6a324d14cd47d438a4ce8cd",
+    "src/dxmt/dxmt_command_queue.cpp": "628d67ac9fba3867268f878b21ccb845a791523ebc4472c4abd6370496ddf7e3"
+  },
+  "patch_sha256": {
+    "02-submission-statistics.patch": "543a1846f4e02e150f03ae8d255e68cb1cf1e6fe56b7ca9581f5586c50209700",
+    "01-initializer.patch": "56d2121c303c665ed14f74e8714470d0a57442db8dd3eb11c7eb13ad8345a92a"
+  },
+  "host": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0.1\nBuildVersion:\t\t26A434\n",
+  "rosetta_preflight": {
+    "exit_code": 1,
+    "stderr": "arch: posix_spawnp: /usr/bin/true: Bad CPU type in executable"
+  }
+}

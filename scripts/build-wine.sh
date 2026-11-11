@@ -375,6 +375,20 @@ apply_cyder_patch() {
     echo "+ patch -d $WINE_SRC -p1 < $patch_file"
     return 0
   fi
+  # Both GL hunks must agree. A flush-only marker also matches a partial
+  # application and would silently leave the swap NULL dereference in place.
+  if [[ "$(basename "$patch_file")" == "cyder-winemac-gl-front-buffer-present.patch" ]]; then
+    if patch --reverse --forward --batch --fuzz=0 --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
+      echo "Already applied: $(basename "$patch_file") (all hunks verified)"
+    elif patch --forward --batch --fuzz=0 --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
+      patch --forward --batch --fuzz=0 -s -d "$WINE_SRC" -p1 < "$patch_file"
+      echo "Applied $(basename "$patch_file")"
+    else
+      echo "Incomplete or incompatible OpenGL front-buffer patch; restore clean CX26 sources and apply A6 first" >&2
+      exit 1
+    fi
+    return 0
+  fi
   if patch --forward --batch --dry-run -s -d "$WINE_SRC" -p1 < "$patch_file"; then
     patch --forward --batch -s -d "$WINE_SRC" -p1 < "$patch_file"
     echo "Applied $(basename "$patch_file")"
@@ -499,6 +513,7 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-macos-timezone-bias.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-registry-fsync.patch"
   apply_cyder_patch "$OGOM/patches/cyder-winemac-hide-ime-only-klid.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-winemac-gl-front-buffer-present.patch"
   apply_cyder_patch "$OGOM/patches/cyder-kernelbase-disk-free-space-fallback.patch"
 
   apply_maplestory_patch() {
@@ -535,6 +550,12 @@ if [[ "$CX_VERSION" == "26" ]]; then
   # general CX26 message-wait path; it is not a MapleStory-only patch.
   apply_maplestory_patch "maplestory-cx26-message-wait-handoff.patch" \
     "dlls/win32u/message.c" "MapleStoryPort: preserve one driver wait result"
+  # GE-Proton MapleStory launch fixes (Wine bugs 59926 / 59927): generic
+  # Windows-contract behavior; applied for every CX26 build like message-wait.
+  apply_maplestory_patch "maplestory-cx26-kernelbase-charprev-null.patch" \
+    "dlls/kernelbase/string.c" "MapleStoryPort: CharPrev NULL start"
+  apply_maplestory_patch "maplestory-cx26-win32u-spi-sticky-filter-keys.patch" \
+    "dlls/win32u/sysparams.c" "MapleStoryPort: SPI sticky/filter success"
 
   if [[ "$MAPLESTORY" -eq 1 ]]; then
 

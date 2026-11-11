@@ -21,6 +21,19 @@ WZ parser、第一次攻擊卡頓、userspace cache、slot capacity、mmap 與�
 I/O 實驗的完整數據，另見
 [`maplestory-cx26-wz-cache-experiments.zh-TW.md`](maplestory-cx26-wz-cache-experiments.zh-TW.md)。
 
+**首次打到怪卡頓（2026-09-05 結案）：** 關鍵為命中路徑首次 materialize（Present／Frame 空窗約 0.65–0.75 s；Instruments 見 AGXBuffer init）。檔案／後端預熱與 H3-B 假暖無效；提前真命中一次可讓正式第一下不卡（M0／M1）。詳見  
+[`maplestory-cx26-first-hit-materialize-findings.zh-TW.md`](maplestory-cx26-first-hit-materialize-findings.zh-TW.md)。
+
+**2026-09-06：** FAST_HIT／H2 2×2 ablation（A0–A3）首打皆小卡；H2 輪 `used_bytes≈24 MiB` 仍無效。錄影：開背包極輕微頓；揮空兩段 FPS 波但不卡 HUD；直接真命中先非阻塞大波再阻塞 HUD 卡。劍豪：霧斬等「不卡」＝未打到怪；無心（主動 buff）與偏離（被動）互暖；只要打到怪必卡且暖不到第一次普攻命中。見 findings §2.1／§2.2／§5.3。
+
+**2026-09-06（GE-Proton delta）：** clone `third_party/linux_maplestory`；下載 GE CharPrev／SPI game-patches。GMS Mac OEM bisect 基線仍記為 `25.0.1.38865`／`oem-maplestory-na-ngl-0.0.31`；本機無 MapleStory.app，零售 CrossOver 已是 26.3（≠ OEM）。見 [`maplestory-ge-proton-compatibility-delta.zh-TW.md`](maplestory-ge-proton-compatibility-delta.zh-TW.md)。
+
+**2026-09-06（W1／W2 納入）：** 新增 `maplestory-cx26-kernelbase-charprev-null.patch`、`maplestory-cx26-win32u-spi-sticky-filter-keys.patch`；每趟 CX26 建置套用（同 message-wait）。已重建並安裝 `kernelbase.dll`（x64／i386）與 `win32u.so`（minos 10.15）。`tests/test-maplestory-patch-stack.sh` PASS。
+
+**2026-09-06（H2／host prewarm 不進下一版）：** 影片複看與 §5.3 ablation 無穩定 first-hit 增益 → H2 移出 `--maplestory`／`engine-release.json`；host `CYDER_MAPLESTORY_PREWARM` 僅實驗。patch 檔保留。
+
+**2026-09-06（FAST_HIT 不進下一版）：** 效益評估為邊際／首打無感、維護複雜度偏高 → 同 H2 移出 production apply list 與 `engine-release.json`；patch 檔保留。install `ntdll.so` 已 reverse 並重建。
+
 ## 目前結論（持續更新）
 
 CX26 已能載入 MapleStory、BlackCipher、GR2D_DX11、DwarfAxe，並進入 macOS
@@ -1467,6 +1480,19 @@ process 啟動。
   `x86_64`、所有 plugin `ctypes` 載入結果 `22/22`，GStreamer
   `gst_plugin_load_file` 結果 `22/22`，scanner 與核心 dylib 無 build-tree／
   `.brew-x86` 絕對路徑，且所有 dylib minOS ≤ 10.15。
+
+### 2026-09-04：FAST_HIT 體感失敗；首次命中改走預熱設計
+
+- 實驗：`FILE_CACHE_FAST_HIT` on／off 皆「小卡」；冷啟動首次打怪「蠻卡」時
+  `sample` 見 `PSOCompilationQueue`／`MTLCompiler`；對空氣預熱後降為「小卡」。
+- 文件：
+  - 實驗 §13：[`maplestory-cx26-wz-cache-experiments.zh-TW.md`](maplestory-cx26-wz-cache-experiments.zh-TW.md)
+  - Fast-path 計畫標為 Stage 1 失敗、Stage 2 暫停：
+    [`maplestory-cx26-small-read-fast-path-plan.zh-TW.md`](maplestory-cx26-small-read-fast-path-plan.zh-TW.md)
+  - 預熱設計草案：
+    [`maplestory-cx26-first-hit-prewarm-design.zh-TW.md`](maplestory-cx26-first-hit-prewarm-design.zh-TW.md)
+- 結論：首次命中 hitch 主線改為 Metal／命中路徑預熱；不再加深 WZ cache-hit
+  fast path。待設計 §9 拍板後再做 Phase 1 cache 調查。
 
 ## 下一步與驗收
 

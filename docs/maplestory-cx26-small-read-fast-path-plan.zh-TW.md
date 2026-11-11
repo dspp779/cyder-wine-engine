@@ -1,8 +1,26 @@
 # MapleStory CX26：WZ 小讀取 Fast Path 與共享區段快取開發計畫
 
-狀態：下一階段開發設計（尚未啟用於正式 runtime）  
+狀態：**Stage 1 體感 A/B 失敗（2026-09-04）**；**2026-09-06 起不納入 production
+engine stack**（與 H2／host prewarm 同批移出）。`FAST_HIT=1`／`0` 皆「小卡」，無
+可感知差異。程式與 flag 仍以 patch 檔保留供研究；`--maplestory` 與
+`engine-release.json` 不再套用。**首次命中 hitch 主線**見
+[`maplestory-cx26-first-hit-materialize-findings.zh-TW.md`](maplestory-cx26-first-hit-materialize-findings.zh-TW.md)。  
+實驗紀錄：[`maplestory-cx26-wz-cache-experiments.zh-TW.md`](maplestory-cx26-wz-cache-experiments.zh-TW.md) §13。  
 適用範圍：CX26、x86_64 Wine、MapleStory 專用實驗  
-最後更新：2026-08-17
+最後更新：2026-09-06
+
+## 0. 2026-09-04 結論摘要（讀此即可）
+
+| 項目 | 結果 |
+|---|---|
+| Stage 0 timing | 已實作（`IO_CACHE_TIMING`） |
+| Stage 1 FAST_HIT | 已實作；**體感無改善** |
+| Stage 2 shared region | **暫停**（不當 hitch 主線） |
+| 採樣 | 蠻卡窗內見 `PSOCompilationQueue`／`MTLCompiler`＋部分 I/O |
+| 手動對空氣預熱 | 蠻卡 → 小卡；命中路徑仍有殘餘 |
+
+本文件其餘章節仍描述 Stage 0／1 設計與實作細節，供日後若要優化「已順暢後的
+平均 CPU」時參考；**不要**再把「縮短 cache-hit NtReadFile」當成首次打怪解法。
 
 ## 1. 目的
 

@@ -22,7 +22,7 @@
 | Service pipe timeout 40s（CW HACK 20218） | CX26 `programs/services/services.c` 已是 `40000` |
 | Refuse builtins lacking arch PE dir | CX26 `find_builtin_dll` 已走 `get_pe_dir()`；GameSir 是刪 Proton 10 的無架構目錄 fallback |
 | 16+ 款遊戲 HACK、CEF/nw.js argv 表、`WINE_PROCESS_ENV_*`、per-process cmdline 檔 | 與 CompatDB 政策衝突；steamwebhelper 已有 YAML 規則 |
-| MapleStory / wineserver abort 防護 / MoltenVK 1.4.0 Cyder patch | GameSir 沒有；維持現有 Cyder stack |
+| MapleStory / wineserver abort 防護 / MoltenVK Cyder patch | GameSir 沒有；維持現有 Cyder stack（版本以 `config/engine-release.json` 為準） |
 
 ---
 

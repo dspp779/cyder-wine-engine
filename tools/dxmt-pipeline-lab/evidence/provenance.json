@@ -1,0 +1,11 @@
+{
+  "gametomac_version": "0.1.19 Alpha build 57",
+  "gametomac_dmg_sha256": "c950f632fb52e8e6de51e459dbb222b8ccadcf178161cd6ed3228518cb251abd",
+  "dxmt_upstream_sha256": "79cd3a2b32749fc3890b6c2a9337f45de26fdb750014f3457bb7ebafa679492d",
+  "gametomac_dxmt_source_sha256": "d9b2409c3d89ed594316e0284de8bf263574a199b3396863a36a5ac3663547c5",
+  "host": "Apple M4 macOS 15.7.7 24G720",
+  "repro_source_comparison": "identical",
+  "wine_host_rebuild": false,
+  "production_install_modified": false,
+  "maplestory_gameplay_tested": false
+}

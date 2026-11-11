@@ -18,28 +18,31 @@ Patch order for the CX26.3 / Wine 11.0 Cyder engine:
 14. `cyder-wineserver-macos-timezone-bias.patch`
 15. `cyder-wineserver-registry-fsync.patch`
 16. `cyder-winemac-hide-ime-only-klid.patch`
-17. `cyder-kernelbase-disk-free-space-fallback.patch`
-18. `maplestory-cx26-message-wait-handoff.patch`
-19. `maplestory-cx26-core.patch`
-20. `maplestory-cx26-window-resizable-flag.patch`
-21. `maplestory-cx26-tmp-module-name.patch`
-22. `maplestory-cx26-dbghelp-dwarf-guard.patch`
-23. `maplestory-cx26-d3d11-shared-texture-test.patch`
-24. `maplestory-cx26-d3dmetal-legacy-surface.patch`
-25. `maplestory-cx26-plain-metal-layer.patch`
-26. `maplestory-cx26-d3d11-full-clear.patch`
-27. `maplestory-cx26-dxgi-shared-handle.patch`
-28. `maplestory-cx26-texture-user-memory-reload.patch`
-29. `maplestory-cx26-blackxchg-foreground.patch`
-30. `maplestory-cx26-fullscreen-restore.patch`
-31. `maplestory-cx26-no-sched-yield.patch`
-32. `maplestory-cx26-file-cache-adaptive.patch`
-33. `maplestory-cx26-io-ring.patch`
-34. `maplestory-cx26-io-ring-arm.patch`
-35. `maplestory-cx26-io-summary.patch`
-36. `maplestory-cx26-io-timeline.patch`
-37. `maplestory-cx26-io-cache-stats.patch`
-38. `maplestory-cx26-section-map-summary.patch`
+17. `cyder-winemac-gl-front-buffer-present.patch`
+18. `cyder-kernelbase-disk-free-space-fallback.patch`
+19. `maplestory-cx26-message-wait-handoff.patch`
+20. `maplestory-cx26-kernelbase-charprev-null.patch`
+21. `maplestory-cx26-win32u-spi-sticky-filter-keys.patch`
+22. `maplestory-cx26-core.patch`
+23. `maplestory-cx26-window-resizable-flag.patch`
+24. `maplestory-cx26-tmp-module-name.patch`
+25. `maplestory-cx26-dbghelp-dwarf-guard.patch`
+26. `maplestory-cx26-d3d11-shared-texture-test.patch`
+27. `maplestory-cx26-d3dmetal-legacy-surface.patch`
+28. `maplestory-cx26-plain-metal-layer.patch`
+29. `maplestory-cx26-d3d11-full-clear.patch`
+30. `maplestory-cx26-dxgi-shared-handle.patch`
+31. `maplestory-cx26-texture-user-memory-reload.patch`
+32. `maplestory-cx26-blackxchg-foreground.patch`
+33. `maplestory-cx26-fullscreen-restore.patch`
+34. `maplestory-cx26-no-sched-yield.patch`
+35. `maplestory-cx26-file-cache-adaptive.patch`
+36. `maplestory-cx26-io-ring.patch`
+37. `maplestory-cx26-io-ring-arm.patch`
+38. `maplestory-cx26-io-summary.patch`
+39. `maplestory-cx26-io-timeline.patch`
+40. `maplestory-cx26-io-cache-stats.patch`
+41. `maplestory-cx26-section-map-summary.patch`
 
 `w1-win32u-vulkan-soname.patch` is not part of the default patch set. It is a
 special-case build-only fallback for CX26 source trees where `win32u/vulkan.c`
@@ -47,10 +50,17 @@ still compiles while `SONAME_LIBVULKAN` is absent from `config.h`; request it
 explicitly with `--vulkan-soname-fallback`. It does not make D3DMetal load Vulkan
 at runtime.
 
-The `win32u` message-wait handoff is enabled for every CX26 build. The remaining
-MapleStory entries are enabled by `scripts/build-wine.sh --maplestory`; the
-`no-sched-yield` patch itself only changes behavior for `MapleStory.exe` and
-leaves other process images on the normal scheduler path. These are compatibility
+The `win32u` message-wait handoff is enabled for every CX26 build. The GE-Proton
+MapleStory launch fixes `maplestory-cx26-kernelbase-charprev-null.patch`
+(Wine bug 59926: `CharPrevA`／`CharPrevExA` must not dereference a NULL `start`)
+and `maplestory-cx26-win32u-spi-sticky-filter-keys.patch` (Wine bug 59927:
+`SPI_SETSTICKYKEYS`／`SPI_SETFILTERKEYS` return success via `WINE_SPI_WARN`) are
+also applied for every CX26 build — they are Windows-contract corrections, not
+MapleStory-only branches. See
+[`docs/maplestory-ge-proton-compatibility-delta.zh-TW.md`](../docs/maplestory-ge-proton-compatibility-delta.zh-TW.md).
+The remaining MapleStory entries are enabled by `scripts/build-wine.sh
+--maplestory`; the `no-sched-yield` patch itself only changes behavior for
+`MapleStory.exe` and leaves other process images on the normal scheduler path. These are compatibility
 changes in the Wine/D3D11/macOS paths and do not select a graphics backend. The
 primary target is D3DMetal, matching the CX25 OEM runtime; MoltenVK capability /
 feature-level checks belong only to a separate DXVK validation run. The
@@ -71,11 +81,35 @@ diagnostic-only and are disabled in normal launches.
 slot-capacity, no-cache control, and mmap A/B results are recorded in
 [`docs/maplestory-cx26-wz-cache-experiments.zh-TW.md`](../docs/maplestory-cx26-wz-cache-experiments.zh-TW.md).
 
+`maplestory-cx26-file-cache-fast-hit.patch` is Stage 0／1 of the small-read fast
+path plan (research only). It is **not** in the production `--maplestory` apply
+list or `config/engine-release.json` after 2026-09 playtest／ablation (no
+material feel benefit vs complexity). With a manual apply and
+`CYDER_MAPLESTORY_FILE_CACHE_FAST_HIT=1` it keeps a per-thread TLS copy of the
+last adaptive window so repeated hits skip the global table scan, and it
+performs read-ahead `pread` outside the cache mutex. With
+`CYDER_MAPLESTORY_IO_CACHE_TIMING=1` it emits a compact process-exit
+`CYDER_IO cache_timing` summary. See
+[`docs/maplestory-cx26-small-read-fast-path-plan.zh-TW.md`](../docs/maplestory-cx26-small-read-fast-path-plan.zh-TW.md).
+
+`maplestory-cx26-file-cache-hit-prewarm.patch` is the H2 opt-in hit-path
+in-process prewarm (research only). It is **not** in the production
+`--maplestory` apply list or `config/engine-release.json` after 2026-09-06
+playtest／ablation／video review (no material first-hit benefit vs adaptive
+cache alone). Host `CYDER_MAPLESTORY_PREWARM` remains a launcher experiment
+only and is likewise not a next-engine product feature. Patch file kept for
+repro. See
+[`docs/maplestory-cx26-h2-file-cache-prewarm-spec.zh-TW.md`](../docs/maplestory-cx26-h2-file-cache-prewarm-spec.zh-TW.md)
+and findings §5.3.
+
 The following patches are development-only diagnostics and are not in the
 release patch stack: `maplestory-cx26-io-ring.patch`,
 `maplestory-cx26-io-ring-arm.patch`, `maplestory-cx26-io-summary.patch`,
 `maplestory-cx26-io-timeline.patch`, `maplestory-cx26-io-cache-stats.patch`,
-`maplestory-cx26-section-map-summary.patch`, and the prewarm probes.
+`maplestory-cx26-section-map-summary.patch`,
+`maplestory-cx26-file-cache-fast-hit.patch`,
+`maplestory-cx26-file-cache-hit-prewarm.patch` (H2), and the older Skill-pack
+`maplestory-cx26-file-cache-prewarm*.patch` probes.
 
 `maplestory-cx26-io-ring.patch` adds a separate, opt-in diagnostic ring buffer.
 With `CYDER_MAPLESTORY_IO_RING=1`, it retains the latest 8192 regular-file
@@ -132,27 +166,10 @@ file section mappings and record whether the mapped file is a `.wz` resource.
 It emits one aggregate line and one line per WZ path at process exit through
 `+cyderio`; it does not log individual mappings or change the mapping path.
 
-`maplestory-cx26-file-cache-prewarm.patch` adds a separate, opt-in Wine-process
-prewarm probe. Set `CYDER_MAPLESTORY_FILE_CACHE_PREWARM_IN_PROCESS=1` together
-with the adaptive cache and arm file. At the arm transition, or when a later
-resource handle is registered, it finds the same already-open `.wz`/`.ms`
-handles used by the game and visits bounded spans at previously observed
-first-use offsets, causing the existing per-handle 8 KiB / 32 KiB window to
-fill before the action. The current experiment targets the five skill packs
-seen at the first attack (`Skill_00001/00/06/05/04.ms`) and limits each span to
-32–64 KiB. It never opens a second handle or scans a whole pack.
-The follow-up patch also makes arm-file create/remove/re-create transitions
-observable. The host-path follow-up can perform one bounded aligned 8 KiB
-`pread()` against the game working directory when no target handle is open.
-The deferred-start follow-up records the request while the I/O mutex is held,
-then releases the mutex before running the bounded probe synchronously inside
-the Wine process. This avoids both I/O-lock reentrancy and `pthread_create()`
-from the Wine file-registration critical path. The log reports each matched
-handle, fill, host-path read, and skipped target; the option is disabled by
-default and is a diagnostic experiment, not a release default.
-The host-path follow-up adds bounded aligned 8 KiB `pread()` reads inside the
-Wine ntdll worker when the game has not opened the target handle yet; it uses
-the game's working directory and does not scan or retain a second handle.
+The older `maplestory-cx26-file-cache-prewarm*.patch` stack targeted Skill
+packs and depended on the diagnostic io-ring arm path. It no longer applies
+cleanly on the capacity／fast-hit tree and is kept only as historical
+reference. New work uses `maplestory-cx26-file-cache-hit-prewarm.patch`.
 
 CompatDB policy is no longer compiled into ntdll. `runtime/cxcompatdb/cxcompatdb.c`
 builds as the open `cxcompatdb.so` loaded through CrossOver's existing loader
@@ -309,18 +326,23 @@ strings as “already applied”:
 | `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch` | `cyder QDO optnone` (`dlls/ntdll/unix/sync.c`) |
 | `cyder-wineserver-macos-timezone-bias.patch` | `get_timezone_bias` (`server/fd.c`) |
 | `cyder-wineserver-registry-fsync.patch` | `fsync( fileno( f ) )` (`server/registry.c`) |
+| `cyder-winemac-gl-front-buffer-present.patch` | Both reverse hunks, with zero fuzz (`opengl.c`); no single marker |
 | `cyder-winemac-hide-ime-only-klid.patch` | `leaks IME-only HKLs` (`dlls/winemac.drv/keyboard.c`) |
 | `cyder-kernelbase-disk-free-space-fallback.patch` | `retry a real mapped volume instead of inventing free space` (`dlls/kernelbase/volume.c`) |
 | `maplestory-cx26-message-wait-handoff.patch` | `MapleStoryPort: preserve one driver wait result` (`dlls/win32u/message.c`) |
+| `maplestory-cx26-kernelbase-charprev-null.patch` | `MapleStoryPort: CharPrev NULL start` (`dlls/kernelbase/string.c`) |
+| `maplestory-cx26-win32u-spi-sticky-filter-keys.patch` | `MapleStoryPort: SPI sticky/filter success` (`dlls/win32u/sysparams.c`) |
 | `maplestory-cx26-no-sched-yield.patch` | `if (is_maplestory_process()) return STATUS_NO_YIELD_PERFORMED;` (`dlls/ntdll/unix/sync.c`) |
 | `maplestory-cx26-file-cache-adaptive.patch` | `CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW` (`dlls/ntdll/unix/file.c`) |
 | `maplestory-cx26-file-cache-capacity.patch` | `CYDER_MAPLESTORY_FILE_CACHE_SLOTS 512` (`dlls/ntdll/unix/file.c`) |
+| `maplestory-cx26-file-cache-fast-hit.patch` | `CYDER_MAPLESTORY_FILE_CACHE_FAST_HIT_MARKER` (`dlls/ntdll/unix/file.c`) |
+| `maplestory-cx26-file-cache-hit-prewarm.patch` | `CYDER_MAPLESTORY_FILE_CACHE_HIT_PREWARM_MARKER` (`dlls/ntdll/unix/file.c`) |
 | `maplestory-cx26-io-cache-stats.patch` | `CYDER_MAPLESTORY_IO_CACHE_STATS` (`dlls/ntdll/unix/file.c`) |
 | `maplestory-cx26-section-map-summary.patch` | `CYDER_MAPLESTORY_SECTION_MAP_PATH` (`dlls/ntdll/unix/virtual.c`) |
-| `maplestory-cx26-file-cache-prewarm.patch` | `CYDER_MAPLESTORY_FILE_CACHE_PREWARM_IN_PROCESS` (`dlls/ntdll/unix/file.c`) |
-| `maplestory-cx26-file-cache-prewarm-followup.patch` | `CYDER_IO ring disarmed` (`dlls/ntdll/unix/file.c`) |
-| `maplestory-cx26-file-cache-prewarm-host-path.patch` | `CYDER_IO prewarm item mode=host-path` (`dlls/ntdll/unix/file.c`) |
-| `maplestory-cx26-file-cache-prewarm-deferred-start.patch` | `cyder_maplestory_file_cache_prewarm_requested` (`dlls/ntdll/unix/file.c`) |
+| `maplestory-cx26-file-cache-prewarm.patch` (obsolete Skill probe) | `CYDER_MAPLESTORY_FILE_CACHE_PREWARM_IN_PROCESS` (`dlls/ntdll/unix/file.c`) |
+| `maplestory-cx26-file-cache-prewarm-followup.patch` (obsolete) | `CYDER_IO ring disarmed` (`dlls/ntdll/unix/file.c`) |
+| `maplestory-cx26-file-cache-prewarm-host-path.patch` (obsolete) | `CYDER_IO prewarm item mode=host-path` (`dlls/ntdll/unix/file.c`) |
+| `maplestory-cx26-file-cache-prewarm-deferred-start.patch` (obsolete) | `cyder_maplestory_file_cache_prewarm_requested` (`dlls/ntdll/unix/file.c`) |
 
 New patches that may be amended in place should include a unique marker and a
 matching detection branch. Operational steps:
@@ -387,3 +409,9 @@ Undo with `--undo --install-runtime`.
 
 The former App-side RC overlay is retained only as historical documentation:
 [`docs/moltenvk-timeline-wait-poll-app-overlay.md`](../docs/moltenvk-timeline-wait-poll-app-overlay.md).
+
+`cyder-winemac-gl-front-buffer-present.patch` backports Wine b5ab3b15 after A6: front-buffer
+`GL_FLUSH_PRESENT` flushes the Cocoa context and selects the visible client
+view. Swap guards a missing context and presents the client; A6 pending-only
+backing synchronization is retained. The build checks both reverse hunks before
+skipping; partial or incompatible application fails without modifying sources.

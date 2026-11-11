@@ -14,6 +14,8 @@ assert_contains "$build_script" "D3DMetal-neutral" \
 patches=(
   a6-final-same-view-backing-sync.patch
   maplestory-cx26-message-wait-handoff.patch
+  maplestory-cx26-kernelbase-charprev-null.patch
+  maplestory-cx26-win32u-spi-sticky-filter-keys.patch
   maplestory-cx26-core.patch
   maplestory-cx26-window-resizable-flag.patch
   maplestory-cx26-tmp-module-name.patch
@@ -45,6 +47,10 @@ assert_contains "$dry_run" "gstreamer-1.0" \
   "MapleStory build should require the isolated media stack"
 assert_contains "$dry_run" "maplestory-cx26-d3d11-full-clear.patch" \
   "MapleStory build should apply the full ClearView stack"
+assert_contains "$dry_run" "maplestory-cx26-kernelbase-charprev-null.patch" \
+  "CX26 builds should apply the CharPrev NULL-start launch fix"
+assert_contains "$dry_run" "maplestory-cx26-win32u-spi-sticky-filter-keys.patch" \
+  "CX26 builds should apply the SPI sticky/filter success stub"
 assert_contains "$dry_run" "--without-vulkan" \
   "D3DMetal-first MapleStory build should work without Vulkan"
 no_sched_patch="$(<"$ROOT/patches/maplestory-cx26-no-sched-yield.patch")"

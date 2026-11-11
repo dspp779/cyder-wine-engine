@@ -1,0 +1,528 @@
+--- a/src/dxmt/dxmt_resource_initializer.cpp
++++ b/src/dxmt/dxmt_resource_initializer.cpp
+@@ -4,66 +4,68 @@
+ #include "util_math.hpp"
+ #include <cstdint>
+ #include <mutex>
++#include <cstdio>
++#include <cstdlib>
++#include "util_env.hpp"
+ 
+ namespace dxmt {
+ 
+-#define ALLOC_BLIT(type, cmd)                                                                                          \
+-  type *cmd = nullptr;                                                                                                 \
+-  if (!allocateBlit(&cmd)) {                                                                                           \
+-    flushInternal();                                                                                                   \
+-    continue;                                                                                                          \
+-  }
+-
+-#define ALLOC_CLEAR(info)                                                                                              \
+-  WMTRenderPassInfo *info;                                                                                             \
+-  if (!allocateClear(&info)) {                                                                                         \
+-    flushInternal();                                                                                                   \
+-    continue;                                                                                                          \
+-  }
+-
+-#define ALLOC_GPU(buffer, size)                                                                                        \
+-  WMT::Buffer buffer;                                                                                                  \
+-  size_t buffer##_offset;                                                                                              \
+-  if (!(buffer = allocateGpuHeap(size, buffer##_offset))) {                                                            \
+-    flushInternal();                                                                                                   \
+-    continue;                                                                                                          \
+-  }
+-
+-#define ALLOC_ZERO(buffer, size)                                                                                       \
+-  WMT::Buffer buffer;                                                                                                  \
+-  if (!(buffer = allocateZeroBuffer(size))) {                                                                          \
+-    flushInternal();                                                                                                   \
+-    continue;                                                                                                          \
+-  }
+-
+-#define RETAIN(allocation)                                                                                             \
+-  if (!retainAllocation(allocation)) {                                                                                 \
+-    flushInternal();                                                                                                   \
+-    continue;                                                                                                          \
+-  }
++// Capacity is reserved before retaining resources or linking commands. A failed
++// allocation never flushes a partially initialized command or silently drops work.
++#define ALLOC_BLIT(type, cmd) \
++  type *cmd = nullptr; \
++  if (!allocateBlit(&cmd)) throw std::bad_alloc();
++#define ALLOC_CLEAR(info) \
++  WMTRenderPassInfo *info = nullptr; \
++  if (!allocateClear(&info)) throw std::bad_alloc();
++#define RETAIN(allocation) \
++  if (!retainAllocation(allocation)) throw std::bad_alloc();
+ 
+ ResourceInitializer::ResourceInitializer(WMT::Device device) :
+     device_(device),
+-    gpu_command_heap_allocator(StagingBufferBlockAllocator(
++    gpu_command_heap_allocator(InitializerUploadAllocator(
+         device, WMTResourceStorageModeManaged | WMTResourceHazardTrackingModeUntracked, false
+     )) {
+   upload_queue_ = device.newCommandQueue(kResourceInitializerChunks);
+   upload_queue_event_ = device.newSharedEvent();
+ 
+   cpu_command_heap_size = kResourceInitializerCpuCommandHeapSize;
++  profile_ = env::getEnvVar("DXMT_CYDER_RESOURCE_PROFILE") == "1";
++  // Failure injection is inaccessible to game executables, even if env vars leak.
++  if (env::getExeBaseName() == "cyder-resource-probe") {
++    if (env::getEnvVar("DXMT_CYDER_TEST_SMALL_HEAP") == "1") cpu_command_heap_size = 4096;
++    fail_site_ = env::getEnvVar("DXMT_CYDER_TEST_FAIL");
++    if (!fail_site_.empty()) fail_countdown_ = 1; // fail second matching operation
++    fail_always_ = env::getEnvVar("DXMT_CYDER_TEST_FAIL_ALWAYS") == "1";
++  }
+   cpu_command_heap = malloc(cpu_command_heap_size);
++  if (!cpu_command_heap) throw std::bad_alloc();
+   reset();
+ }
+ 
+ ResourceInitializer::~ResourceInitializer() {
++  // ref_tracker storage lives in this heap; release retained allocations first.
++  ref_tracker.clear();
++  if (profile_) {
++    std::fprintf(stderr, "CYDER_RESOURCE ops=%llu bytes=%llu bridge_calls=%llu capacity_flushes=%llu zero_grows=%llu failures=%llu lock_ns=%llu copy_ns=%llu upload_alloc_ns=%llu flushes=%llu acquire_ns=%llu encode_ns=%llu commit_ns=%llu\n",
++      operations_, upload_bytes_, upload_calls_, capacity_flushes_, zero_grows_, failure_count_, lock_ns_, copy_ns_, upload_alloc_ns_, flush_count_, acquire_ns_, encode_ns_, commit_ns_);
++    const auto first = flush_count_ > flush_samples_.size() ? flush_count_ - flush_samples_.size() : 0;
++    for (auto i = first; i < flush_count_; i++) {
++      const auto &f = flush_samples_[i % flush_samples_.size()];
++      std::fprintf(stderr, "CYDER_RESOURCE_FLUSH seq=%llu acquire_ns=%llu encode_ns=%llu commit_ns=%llu\n", f.seq, f.acquire_ns, f.encode_ns, f.commit_ns);
++    }
++  }
+   free(cpu_command_heap);
+ }
+ 
+ uint64_t
+ ResourceInitializer::initWithZero(BufferAllocation *buffer, uint64_t offset, uint64_t length) {
+-  std::lock_guard<dxmt::mutex> lock(mutex_);
+-
+-  do {
++  const auto lock_start = stamp();
++  std::lock_guard<dxmt::mutex> lock(mutex_);
++  if (profile_) lock_ns_ += stamp() - lock_start;
++
++  {
++    prepareOperation(sizeof(wmtcmd_blit_fillbuffer) + alignof(wmtcmd_blit_fillbuffer));
+     RETAIN(buffer);
+     ALLOC_BLIT(wmtcmd_blit_fillbuffer, fill);
+     fill->type = WMTBlitCommandFillBuffer;
+@@ -72,8 +74,9 @@
+     fill->length = length;
+     fill->value = 0;
+ 
+-  } while (0);
+-
++  }
++
++  if (profile_) operations_++;
+   return current_seq_id_;
+ }
+ 
+@@ -84,8 +87,11 @@
+   auto width_sub = std::max(1u, texture->width() >> level);
+   auto height_sub = std::max(1u, texture->height() >> level);
+ 
+-  std::lock_guard<dxmt::mutex> lock(mutex_);
+-  do {
++  const auto lock_start = stamp();
++  std::lock_guard<dxmt::mutex> lock(mutex_);
++  if (profile_) lock_ns_ += stamp() - lock_start;
++  {
++    prepareOperation(sizeof(ClearRenderPassInfo) + alignof(ClearRenderPassInfo));
+     RETAIN(allocation);
+     ALLOC_CLEAR(info);
+ 
+@@ -109,8 +115,9 @@
+       info->stencil.level = level;
+     }
+ 
+-  } while (0);
+-
++  }
++
++  if (profile_) operations_++;
+   return current_seq_id_;
+ }
+ 
+@@ -121,8 +128,11 @@
+   auto width_sub = std::max(1u, texture->width() >> level);
+   auto height_sub = std::max(1u, texture->height() >> level);
+ 
+-  std::lock_guard<dxmt::mutex> lock(mutex_);
+-  do {
++  const auto lock_start = stamp();
++  std::lock_guard<dxmt::mutex> lock(mutex_);
++  if (profile_) lock_ns_ += stamp() - lock_start;
++  {
++    prepareOperation(sizeof(ClearRenderPassInfo) + alignof(ClearRenderPassInfo));
+     RETAIN(allocation);
+     ALLOC_CLEAR(info);
+ 
+@@ -136,8 +146,9 @@
+     info->colors[0].slice = slice;
+     info->colors[0].level = level;
+ 
+-  } while (0);
+-
++  }
++
++  if (profile_) operations_++;
+   return current_seq_id_;
+ }
+ 
+@@ -185,10 +196,13 @@
+   size_t bytes_per_image_needed = bytes_per_row_needed * align(height_sub, block_size) / block_size;
+   size_t total_bytes_needed = bytes_per_image_needed * depth_sub;
+ 
+-  std::lock_guard<dxmt::mutex> lock(mutex_);
+-
+-  do {
+-    ALLOC_ZERO(zero, total_bytes_needed);
++  const auto lock_start = stamp();
++  std::lock_guard<dxmt::mutex> lock(mutex_);
++  if (profile_) lock_ns_ += stamp() - lock_start;
++
++  {
++    auto zero = allocateZeroBuffer(total_bytes_needed);
++    prepareOperation(sizeof(wmtcmd_blit_copy_from_buffer_to_texture) + alignof(wmtcmd_blit_copy_from_buffer_to_texture));
+     RETAIN(allocation);
+     ALLOC_BLIT(wmtcmd_blit_copy_from_buffer_to_texture, copy);
+ 
+@@ -203,8 +217,9 @@
+     copy->level = level;
+     copy->origin = {0, 0, 0};
+ 
+-  } while (0);
+-
++  }
++
++  if (profile_) operations_++;
+   return current_seq_id_;
+ }
+ 
+@@ -251,11 +266,17 @@
+   size_t bytes_per_image_valid = is_3d_tex ? std::min(depth_pitch, bytes_per_image_needed) : bytes_per_image_needed;
+   size_t total_bytes_needed = bytes_per_image_needed * depth_sub;
+ 
+-  std::lock_guard<dxmt::mutex> lock(mutex_);
+-  do {
++  const auto lock_start = stamp();
++  std::lock_guard<dxmt::mutex> lock(mutex_);
++  if (profile_) lock_ns_ += stamp() - lock_start;
++  {
++    prepareOperation(sizeof(wmtcmd_blit_copy_from_buffer_to_texture) + alignof(wmtcmd_blit_copy_from_buffer_to_texture));
++    size_t temp_offset;
++    auto temp = allocateGpuHeap(total_bytes_needed, temp_offset);
+     RETAIN(allocation);
++    // Allocate/link the command only after every fallible upload allocation.
+     ALLOC_BLIT(wmtcmd_blit_copy_from_buffer_to_texture, copy);
+-    ALLOC_GPU(temp, total_bytes_needed);
++    const auto copy_start = stamp();
+ 
+     for (auto depth = 0u; depth < depth_sub; depth++) {
+       if (bytes_per_row_increment != bytes_per_row_needed) {
+@@ -264,15 +285,18 @@
+           auto length = bytes_per_row_valid;
+           auto src_data = ptr_add(data, depth * bytes_per_image_increment + row * bytes_per_row_increment);
+           temp.updateContents(offset, src_data, length);
++          if (profile_) upload_calls_++;
+         }
+       } else {
+         auto offset = temp_offset + depth * bytes_per_image_needed;
+         auto length = bytes_per_image_valid;
+         auto src_data = ptr_add(data, depth * bytes_per_image_increment);
+         temp.updateContents(offset, src_data, length);
++        if (profile_) upload_calls_++;
+       }
+     }
+ 
++    if (profile_) { copy_ns_ += stamp() - copy_start; upload_bytes_ += total_bytes_needed; }
+     copy->type = WMTBlitCommandCopyFromBufferToTexture;
+     copy->src = temp;
+     copy->src_offset = temp_offset;
+@@ -284,8 +308,9 @@
+     copy->level = level;
+     copy->origin = {0, 0, 0};
+ 
+-  } while (0);
+-
++  }
++
++  if (profile_) operations_++;
+   return current_seq_id_;
+ }
+ 
+@@ -293,11 +318,22 @@
+ ResourceInitializer::flushInternal() {
+   auto pool = WMT::MakeAutoreleasePool();
+ 
+-  auto seq_id = current_seq_id_++;
++  if (idle()) { reset(); return current_seq_id_ - 1; }
++  const auto seq_id = current_seq_id_;
++  const auto start = stamp();
+   auto cmdbuf = upload_queue_.commandBuffer();
++  if (!cmdbuf) throw std::bad_alloc();
++  const auto acquired = stamp();
+   encode(cmdbuf);
+   cmdbuf.encodeSignalEvent(upload_queue_event_, seq_id);
++  const auto encoded = stamp();
+   cmdbuf.commit();
++  current_seq_id_++;
++  if (profile_) {
++    const auto committed = stamp();
++    flush_samples_[flush_count_++ % flush_samples_.size()] = {seq_id, acquired - start, encoded - acquired, committed - encoded};
++    acquire_ns_ += acquired - start; encode_ns_ += encoded - acquired; commit_ns_ += committed - encoded;
++  }
+   reset();
+   cached_coherent_seq_id = upload_queue_event_.signaledValue();
+   gpu_command_heap_allocator.free_blocks(cached_coherent_seq_id);
+@@ -306,7 +342,9 @@
+ 
+ uint64_t
+ ResourceInitializer::flushToWait() {
+-  std::lock_guard<dxmt::mutex> lock(mutex_);
++  const auto lock_start = stamp();
++  std::lock_guard<dxmt::mutex> lock(mutex_);
++  if (profile_) lock_ns_ += stamp() - lock_start;
+ 
+   if (idle()) {
+     gpu_command_heap_allocator.free_blocks(cached_coherent_seq_id);
+@@ -354,15 +392,19 @@
+ 
+ WMT::Buffer
+ ResourceInitializer::allocateGpuHeap(size_t size, size_t &offset) {
++  failForTest("upload");
++  const auto start = stamp();
+   auto [block, offset_] = gpu_command_heap_allocator.allocate(
+       current_seq_id_, cached_coherent_seq_id, size, kResourceInitializerGpuUploadHeapAlignment
+   );
++  if (profile_) upload_alloc_ns_ += stamp() - start;
+   offset = offset_;
+   return block.buffer;
+ }
+ 
+ bool
+ ResourceInitializer::retainAllocation(Allocation *allocation) {
++  failForTest("retain");
+   constexpr size_t block_size = 0x20;
+   while (unlikely(!ref_tracker.track(allocation))) {
+     auto temp = allocateCpuHeap<intptr_t[block_size]>();
+@@ -373,35 +415,54 @@
+   return true;
+ }
+ 
++void
++ResourceInitializer::failForTest(const char *site) {
++  if (fail_site_ != site || fail_countdown_ < 0) return;
++  if (fail_countdown_ > 0) { fail_countdown_--; return; }
++  if (!fail_always_) fail_countdown_ = -1;
++  if (profile_) failure_count_++;
++  throw std::bad_alloc();
++}
++
++void
++ResourceInitializer::prepareOperation(size_t command_bytes) {
++  failForTest("reserve");
++  // At most one new 32-pointer tracking block is needed for one allocation.
++  constexpr size_t tracking_bytes = sizeof(intptr_t[32]) + alignof(intptr_t);
++  if (command_bytes > cpu_command_heap_size || tracking_bytes > cpu_command_heap_size - command_bytes)
++    throw std::bad_alloc();
++  const auto needed = command_bytes + tracking_bytes;
++  if (cpu_command_heap_offset > cpu_command_heap_size - needed) {
++    if (profile_) capacity_flushes_++;
++    flushInternal();
++  }
++}
++
+ WMT::Buffer
+ ResourceInitializer::allocateZeroBuffer(size_t size) {
+-  if (zero_buffer_size_ < size) {
+-    if (zero_buffer_size_) {
+-      flushInternal(); // keep a reference of old zero buffer
+-      zero_buffer_size_ = 0;
+-      return {};
+-    }
+-
+-    wmtcmd_blit_fillbuffer *fill = nullptr;
+-    if (!allocateBlit(&fill)) {
+-      return {};
+-    }
+-
+-    WMTBufferInfo buffer_info;
+-    buffer_info.gpu_address = 0;
+-    buffer_info.length = size;
+-    buffer_info.memory.set(nullptr);
+-    buffer_info.options = WMTResourceStorageModePrivate | WMTResourceHazardTrackingModeUntracked;
+-    zero_buffer_ = device_.newBuffer(buffer_info);
+-    zero_buffer_size_ = size;
+-
+-    fill->type = WMTBlitCommandFillBuffer;
+-    fill->buffer = zero_buffer_;
+-    fill->length = size;
+-    fill->offset = 0;
+-    fill->value = 0;
+-  }
++  if (zero_buffer_size_ >= size) return zero_buffer_;
++  failForTest("zero");
++  WMTBufferInfo info{};
++  info.length = size;
++  info.memory.set(nullptr);
++  info.options = WMTResourceStorageModePrivate | WMTResourceHazardTrackingModeUntracked;
++  auto next = device_.newBuffer(info);
++  if (!next) throw std::bad_alloc();
++  // The old buffer may still be referenced by pending CPU blit commands.
++  // Encode/commit them before replacing the owning reference; Metal command
++  // buffers retain encoded resources until completion.
++  if (zero_buffer_size_ && !idle()) flushInternal();
++  prepareOperation(sizeof(wmtcmd_blit_fillbuffer) + alignof(wmtcmd_blit_fillbuffer));
++  ALLOC_BLIT(wmtcmd_blit_fillbuffer, fill);
++  fill->type = WMTBlitCommandFillBuffer;
++  fill->buffer = next;
++  fill->length = size;
++  fill->offset = 0;
++  fill->value = 0;
++  zero_buffer_ = std::move(next);
++  zero_buffer_size_ = size;
++  if (profile_) zero_grows_++;
+   return zero_buffer_;
+ }
+ 
+-} // namespace dxmt
+\ No newline at end of file
++} // namespace dxmt
+--- a/src/dxmt/dxmt_resource_initializer.hpp
++++ b/src/dxmt/dxmt_resource_initializer.hpp
+@@ -4,6 +4,10 @@
+ #include "dxmt_context.hpp"
+ #include "dxmt_ring_bump_allocator.hpp"
+ #include "dxmt_texture.hpp"
++#include <new>
++#include <chrono>
++#include <array>
++#include <string>
+ 
+ namespace dxmt {
+ 
+@@ -13,6 +17,17 @@
+ constexpr size_t kResourceInitializerChunks = 2;
+ 
+ static_assert(kResourceInitializerChunks > 1);
++
++// Only initializer uploads translate allocation failure through CreateTexture's HRESULT boundary.
++class InitializerUploadAllocator : public StagingBufferBlockAllocator {
++public:
++  using StagingBufferBlockAllocator::StagingBufferBlockAllocator;
++  Block allocate(size_t size) {
++    auto block = StagingBufferBlockAllocator::allocate(size);
++    if (!block.buffer) throw std::bad_alloc();
++    return block;
++  }
++};
+ 
+ class ResourceInitializer {
+ public:
+@@ -52,6 +67,23 @@
+ 
+ private:
+   uint64_t flushInternal();
++  void prepareOperation(size_t command_bytes);
++  void failForTest(const char *site);
++  using Timer = std::chrono::steady_clock;
++  uint64_t stamp() const {
++    return profile_ ? std::chrono::duration_cast<std::chrono::nanoseconds>(Timer::now().time_since_epoch()).count() : 0;
++  }
++  bool profile_ = false;
++  std::string fail_site_;
++  int fail_countdown_ = -1;
++  bool fail_always_ = false;
++  uint64_t operations_ = 0, upload_bytes_ = 0, upload_calls_ = 0;
++  uint64_t capacity_flushes_ = 0, zero_grows_ = 0, failure_count_ = 0;
++  uint64_t lock_ns_ = 0, copy_ns_ = 0, upload_alloc_ns_ = 0;
++  struct FlushSample { uint64_t seq, acquire_ns, encode_ns, commit_ns; };
++  std::array<FlushSample, 64> flush_samples_{};
++  uint64_t flush_count_ = 0;
++  uint64_t acquire_ns_ = 0, encode_ns_ = 0, commit_ns_ = 0;
+ 
+   struct ClearRenderPassInfo {
+     WMTRenderPassInfo info;
+@@ -78,7 +110,7 @@
+     constexpr size_t alignment = alignof(T);
+     size_t adjustment = align_forward_adjustment((void *)cpu_command_heap_offset, alignment);
+     auto aligned = cpu_command_heap_offset + adjustment;
+-    if (aligned + size > kResourceInitializerCpuCommandHeapSize)
++    if (aligned + size > cpu_command_heap_size)
+       return nullptr;
+     cpu_command_heap_offset = aligned + size;
+     return reinterpret_cast<T *>(ptr_add(cpu_command_heap, aligned));
+@@ -87,6 +119,7 @@
+   template <typename T>
+   bool
+   allocateBlit(T **p) {
++    failForTest("command");
+     if (auto ptr = (wmtcmd_base *)allocateCpuHeap<T>()) {
+       blit_cmd_tail->next.set(ptr);
+       blit_cmd_tail = ptr;
+@@ -99,6 +132,7 @@
+ 
+   bool
+   allocateClear(WMTRenderPassInfo **p) {
++    failForTest("clear");
+     if (auto ptr = allocateCpuHeap<ClearRenderPassInfo>()) {
+       clear_render_pass_tail->next = ptr;
+       clear_render_pass_tail = ptr;
+@@ -129,7 +163,7 @@
+   size_t cpu_command_heap_size;
+   size_t cpu_command_heap_offset;
+ 
+-  RingBumpState<StagingBufferBlockAllocator, kResourceInitializerGpuUploadHeapSize> gpu_command_heap_allocator;
++  RingBumpState<InitializerUploadAllocator, kResourceInitializerGpuUploadHeapSize> gpu_command_heap_allocator;
+ 
+   wmtcmd_blit_nop blit_cmd_head;
+   wmtcmd_base *blit_cmd_tail;
+--- a/src/d3d11/d3d11_device.cpp
++++ b/src/d3d11/d3d11_device.cpp
+@@ -23,6 +23,7 @@
+ #include "d3d11_resource.hpp"
+ #include "dxgi_object.hpp"
+ #include <memory>
++#include <new>
+ #include "d3d11_4.h"
+ #include "util_win32_compat.h"
+ 
+@@ -96,6 +97,8 @@
+       default:
+         DXMT_UNREACHABLE
+       }
++    } catch (const std::bad_alloc &) {
++      return E_OUTOFMEMORY;
+     } catch (const MTLD3DError &err) {
+       ERR(err.message());
+       return E_FAIL;
+@@ -133,6 +136,8 @@
+         return CreateStagingTexture1D(this, pDesc, pInitialData, ppTexture1D);
+       }
+       return S_OK;
++    } catch (const std::bad_alloc &) {
++      return E_OUTOFMEMORY;
+     } catch (const MTLD3DError &err) {
+       ERR(err.message());
+       return E_FAIL;
+@@ -858,6 +863,8 @@
+         return CreateStagingTexture2D(this, pDesc, pInitialData, ppTexture2D);
+       }
+       return S_OK;
++    } catch (const std::bad_alloc &) {
++      return E_OUTOFMEMORY;
+     } catch (const MTLD3DError &err) {
+       ERR(err.message());
+       return E_FAIL;
+@@ -890,6 +897,8 @@
+         return CreateStagingTexture3D(this, pDesc, pInitialData, ppTexture3D);
+       }
+       return S_OK;
++    } catch (const std::bad_alloc &) {
++      return E_OUTOFMEMORY;
+     } catch (const MTLD3DError &err) {
+       ERR(err.message());
+       return E_FAIL;

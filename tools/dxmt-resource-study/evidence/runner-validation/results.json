@@ -1,0 +1,25 @@
+{
+  "cases": [
+    {
+      "case": "upload",
+      "returncode": 0,
+      "expectation_matched": true,
+      "known_graphics_failure": false
+    },
+    {
+      "case": "control-8192",
+      "returncode": 0,
+      "expectation_matched": true,
+      "known_graphics_failure": false
+    },
+    {
+      "case": "overflow-16384",
+      "returncode": 1,
+      "expectation_matched": true,
+      "known_graphics_failure": true
+    }
+  ],
+  "overlay": "v0.80-cyder-pso-lab-cb6fa6f818d66dad",
+  "dll_sha256": "be4913fea6371c526bb62870d8d106e1a1bb4ae20017c2f70af452e068ec70b3",
+  "scope": "Synthetic resource tests; not MapleStory performance"
+}

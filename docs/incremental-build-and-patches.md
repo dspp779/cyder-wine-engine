@@ -264,13 +264,19 @@ newer (and must not declare a higher floor such as 15.0).
 ## Pack and install into Cyder runtime
 
 ```sh
-# Bump label in config/engine-version.txt when cutting an rc
-CYDER_ENGINE_VERSION_LABEL='CX26.3.0-W11-Cyder007-rc1' \
-SIGN_IDENTITY='-' \   # or Developer ID Application: …
+# Keep config/engine-release.json and config/engine-version.txt in sync.
+# Adhoc test pack; use a Developer ID Application identity for shipping.
+CYDER_ENGINE_VERSION_LABEL="$(head -n 1 config/engine-version.txt)" \
+SIGN_IDENTITY='-' \
   bash scripts/pack-engine-artifact.sh --xz --force
 ```
 
-Pack refuses to ship without `lib/dxvk`, with any Mach-O above the minOS floor,
+The current release contract requires `libMoltenVK-1.4.2.dylib` and
+`libMoltenVK-1.2.10.dylib`, the `.real` selection symlink, and the wait-poll shim.
+See the [from-scratch guide](build-engine-from-scratch.zh-TW.md) for assembly.
+Pack refuses to ship without graphics payloads, with any Mach-O above its
+allowed minOS (MoltenVK 1.4.2 / 1.2.10 reals: 12.0; other engine hosts: 10.15;
+DXMT payload: 15.0; Vulkan requires macOS 12+),
 or with broken codesign after archive round-trip.
 
 Then extract `dist/artifacts/engine-wine-x86_64-*.tar.xz` over
@@ -286,3 +292,7 @@ the archive into the Cyder app per `integration-with-cyder.md`.
 | `Cannot apply required Wine patch` on already-patched tree | Later patch rewrote hunk; reverse dry-run fails | Add/use marker detection; confirm marker string in tree |
 | Pack fails missing `lib/dxvk` | DXVK never staged into install | Copy/build DXVK into `install/.../lib/dxvk` (see Cyder `scripts/build-dxvk.sh`) |
 | Game “DXVK” but WineD3D in logs | Engine lacked `lib/dxvk` or prefix not provisioned | Pack with DXVK; check launch preamble / DLL overrides |
+
+The OpenGL front-buffer patch requires A6 first. Its apply guard verifies both
+reverse hunks with zero fuzz; a flush-only or swap-only tree is rejected before
+mutation. Restore clean CX26 sources rather than relying on a single marker.

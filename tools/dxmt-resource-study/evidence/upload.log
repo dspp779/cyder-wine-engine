@@ -1,0 +1,46 @@
+UPLOAD trial=0 padded=0 textures=64 create_ms=11.082 copy_map_verify_ms=65.436 bad_rows=0
+UPLOAD trial=1 padded=1 textures=64 create_ms=8.223 copy_map_verify_ms=24.971 bad_rows=0
+UPLOAD trial=2 padded=1 textures=64 create_ms=7.994 copy_map_verify_ms=18.631 bad_rows=0
+UPLOAD trial=3 padded=0 textures=64 create_ms=3.848 copy_map_verify_ms=19.424 bad_rows=0
+UPLOAD trial=4 padded=0 textures=64 create_ms=1.308 copy_map_verify_ms=18.214 bad_rows=0
+UPLOAD trial=5 padded=1 textures=64 create_ms=2.532 copy_map_verify_ms=15.957 bad_rows=0
+UPLOAD trial=6 padded=1 textures=64 create_ms=2.819 copy_map_verify_ms=17.877 bad_rows=0
+UPLOAD trial=7 padded=0 textures=64 create_ms=1.605 copy_map_verify_ms=17.926 bad_rows=0
+UPLOAD trial=8 padded=0 textures=64 create_ms=1.395 copy_map_verify_ms=18.432 bad_rows=0
+UPLOAD trial=9 padded=1 textures=64 create_ms=2.561 copy_map_verify_ms=18.496 bad_rows=0
+wineserver: diag start pid=61732
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=i386-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=i386-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:warning: CompatDB unavailable: /Users/jjc/ogom/compatdb
+info:  Maximum supported feature level: D3D_FEATURE_LEVEL_11_1
+info:  Using feature level D3D_FEATURE_LEVEL_11_0
+wineserver: atexit pid=61732

@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-21",
+  "source_files": {
+    "src/dxmt/dxmt_resource_initializer.cpp": "cb1d9efc1336810c1729dcd9d064bfc05850c30c404bea6998a162a18a5cc685",
+    "src/dxmt/dxmt_resource_initializer.hpp": "5966af3b0b787c9378e00119a1f440e1f5645d675dda785111a8a043d0b52be6",
+    "src/dxmt/dxmt_ring_bump_allocator.hpp": "a6b1a3f9f15d457dd94192558ee5e75b93fb3dc39f746ef034cff5b07f2852a9",
+    "src/dxmt/dxmt_command_queue.cpp": "5f1d0f1b3429188530380ab2da9a02a75ff247b18319ca86daed6b36ba58a2f6",
+    "src/dxmt/dxmt_dynamic.cpp": "a67c31c88d6ee7e7e3a0824f88a2e5f2b1298fc53ec51c7e3769b382f8cc12d7",
+    "src/d3d11/d3d11_context_impl.cpp": "6bab0e92254b7e7b2daca7e16e6259a7c034bb8c0d3feed624b2cbaad9203f27",
+    "src/winemetal/unix/winemetal_unix.c": "f8f4b952ebd4b862afd86b3a228d8a44708e7d87638a9c6798d7afd917fe6b35"
+  },
+  "changes_to_runtime": false,
+  "gpu_regression": "16384 subresources: one lost initialization at zero-based slice 9294, reproduced twice; 8192 control correct",
+  "allocator_test": "Original template extracted with fake allocator, 20 completed batches; 2 blocks baseline vs 1 inclusive bound. Does not validate GPU safety.",
+  "upload_test": "10 alternating trials, 64 textures each, 257x512 RGBA8, 1028 vs 1280 byte source row pitch; all rows read back exactly. Timings compare layouts, not patched vs unpatched code.",
+  "initial_environment_note": "First upload and overflow runs pointed CompatDB to its source directory and logged unavailable; control/repeat used compiled/compatdb.cdb. Overlay loading and real GPU readback succeeded in all desktop runs. Initial sandbox Mach-port failures are excluded."
+}

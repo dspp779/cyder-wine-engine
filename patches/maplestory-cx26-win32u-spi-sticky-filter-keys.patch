@@ -1,0 +1,20 @@
+--- a/dlls/win32u/sysparams.c
++++ b/dlls/win32u/sysparams.c
+@@ -6355,7 +6355,7 @@
+         }
+         break;
+     }
+-    WINE_SPI_FIXME(SPI_SETFILTERKEYS);
++    WINE_SPI_WARN(SPI_SETFILTERKEYS); /* MapleStoryPort: SPI sticky/filter success (Wine bug 59927 / GE-Proton) */
+ 
+     case SPI_GETTOGGLEKEYS:
+     {
+@@ -6411,7 +6411,7 @@
+         break;
+     }
+ 
+-    WINE_SPI_FIXME(SPI_SETSTICKYKEYS);
++    WINE_SPI_WARN(SPI_SETSTICKYKEYS); /* MapleStoryPort: SPI sticky/filter success (Wine bug 59927 / GE-Proton) */
+ 
+     case SPI_GETACCESSTIMEOUT:
+     {

@@ -17,7 +17,7 @@ int cyder_moltenvk_dual_probe = 1;
 EOF
 for ver in 1.4.2 1.2.10; do
   arch -x86_64 /usr/bin/clang -arch x86_64 \
-    -mmacosx-version-min=10.15 \
+    -mmacosx-version-min=12.0 \
     -isysroot "$sdk" \
     -dynamiclib \
     -o "$tmp/reals/libMoltenVK-$ver.dylib" \
@@ -38,6 +38,10 @@ LLVM_MINGW="$tmp/fake-llvm" bash "$ROOT/scripts/install-moltenvk-dual-variant.sh
 
 assert test -f "$unix/libMoltenVK-1.4.2.dylib"
 assert test -f "$unix/libMoltenVK-1.2.10.dylib"
+for ver in 1.4.2 1.2.10; do
+  assert_contains "$(otool -arch x86_64 -l "$unix/libMoltenVK-$ver.dylib")" 'minos 12.0' \
+    "installer must preserve real minOS; legacy version name does not lower it"
+done
 assert test -L "$unix/libMoltenVK.real.dylib"
 assert_eq "$(readlink "$unix/libMoltenVK.real.dylib")" "libMoltenVK-1.4.2.dylib" \
   ".real must default to 1.4.2"

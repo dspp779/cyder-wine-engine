@@ -55,7 +55,8 @@ Usage: $(basename "$0") [--force] [--dry-run] [--zstd] [--format zstd|xz]
 Build a compressed engine artifact from install/wine-cx26-x86_64 (or WINE_INSTALL).
   xz:   dist/artifacts/engine-wine-x86_64-<CX26-winever>.tar.xz (default, xz -9e)
   zstd: dist/artifacts/engine-<CX26-winever>.tar.zst (--zstd)
-Set CYDER_ENGINE_VERSION to override the detected version label.
+The default label comes from config/engine-version.txt.
+Set CYDER_ENGINE_VERSION_LABEL to override it for an explicit candidate pack.
 Set CYDER_ENGINE_FORMAT=zstd or pass --zstd to build with zstd -22 --ultra.
 The default media profile is full-video; use --media-profile minimal only for
 an explicitly reduced/non-video engine build.

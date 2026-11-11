@@ -15,7 +15,19 @@ assert_contains "$(cat "$ROOT/scripts/build-wine.sh")" \
   "CX26 build should apply A6"
 
 if [[ -d "$SRC/dlls/winemac.drv" ]]; then
-  patch --reverse --batch --dry-run -s -d "$SRC" -p1 <"$PATCH"
+  # Later front-buffer hunks overlap A6. Verify in reverse dependency order
+  # on a disposable copy; never unpatch the developer's source tree.
+  TMP="$(mktemp -d)"
+  trap 'rm -rf "$TMP"' EXIT
+  mkdir -p "$TMP/dlls/winemac.drv"
+  for name in cocoa_opengl.h macdrv_cocoa.h cocoa_opengl.m cocoa_window.m window.c opengl.c; do
+    cp "$SRC/dlls/winemac.drv/$name" "$TMP/dlls/winemac.drv/$name"
+  done
+  FRONT="$ROOT/patches/cyder-winemac-gl-front-buffer-present.patch"
+  if grep -Fq 'if (flags & GL_FLUSH_PRESENT)' "$TMP/dlls/winemac.drv/opengl.c"; then
+    patch --reverse --forward --batch --fuzz=0 -s -d "$TMP" -p1 <"$FRONT"
+  fi
+  patch --reverse --forward --batch --dry-run -s -d "$TMP" -p1 <"$PATCH"
   echo "PASS A6 patch round-trip on live CX26 source"
 else
   echo "SKIP A6 live-source round-trip: $SRC is absent"

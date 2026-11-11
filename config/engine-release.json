@@ -29,8 +29,11 @@
     "cyder-wineserver-macos-timezone-bias.patch",
     "cyder-wineserver-registry-fsync.patch",
     "cyder-winemac-hide-ime-only-klid.patch",
+    "cyder-winemac-gl-front-buffer-present.patch",
     "cyder-kernelbase-disk-free-space-fallback.patch",
     "maplestory-cx26-message-wait-handoff.patch",
+    "maplestory-cx26-kernelbase-charprev-null.patch",
+    "maplestory-cx26-win32u-spi-sticky-filter-keys.patch",
     "maplestory-cx26-core.patch",
     "maplestory-cx26-window-resizable-flag.patch",
     "maplestory-cx26-tmp-module-name.patch",
@@ -50,5 +53,5 @@
   "components": [
     "runtime/cxcompatdb/cxcompatdb.c"
   ],
-  "notes": "Cyder uses an open cxcompatdb.so loaded by the original CrossOver ntdll hook. It owns current-process CompatDB arguments, DLL overrides, graphics backend validation and runtime prepend; Cyder no longer patches ntdll for CompatDB. The MapleStory stack is D3DMetal-neutral; MoltenVK feature-level validation applies only to the optional DXVK path. Graphics payloads are shipped separately. The release stack includes only the MapleStory adaptive read-ahead cache for read-only WZ files and its 512-slot capacity tuning; ring, summary, timeline, cache-stats, section-map, mmap and prewarm patches remain development diagnostics and are not shipped in the release engine. Dual-variant MoltenVK ships libMoltenVK-1.4.2.dylib and libMoltenVK-1.2.10.dylib with a wait-poll shim as libMoltenVK.dylib and libMoltenVK.real.dylib selecting the active real; 1.4.2 reals keep capability plus present patches (timeline-wait is shim-owned)."
+  "notes": "Cyder uses an open cxcompatdb.so loaded by the original CrossOver ntdll hook. It owns current-process CompatDB arguments, DLL overrides, graphics backend validation and runtime prepend; Cyder no longer patches ntdll for CompatDB. The MapleStory stack is D3DMetal-neutral; MoltenVK feature-level validation applies only to the optional DXVK path. Graphics payloads are shipped separately. Every CX26 build includes the GE-Proton MapleStory launch fixes for CharPrevA/CharPrevExA NULL start (Wine bug 59926) and SPI_SETSTICKYKEYS/SPI_SETFILTERKEYS success stubs (Wine bug 59927). The release stack includes the MapleStory adaptive read-ahead cache and 512-slot capacity. FAST_HIT, host page-cache prewarm, and H2 in-process hit-prewarm are not shipped after 2026-09 playtest／ablation (no material first-hit／feel benefit vs complexity). Ring, summary, timeline, cache-stats, section-map, mmap and Skill-pack／FAST_HIT／H2 probes remain development diagnostics. Dual-variant MoltenVK ships libMoltenVK-1.4.2.dylib and libMoltenVK-1.2.10.dylib with a wait-poll shim as libMoltenVK.dylib and libMoltenVK.real.dylib selecting the active real; 1.4.2 reals keep capability plus present patches (timeline-wait is shim-owned)."
 }

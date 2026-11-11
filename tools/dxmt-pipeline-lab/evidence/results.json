@@ -1,0 +1,88 @@
+{
+  "engine": "/Users/jjc/cyder-wine-engine/install/wine-cx26-x86_64",
+  "engine_version": "CX26.3.0-W11-Cyder012",
+  "overlay": "/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay",
+  "overlay_version": "v0.80-cyder-pso-lab-cb6fa6f818d66dad",
+  "d3d11_sha256": "be4913fea6371c526bb62870d8d106e1a1bb4ae20017c2f70af452e068ec70b3",
+  "cases": [
+    {
+      "case": "disabled",
+      "pixels": 4096,
+      "hits": 0,
+      "misses": 0,
+      "saved": 0
+    },
+    {
+      "case": "cold",
+      "pixels": 4096,
+      "hits": 0,
+      "misses": 4,
+      "saved": 4
+    },
+    {
+      "case": "warm",
+      "pixels": 4096,
+      "hits": 4,
+      "misses": 0,
+      "saved": 0
+    },
+    {
+      "case": "corrupt",
+      "pixels": 4096,
+      "hits": 0,
+      "misses": 4,
+      "saved": 4
+    },
+    {
+      "case": "repaired",
+      "pixels": 4096,
+      "hits": 4,
+      "misses": 0,
+      "saved": 0
+    },
+    {
+      "case": "invalid-archive-with-digest",
+      "pixels": 4096,
+      "hits": 0,
+      "misses": 4,
+      "saved": 4
+    },
+    {
+      "case": "unrelated-process",
+      "pixels": 4096,
+      "hits": 0,
+      "misses": 0,
+      "saved": 0
+    },
+    {
+      "case": "missing-directory",
+      "pixels": 4096,
+      "hits": 0,
+      "misses": 4,
+      "saved": 0
+    },
+    {
+      "case": "entry-limit",
+      "pixels": 4096,
+      "hits": 0,
+      "misses": 4,
+      "saved": 0
+    },
+    {
+      "case": "long-unicode-path",
+      "pixels": 4096,
+      "hits": 0,
+      "misses": 4,
+      "saved": 4
+    },
+    {
+      "case": "long-unicode-warm",
+      "pixels": 4096,
+      "hits": 4,
+      "misses": 0,
+      "saved": 0
+    }
+  ],
+  "status": "passed",
+  "scope": "Synthetic D3D11 graphics only; not MapleStory performance acceptance"
+}

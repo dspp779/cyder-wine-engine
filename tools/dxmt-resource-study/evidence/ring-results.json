@@ -1,0 +1,15 @@
+{
+  "source": "/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/source/src/dxmt/dxmt_ring_bump_allocator.hpp",
+  "sha256": "a6b1a3f9f15d457dd94192558ee5e75b93fb3dc39f746ef034cff5b07f2852a9",
+  "cases": [
+    {
+      "case": "baseline",
+      "output": "allocations_for_20_completed_batches=2"
+    },
+    {
+      "case": "inclusive-boundary",
+      "output": "allocations_for_20_completed_batches=1"
+    }
+  ],
+  "scope": "Extracted original allocator template with fake allocation; no GPU correctness claim"
+}

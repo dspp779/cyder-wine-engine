@@ -1,0 +1,27 @@
+PASS color=0 mask=ffffffff pixels=1024 draw_readback_ms=10.359
+PASS color=0 mask=00000000 pixels=1024 draw_readback_ms=0.880
+PASS color=1 mask=ffffffff pixels=1024 draw_readback_ms=0.523
+PASS color=1 mask=00000000 pixels=1024 draw_readback_ms=0.544
+PASS all 4096 pixels
+wineserver: diag start pid=50414
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:info: loaded CompatDB v1 rules=3 path=/Users/jjc/ogom/compatdb/compiled/compatdb.cdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:info: loaded CompatDB v1 rules=3 path=/Users/jjc/ogom/compatdb/compiled/compatdb.cdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:info: loaded CompatDB v1 rules=3 path=/Users/jjc/ogom/compatdb/compiled/compatdb.cdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:info: loaded CompatDB v1 rules=3 path=/Users/jjc/ogom/compatdb/compiled/compatdb.cdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:info: loaded CompatDB v1 rules=3 path=/Users/jjc/ogom/compatdb/compiled/compatdb.cdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:info: loaded CompatDB v1 rules=3 path=/Users/jjc/ogom/compatdb/compiled/compatdb.cdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:info: loaded CompatDB v1 rules=3 path=/Users/jjc/ogom/compatdb/compiled/compatdb.cdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:info: loaded CompatDB v1 rules=3 path=/Users/jjc/ogom/compatdb/compiled/compatdb.cdb
+cyder-cxcompatdb:info: graphics backend=dxmt machine=x86_64-windows path=/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay
+cyder-cxcompatdb:info: loaded CompatDB v1 rules=3 path=/Users/jjc/ogom/compatdb/compiled/compatdb.cdb
+info:  Maximum supported feature level: D3D_FEATURE_LEVEL_11_1
+info:  Using feature level D3D_FEATURE_LEVEL_11_0
+wineserver: atexit pid=50414

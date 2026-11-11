@@ -11,12 +11,17 @@ bundle a pinned engine artifact during the first extraction phase.
 
 ## Current release target
 
-- Engine: `CX26.3.0-W11-Cyder011`
+- Engine: `CX26.3.0-W11-Cyder012`
 - Base: CrossOver 26.3.0 / Wine 11.0
 - Host: macOS x86_64; native on Intel, Rosetta on Apple Silicon
 - Product deployment floor: macOS 10.15 (`.env` / `MACOSX_DEPLOYMENT_TARGET`, default 10.15)
 - Architectures: x86_64 host with i386 and x86_64 Windows PE support
-- Graphics: MoltenVK 1.4.0, DXVK 1.10.3, DXVK2 2.7.1, DXMT 0.80
+- Graphics: dual-variant MoltenVK 1.4.2 / 1.2.10, DXVK 1.10.3, DXVK2 2.7.1, DXMT 0.80
+
+The canonical release contract is
+[`config/engine-release.json`](config/engine-release.json), with the same label
+in [`config/engine-version.txt`](config/engine-version.txt). Packaging examples
+read that label from config rather than pinning a separate value.
 
 The ordered patch set is recorded in
 [`config/engine-release.json`](config/engine-release.json). Built artifacts also
@@ -82,12 +87,12 @@ bash scripts/build-media-stack.sh --cx 26 --full-video
 The profile deliberately does not enable `gst-libav`; it is not part of the
 OEM25 plugin set and would require a separate FFmpeg dependency.
 
-Cyder011 release packaging embeds this profile inside the engine artifact. The
+Current release packaging embeds this profile inside the engine artifact. The
 packager defaults to `full-video`; `--media-profile minimal` is an explicit
 reduced fallback only:
 
 ```sh
-CYDER_ENGINE_VERSION_LABEL='CX26.3.0-W11-Cyder011' \
+CYDER_ENGINE_VERSION_LABEL="$(head -n 1 config/engine-version.txt)" \
   bash scripts/pack-engine-artifact.sh --xz --force
 ```
 
@@ -102,13 +107,23 @@ therefore requires macOS 12+; choosing the legacy version does not restore
 Vulkan on macOS 10.15/11. See the
 [compatibility guide](docs/macos-rosetta-compatibility.zh-TW.md).
 
-For the Cyder MoltenVK path (upstream 1.4.0 with Cyder patches):
+For the Cyder MoltenVK path (upstream 1.4.2 with capability + present patches):
 
 ```sh
 bash scripts/build-graphics-stack.sh --cx 26 --install-deps --moltenvk-source upstream
 bash scripts/build-graphics-stack.sh --cx 26 --moltenvk-source upstream
 bash scripts/build-wine.sh --cx 26 --with-vulkan --vulkan-source crossover
 ```
+
+Before release packaging, assemble both `libMoltenVK-1.4.2.dylib` and
+`libMoltenVK-1.2.10.dylib`, the `libMoltenVK.real.dylib` selection symlink, and
+the `libMoltenVK.dylib` wait-poll shim with
+`scripts/install-moltenvk-dual-variant.sh`. The real dylibs do not receive the
+timeline-wait source patch. Both versioned reals may declare minOS 12.0;
+Vulkan requires macOS 12+. The shim stays at the 10.15 product floor.
+The [from-scratch guide](docs/build-engine-from-scratch.zh-TW.md) includes the
+legacy real build and dual-variant assembly commands. D3DMetal development
+builds can omit MoltenVK; the current release pack gate requires both variants.
 
 Incremental builds reuse `build/cx26/sources/wine/build64` and the install tree.
 See **[`docs/incremental-build-and-patches.md`](docs/incremental-build-and-patches.md)**
@@ -144,8 +159,14 @@ bash scripts/rebuild-wine-host-unix.sh
 ## Test
 
 ```sh
+bash tests/test-release-contract.sh
 bash tests/run.sh
 ```
+
+The offline release-contract regression compares current docs, scripts, and
+examples with config, including both MoltenVK variants. Historical release
+records and legacy compatibility branches have explicit, bounded exceptions
+in `tests/test-release-contract.py`.
 
 The runtime frame-walk test is skipped when no local engine exists. To test a
 specific candidate:
@@ -158,7 +179,7 @@ FRAME_WALK_WINE_RUNTIME=/path/to/wine-x86_64 \
 ## Package
 
 ```sh
-CYDER_ENGINE_VERSION_LABEL='CX26.3.0-W11-Cyder011' \
+CYDER_ENGINE_VERSION_LABEL="$(head -n 1 config/engine-version.txt)" \
 SIGN_IDENTITY='Developer ID Application: …' \
   bash scripts/pack-engine-artifact.sh --xz --force
 ```
