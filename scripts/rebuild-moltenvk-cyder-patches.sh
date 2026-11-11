@@ -86,6 +86,11 @@ apply_one \
   'Cyder: Metal scheduled-handler threads' \
   "$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKImage.mm"
 
+apply_one \
+  "$ROOT/patches/cyder-moltenvk-legacy-gpu-msl-cap.patch" \
+  'Cyder: GPUs below GPU Family Mac 2' \
+  "$MOLTENVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm"
+
 dylib_out="$MOLTENVK_SRC/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib"
 if (( FORCE )); then
   echo "Removing previous Package output..."
@@ -134,6 +139,7 @@ source ${MOLTENVK_SOURCE}
 capability-patch cyder-moltenvk-crossover-capability-hacks
 minos ${minos:-unknown}
 patch cyder-moltenvk-present-autoreleasepool
+patch cyder-moltenvk-legacy-gpu-msl-cap
 ports-fix wait-poll-shim
 EOF
 
