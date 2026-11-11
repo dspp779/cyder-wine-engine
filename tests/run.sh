@@ -48,6 +48,7 @@ tests=(
   test-wineserver-pipe-end-disconnect-null-fd.sh
   test-wineserver-add-completion-guard.sh
   test-gamesir-platform-p1-patches.sh
+  test-wined3d-gl-sm5-patch.sh
   test-ntdll-query-directory-object-trace.sh
   test-moltenvk-timeline-wait-poll.sh
   test-moltenvk-wait-poll-shim-tool.sh

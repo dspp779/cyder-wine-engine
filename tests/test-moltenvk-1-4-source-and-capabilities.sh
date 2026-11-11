@@ -58,6 +58,35 @@ ensure_text="$(<"$ENSURE_SCRIPT")"
 assert_contains "$ensure_text" '6864db532f1dbbdb621a8d0ec13f24edae318fd9269dd3dd0cdff791334bb1cb' \
   "source ensure should pin the MoltenVK 1.4.2 checksum"
 
+MSL_CAP_PATCH="$ROOT/patches/cyder-moltenvk-legacy-gpu-msl-cap.patch"
+msl_cap_text="$(<"$MSL_CAP_PATCH")"
+assert_contains "$msl_cap_text" '!supportsMTLGPUFamily(Mac2) && !supportsMTLGPUFamily(Apple1)' \
+  "MSL cap must only apply below GPU Family Mac 2"
+assert_contains "$msl_cap_text" '_metalFeatures.mslVersionEnum = MTLLanguageVersion2_4;' \
+  "MSL cap must select MSL 2.4 for legacy GPUs"
+assert_contains "$msl_cap_text" '#if MVK_MACOS' \
+  "MSL cap must stay macOS-only"
+for script in "$BUILD_SCRIPT" "$REBUILD_SCRIPT"; do
+  assert_contains "$(<"$script")" 'cyder-moltenvk-legacy-gpu-msl-cap.patch' \
+    "$(basename "$script") should apply the legacy GPU MSL cap patch"
+done
+
+# Apply order on pinned 1.4.2 sources: capability hacks first, then the cap.
+MVK_SRC="$ROOT/build/moltenvk-1.4.2"
+if [[ -f "$MVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm" ]] &&
+   ! grep -Fq '_features.pipelineStatisticsQuery = true;' "$MVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm"; then
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/cyder-mvk-msl-cap.XXXXXX")"
+  trap 'rm -rf "$tmp"' EXIT
+  mkdir -p "$tmp/MoltenVK/MoltenVK/GPUObjects"
+  cp "$MVK_SRC/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm" "$tmp/MoltenVK/MoltenVK/GPUObjects/"
+  awk '/^diff |^--- /{keep=($0 ~ /MVKDevice\.mm/)} keep' "$PATCH_FILE" |
+    patch --forward --batch -s -p1 -d "$tmp"
+  patch --forward --batch -s -p1 -d "$tmp" < "$MSL_CAP_PATCH"
+  grep -Fq 'Cyder: GPUs below GPU Family Mac 2' "$tmp/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm"
+else
+  echo "SKIP MSL cap apply check: pristine MoltenVK 1.4.2 source not found at $MVK_SRC"
+fi
+
 dry_run="$(MOLTENVK_SOURCE=upstream MOLTENVK_VERSION=1.4.2 bash "$ENSURE_SCRIPT" --dry-run)"
 assert_contains "$dry_run" 'build/moltenvk-1.4.2' \
   "source ensure dry-run should resolve the pinned MoltenVK source path"

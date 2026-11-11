@@ -449,6 +449,9 @@ apply_cyder_patch() {
   elif [[ "$(basename "$patch_file")" == "cyder-kernelbase-disk-free-space-fallback.patch" ]] &&
        grep -Fq 'retry a real mapped volume instead of inventing free space' "$WINE_SRC/dlls/kernelbase/volume.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-wined3d-gl-sm5-feature-level-11.patch" ]] &&
+       grep -Fq 'CyderGLShaderModel5' "$WINE_SRC/dlls/wined3d/wined3d_main.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
   else
     echo "Cannot apply required Wine patch: $patch_file" >&2
     exit 1
@@ -535,6 +538,7 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/cyder-winemac-missing-order-anchor.patch"
   apply_cyder_patch "$OGOM/patches/cyder-winemac-ax-unminimize.patch"
   apply_cyder_patch "$OGOM/patches/cyder-kernelbase-disk-free-space-fallback.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-wined3d-gl-sm5-feature-level-11.patch"
   apply_cyder_patch "$OGOM/patches/wine-winemac-initialize-style-masks.patch"
   apply_cyder_patch "$OGOM/patches/wine-win32u-full-client-visible-rect.patch"
 

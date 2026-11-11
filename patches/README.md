@@ -23,29 +23,30 @@ Patch order for the CX26.3 / Wine 11.0 Cyder engine:
       `wine-win32u-no-present-on-context-bind.patch` (62da9c02).
     - Then apply `cyder-winemac-gl-profile.patch` (opt-in diagnostics).
 18. `cyder-kernelbase-disk-free-space-fallback.patch`
-19. `maplestory-cx26-message-wait-handoff.patch`
-20. `maplestory-cx26-kernelbase-charprev-null.patch`
-21. `maplestory-cx26-win32u-spi-sticky-filter-keys.patch`
-22. `maplestory-cx26-core.patch`
-23. `maplestory-cx26-window-resizable-flag.patch`
-24. `maplestory-cx26-tmp-module-name.patch`
-25. `maplestory-cx26-dbghelp-dwarf-guard.patch`
-26. `maplestory-cx26-d3d11-shared-texture-test.patch`
-27. `maplestory-cx26-d3dmetal-legacy-surface.patch`
-28. `maplestory-cx26-plain-metal-layer.patch`
-29. `maplestory-cx26-d3d11-full-clear.patch`
-30. `maplestory-cx26-dxgi-shared-handle.patch`
-31. `maplestory-cx26-texture-user-memory-reload.patch`
-32. `maplestory-cx26-blackxchg-foreground.patch`
-33. `maplestory-cx26-fullscreen-restore.patch`
-34. `maplestory-cx26-no-sched-yield.patch`
-35. `maplestory-cx26-file-cache-adaptive.patch`
-36. `maplestory-cx26-io-ring.patch`
-37. `maplestory-cx26-io-ring-arm.patch`
-38. `maplestory-cx26-io-summary.patch`
-39. `maplestory-cx26-io-timeline.patch`
-40. `maplestory-cx26-io-cache-stats.patch`
-41. `maplestory-cx26-section-map-summary.patch`
+19. `cyder-wined3d-gl-sm5-feature-level-11.patch`
+20. `maplestory-cx26-message-wait-handoff.patch`
+21. `maplestory-cx26-kernelbase-charprev-null.patch`
+22. `maplestory-cx26-win32u-spi-sticky-filter-keys.patch`
+23. `maplestory-cx26-core.patch`
+24. `maplestory-cx26-window-resizable-flag.patch`
+25. `maplestory-cx26-tmp-module-name.patch`
+26. `maplestory-cx26-dbghelp-dwarf-guard.patch`
+27. `maplestory-cx26-d3d11-shared-texture-test.patch`
+28. `maplestory-cx26-d3dmetal-legacy-surface.patch`
+29. `maplestory-cx26-plain-metal-layer.patch`
+30. `maplestory-cx26-d3d11-full-clear.patch`
+31. `maplestory-cx26-dxgi-shared-handle.patch`
+32. `maplestory-cx26-texture-user-memory-reload.patch`
+33. `maplestory-cx26-blackxchg-foreground.patch`
+34. `maplestory-cx26-fullscreen-restore.patch`
+35. `maplestory-cx26-no-sched-yield.patch`
+36. `maplestory-cx26-file-cache-adaptive.patch`
+37. `maplestory-cx26-io-ring.patch`
+38. `maplestory-cx26-io-ring-arm.patch`
+39. `maplestory-cx26-io-summary.patch`
+40. `maplestory-cx26-io-timeline.patch`
+41. `maplestory-cx26-io-cache-stats.patch`
+42. `maplestory-cx26-section-map-summary.patch`
 
 `w1-win32u-vulkan-soname.patch` is not part of the default patch set. It is a
 special-case build-only fallback for CX26 source trees where `win32u/vulkan.c`
@@ -313,6 +314,22 @@ current volume, then `windows_dir`, and returns those `NtQueryVolumeInformationF
 sizes. If every open fails, the API still returns `FALSE`. It does not invent
 capacity.
 
+`cyder-wined3d-gl-sm5-feature-level-11.patch` adds the opt-in wined3d option
+`CyderGLShaderModel5` (`WINE_D3D_CONFIG=renderer=gl,CyderGLShaderModel5=1`).
+macOS OpenGL 4.1 lacks compute shaders, image load/store and atomic counters,
+so the GL renderer stops at shader model 4 / feature level 10_1. Some D3D11
+games (TMS MapleStory's `Gr2D_DX11.dll`) request only FL11_0 but draw with
+plain SM5 vertex/pixel shaders. With the option set and GLSL 4.00 +
+`ARB_gpu_shader5` present, the GLSL backend reports SM5 and the adapter
+reports FL11_0. Compute dispatch remains a logged no-op. The patch also
+replaces the integer `mix()` in `ftoi`/`ftou` with clamp/add/multiply when
+`EXT_shader_integer_mix` is missing (Apple GL; CrossOver HACK 23019 dropped the
+requirement), because those shaders otherwise fail to compile and their draws
+are skipped (TMS skill effects). Likewise `deriv_rt[xy]_coarse/fine` fall back
+to plain `dFdx`/`dFdy` when `ARB_derivative_control` (GL 4.5) is missing. This keeps the GL
+path for Intel/NVIDIA/AMD Macs whose Metal lacks the 4-bit `B4G4R4A4` format
+that DXVK/MoltenVK would need.
+
 `cyder-ntdll-query-directory-object-trace.patch` remains for optional diagnosis
 (`CYDER_QDO_TRACE=1`); copy also under `patches/experimental/`. It is **not**
 in the default CX26 apply list (superseded by optnone). See
@@ -344,6 +361,7 @@ strings as “already applied”:
 | `cyder-winemac-hide-ime-only-klid.patch` | `leaks IME-only HKLs` (`dlls/winemac.drv/keyboard.c`) |
 | `cyder-winemac-gl-front-buffer-present.patch` | `if (flags & GL_FLUSH_PRESENT)` (`dlls/winemac.drv/opengl.c`) |
 | `cyder-kernelbase-disk-free-space-fallback.patch` | `retry a real mapped volume instead of inventing free space` (`dlls/kernelbase/volume.c`) |
+| `cyder-wined3d-gl-sm5-feature-level-11.patch` | `CyderGLShaderModel5` (`dlls/wined3d/wined3d_main.c`) |
 | `maplestory-cx26-message-wait-handoff.patch` | `MapleStoryPort: preserve one driver wait result` (`dlls/win32u/message.c`) |
 | `maplestory-cx26-kernelbase-charprev-null.patch` | `MapleStoryPort: CharPrev NULL start` (`dlls/kernelbase/string.c`) |
 | `maplestory-cx26-win32u-spi-sticky-filter-keys.patch` | `MapleStoryPort: SPI sticky/filter success` (`dlls/win32u/sysparams.c`) |
@@ -373,13 +391,14 @@ source builds are retired.
 ## MoltenVK (graphics stack, not Wine patch order)
 
 Applied under `$MOLTENVK_SRC` via
-`scripts/rebuild-moltenvk-cyder-patches.sh --apply-patches` (capability + present
-only; timeline-wait is **not** applied to the real):
+`scripts/rebuild-moltenvk-cyder-patches.sh --apply-patches` (capability, present
+and legacy-GPU MSL cap; timeline-wait is **not** applied to the real):
 
 | Patch | Intent |
 |-------|--------|
 | `cyder-moltenvk-crossover-capability-hacks.patch` | Port the three CrossOver DXVK compatibility advertisements (`geometryShader`, `pipelineStatisticsQuery`, `shaderCullDistance`) required for the D3D10/11 feature-level probe to reach 10_x/11_1. It deliberately does not fake `VK_EXT_transform_feedback` or the AMD bitwise-not compiler workaround. |
 | `cyder-moltenvk-present-autoreleasepool.patch` | Drain `@autoreleasepool` on Metal present / presented-handler threads. |
+| `cyder-moltenvk-legacy-gpu-msl-cap.patch` | Cap MSL at 2.4 on macOS GPUs below GPU Family Mac 2 (e.g. NVIDIA Kepler on macOS 13+ via OpenCore Legacy Patcher). Their Metal 2.x-era backend rejects `-std=metal3.2` and crashes `MTLCompilerService` (`GeForceAIRPlugin`) on some MSL 3.x shaders, which hangs DXVK pipeline creation. Supported Macs on macOS 13+ are all Mac 2 or Apple family and are unaffected. |
 | `cyder-moltenvk-timeline-wait-poll.patch` | **Retained for reference / optional local experiments.** Dual-variant engines deliver the equivalent host-wait fix via `tools/cyder-mvk-timeline-wait-poll/` as `libMoltenVK.dylib` (shim) over versioned `.real` dylibs — do not bake this into the 1.4.2 / 1.2.10 reals. |
 
 The default graphics build is pinned to upstream MoltenVK **1.4.2** by
@@ -403,7 +422,8 @@ into the 1.4.2 tree:
   macOS 26 AMD concurrent-compilation guard are separate CrossOver behavior;
   they are not needed to solve the DXVK feature-level failure.
 
-Markers: `Cyder: Metal scheduled-handler threads` (`MVKImage.mm`) on the real;
+Markers: `Cyder: Metal scheduled-handler threads` (`MVKImage.mm`) and
+`Cyder: GPUs below GPU Family Mac 2` (`MVKDevice.mm`) on the real;
 wait-poll shim marker `cyder-moltenvk-timeline-wait-poll` on `libMoltenVK.dylib`.
 
 Dual-variant engines ship:
