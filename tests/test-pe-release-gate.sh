@@ -10,7 +10,8 @@ printf 'CYDER_GRAPHICS_BACKEND_PATH\n' >"$TEMP/engine/lib/wine/x86_64-unix/cxcom
 # Stub only graphics packaging in an isolated copy; never invoke real signing.
 mkdir -p "$TEMP/project/scripts"
 cp "$ROOT/scripts/pack-engine-artifact.sh" "$ROOT/scripts/engine-common.sh" \
-  "$ROOT/scripts/env-x86_64.sh" "$ROOT/scripts/pe-signing.py" "$TEMP/project/scripts/"
+  "$ROOT/scripts/env-x86_64.sh" "$ROOT/scripts/pe-signing.py" \
+  "$ROOT/scripts/verify-native-ddraw-capability.py" "$TEMP/project/scripts/"
 cat >"$TEMP/project/scripts/pack-graphics-payloads.sh" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$@" >>"$CYDER_TEST_GRAPHICS_CALLS"
@@ -54,7 +55,17 @@ for helper in strip-wine-install.sh bundle-wine-dylibs.sh sign-wine.sh; do
   printf '#!/usr/bin/env bash\nexit 0\n' >"$TEMP/project/scripts/$helper"
 done
 printf 'import sys\nsys.exit(0)\n' >"$TEMP/project/scripts/pack-minos-scan.py"
-printf 'fixture ntdll\n' >"$TEMP/engine/lib/wine/x86_64-windows/ntdll.dll"
+python3 - "$TEMP/engine" <<'CAPABILITY'
+from pathlib import Path
+import struct,sys
+root=Path(sys.argv[1])
+for arch,machine in [('i386-windows',0x14c),('x86_64-windows',0x8664)]:
+    path=root/'lib/wine'/arch/'ntdll.dll';path.parent.mkdir(parents=True,exist_ok=True)
+    data=bytearray(512);data[:2]=b'MZ';struct.pack_into('<I',data,60,128)
+    data[128:132]=b'PE\0\0';struct.pack_into('<H',data,132,machine)
+    marker=b'CYDER_NATIVE_DDRAW_PATH_V1';data[256:256+len(marker)]=marker
+    path.write_bytes(data)
+CAPABILITY
 printf 'preserve upstream bytes\n' >"$TEMP/engine/lib/wine/x86_64-windows/upstream.dll"
 printf '{"status":"stale-unverified-input"}\n' >"$TEMP/engine/cyder-pe-provenance.json"
 run_pack env -u CYDER_PE_SIGNING CYDER_ENGINE_VERSION_LABEL=fixture-new >"$TEMP/full.log" 2>&1

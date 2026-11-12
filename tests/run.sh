@@ -23,6 +23,7 @@ tests=(
   test-bundle-wine-dylibs-source.sh
   test-cyder-engine-version.sh
   test-engine-manifest.sh
+  test-native-ddraw-path.sh
   test-winemac-style-masks.sh
   test-win32u-visible-rect.sh
   test-winemac-front-buffer.sh

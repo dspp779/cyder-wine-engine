@@ -344,6 +344,8 @@ strings -a "$PACKED_CXCOMPATDB" | grep -Fq 'CYDER_GRAPHICS_BACKEND_PATH' || {
   echo "Refusing to pack an incompatible cxcompatdb.so" >&2
   exit 1
 }
+python3 "$SCRIPT_DIR/verify-native-ddraw-capability.py" --root "$ENGINE_TREE" \
+  --config "${CYDER_ENGINE_RELEASE_CONFIG:-$OGOM/config/engine-release.json}"
 
 # Fail closed: every host Mach-O must stay at/below the product minOS floor.
 python3 "$SCRIPT_DIR/pack-minos-scan.py" "$ENGINE_TREE" "${MACOSX_DEPLOYMENT_TARGET:-10.15}"

@@ -375,6 +375,13 @@ apply_cyder_patch() {
     echo "+ patch -d $WINE_SRC -p1 < $patch_file"
     return 0
   fi
+  if [[ "$(basename "$patch_file")" == "cyder-ntdll-native-ddraw-path.patch" ]] &&
+     grep -Fq 'CYDER_NATIVE_DDRAW_PATH_V1' "$WINE_SRC/dlls/ntdll/loader.c" &&
+     grep -Fq '        init_cyder_ddraw_path();' "$WINE_SRC/dlls/ntdll/loader.c" &&
+     grep -Fq 'return find_dll_file( load_path, cyder_ddraw_path.Buffer' "$WINE_SRC/dlls/ntdll/loader.c"; then
+    echo "Already applied: $(basename "$patch_file") (startup snapshot guard detected)"
+    return 0
+  fi
   if [[ "$(basename "$patch_file")" == "cyder-winemac-ax-unminimize.patch" ]] &&
      grep -Fq "Explicit AX unminimize uses Cocoa's restore path" "$WINE_SRC/dlls/winemac.drv/cocoa_window.m"; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
@@ -541,6 +548,7 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/cyder-wined3d-gl-sm5-feature-level-11.patch"
   apply_cyder_patch "$OGOM/patches/wine-winemac-initialize-style-masks.patch"
   apply_cyder_patch "$OGOM/patches/wine-win32u-full-client-visible-rect.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-ntdll-native-ddraw-path.patch"
 
   apply_maplestory_patch() {
       local patch_name="$1"

@@ -77,3 +77,8 @@ echo "PASS test-engine-manifest"
 # Preserve notifications when the interval changes in the same flush.
 assert_contains "$(cat "$TMP/engine-manifest.json")" "wine-win32u-preserve-flush-flags.patch" "manifest should record the interval flag fix"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-winemac-gl-profile.patch" "manifest should record opt-in GL profiling"
+
+assert_contains "$(cat "$TMP/engine-manifest.json")" '"native-ddraw-path-v1"' \
+  'manifest must advertise the native ddraw startup snapshot capability'
+assert_contains "$(cat "$TMP/engine-manifest.json")" 'cyder-ntdll-native-ddraw-path.patch' \
+  'manifest must pin the maintained native ddraw patch'

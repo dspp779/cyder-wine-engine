@@ -55,7 +55,7 @@ mkdir -p "$(dirname "$OUTPUT")"
   exit 1
 }
 
-# Keep the release identity, compatibility floor, architectures, and ordered
+# Keep the release identity, compatibility floor, capabilities, architectures, and ordered
 # patch list in one canonical file. The version and checksums are build outputs
 # and intentionally replace their config counterparts here.
 python3 - "$RELEASE_CONFIG" "$OUTPUT" "$VERSION_LABEL" "$NTDLL_SHA256" \

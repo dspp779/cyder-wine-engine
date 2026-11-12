@@ -24,29 +24,30 @@ Patch order for the CX26.3 / Wine 11.0 Cyder engine:
     - Then apply `cyder-winemac-gl-profile.patch` (opt-in diagnostics).
 18. `cyder-kernelbase-disk-free-space-fallback.patch`
 19. `cyder-wined3d-gl-sm5-feature-level-11.patch`
-20. `maplestory-cx26-message-wait-handoff.patch`
-21. `maplestory-cx26-kernelbase-charprev-null.patch`
-22. `maplestory-cx26-win32u-spi-sticky-filter-keys.patch`
-23. `maplestory-cx26-core.patch`
-24. `maplestory-cx26-window-resizable-flag.patch`
-25. `maplestory-cx26-tmp-module-name.patch`
-26. `maplestory-cx26-dbghelp-dwarf-guard.patch`
-27. `maplestory-cx26-d3d11-shared-texture-test.patch`
-28. `maplestory-cx26-d3dmetal-legacy-surface.patch`
-29. `maplestory-cx26-plain-metal-layer.patch`
-30. `maplestory-cx26-d3d11-full-clear.patch`
-31. `maplestory-cx26-dxgi-shared-handle.patch`
-32. `maplestory-cx26-texture-user-memory-reload.patch`
-33. `maplestory-cx26-blackxchg-foreground.patch`
-34. `maplestory-cx26-fullscreen-restore.patch`
-35. `maplestory-cx26-no-sched-yield.patch`
-36. `maplestory-cx26-file-cache-adaptive.patch`
-37. `maplestory-cx26-io-ring.patch`
-38. `maplestory-cx26-io-ring-arm.patch`
-39. `maplestory-cx26-io-summary.patch`
-40. `maplestory-cx26-io-timeline.patch`
-41. `maplestory-cx26-io-cache-stats.patch`
-42. `maplestory-cx26-section-map-summary.patch`
+20. `cyder-ntdll-native-ddraw-path.patch`
+21. `maplestory-cx26-message-wait-handoff.patch`
+22. `maplestory-cx26-kernelbase-charprev-null.patch`
+23. `maplestory-cx26-win32u-spi-sticky-filter-keys.patch`
+24. `maplestory-cx26-core.patch`
+25. `maplestory-cx26-window-resizable-flag.patch`
+26. `maplestory-cx26-tmp-module-name.patch`
+27. `maplestory-cx26-dbghelp-dwarf-guard.patch`
+28. `maplestory-cx26-d3d11-shared-texture-test.patch`
+29. `maplestory-cx26-d3dmetal-legacy-surface.patch`
+30. `maplestory-cx26-plain-metal-layer.patch`
+31. `maplestory-cx26-d3d11-full-clear.patch`
+32. `maplestory-cx26-dxgi-shared-handle.patch`
+33. `maplestory-cx26-texture-user-memory-reload.patch`
+34. `maplestory-cx26-blackxchg-foreground.patch`
+35. `maplestory-cx26-fullscreen-restore.patch`
+36. `maplestory-cx26-no-sched-yield.patch`
+37. `maplestory-cx26-file-cache-adaptive.patch`
+38. `maplestory-cx26-io-ring.patch`
+39. `maplestory-cx26-io-ring-arm.patch`
+40. `maplestory-cx26-io-summary.patch`
+41. `maplestory-cx26-io-timeline.patch`
+42. `maplestory-cx26-io-cache-stats.patch`
+43. `maplestory-cx26-section-map-summary.patch`
 
 `w1-win32u-vulkan-soname.patch` is not part of the default patch set. It is a
 special-case build-only fallback for CX26 source trees where `win32u/vulkan.c`
@@ -180,6 +181,14 @@ builds as the open `cxcompatdb.so` loaded through CrossOver's existing loader
 hook. The obsolete ntdll and executable-specific Steam patches have been removed;
 incremental trees carrying them must be restored from a clean CrossOver source
 archive before rebuilding.
+
+`cyder-ntdll-native-ddraw-path.patch` adds `native-ddraw-path-v1` independently
+of CompatDB. PE ntdll snapshots `CYDER_DDRAW_PATH` once before imports and
+redirects only bare ddraw names to an absolute Windows ddraw.dll path. The
+existing native/builtin load policy remains authoritative. No EXE filtering,
+INI policy, registry mutation or child-context repair is introduced. Its stable
+markers are `CYDER_NATIVE_DDRAW_PATH_V1`, the startup initialization call, and
+the snapshot-based `find_dll_file` call. See `docs/native-ddraw-path.zh-TW.md`.
 
 `a6-final-same-view-backing-sync.patch` finalizes Retina/backing-size changes
 on the same `NSView` before OpenGL presents again. It prevents the resize,
@@ -362,6 +371,7 @@ strings as “already applied”:
 | `cyder-winemac-gl-front-buffer-present.patch` | `if (flags & GL_FLUSH_PRESENT)` (`dlls/winemac.drv/opengl.c`) |
 | `cyder-kernelbase-disk-free-space-fallback.patch` | `retry a real mapped volume instead of inventing free space` (`dlls/kernelbase/volume.c`) |
 | `cyder-wined3d-gl-sm5-feature-level-11.patch` | `CyderGLShaderModel5` (`dlls/wined3d/wined3d_main.c`) |
+| `cyder-ntdll-native-ddraw-path.patch` | `CYDER_NATIVE_DDRAW_PATH_V1` (`dlls/ntdll/loader.c`) |
 | `maplestory-cx26-message-wait-handoff.patch` | `MapleStoryPort: preserve one driver wait result` (`dlls/win32u/message.c`) |
 | `maplestory-cx26-kernelbase-charprev-null.patch` | `MapleStoryPort: CharPrev NULL start` (`dlls/kernelbase/string.c`) |
 | `maplestory-cx26-win32u-spi-sticky-filter-keys.patch` | `MapleStoryPort: SPI sticky/filter success` (`dlls/win32u/sysparams.c`) |
