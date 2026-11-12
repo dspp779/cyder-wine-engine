@@ -56,7 +56,7 @@ python3 tools/dxmt-resource-lab/test.py \
   --engine install/wine-cx26-x86_64 \
   --overlay build/dxmt-resource-lab-20261003/overlay \
   --compiler build/llvm-mingw-20260616-ucrt-macos-universal/bin/x86_64-w64-mingw32-clang++ \
-  --compatdb /Users/jjc/ogom/compatdb/compiled/compatdb.cdb \
+  --compatdb $HOME/ogom/Cyderbits/compatdb/compiled/compatdb.cdb \
   --output /private/tmp/dxmt-resource-acceptance
 ```
 

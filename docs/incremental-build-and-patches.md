@@ -26,7 +26,7 @@ Related:
 | `.brew-x86/` | Project x86_64 Homebrew |
 | `dist/artifacts/` | Packed engine tarballs + manifests |
 
-CyderBits/ogom may symlink these paths here for compatibility. Prefer building
+A CyderBits checkout symlinks these paths here for compatibility. Prefer building
 and packing from **this** repository.
 
 ## Hard rules
@@ -57,7 +57,7 @@ and packing from **this** repository.
 
 4. **Confirm `build64` prefix** before `make install`:
    ```sh
-   rg '^prefix =' build/cx26/sources/wine/build64/config.status
+   grep '^prefix =' build/cx26/sources/wine/build64/config.status
    ```
    It must be `…/install/wine-cx26-x86_64`. A scratch prefix such as
    `/private/tmp/cyder007-install` installs to the wrong tree. Prefer
@@ -250,8 +250,8 @@ minos.
 
 ```sh
 # minOS floor (product: every host Mach-O ≤ 10.15)
-otool -l install/wine-cx26-x86_64/lib/wine/x86_64-unix/ntdll.so | rg minos
-otool -l install/wine-cx26-x86_64/bin/wineserver | rg minos
+otool -l install/wine-cx26-x86_64/lib/wine/x86_64-unix/ntdll.so | grep minos
+otool -l install/wine-cx26-x86_64/bin/wineserver | grep minos
 
 # DXVK payload required for pack
 ls install/wine-cx26-x86_64/lib/dxvk/x86_64-windows/d3d11.dll \
@@ -271,7 +271,7 @@ newer (and must not declare a higher floor such as 15.0).
 # Adhoc test pack; use a Developer ID Application identity for shipping.
 CYDER_ENGINE_VERSION_LABEL="$(head -n 1 config/engine-version.txt)" \
 SIGN_IDENTITY='-' \
-  bash scripts/pack-engine-artifact.sh --xz --force
+  bash scripts/pack-engine-artifact.sh --zst --force
 ```
 
 The current release contract requires `libMoltenVK-1.4.2.dylib` and
@@ -282,7 +282,7 @@ allowed minOS (MoltenVK 1.4.2 / 1.2.10 reals: 12.0; other engine hosts: 10.15;
 DXMT payload: 15.0; Vulkan requires macOS 12+),
 or with broken codesign after archive round-trip.
 
-Then extract `dist/artifacts/engine-wine-x86_64-*.tar.xz` over
+Then extract `dist/artifacts/engine-*.tar.zst` over
 `~/.cyder/runtime/Engines/wine-x86_64` (backup the previous tree first), or pin
 the archive into the Cyder app per `integration-with-cyder.md`.
 

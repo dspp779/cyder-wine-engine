@@ -52,7 +52,7 @@ GameToMac 0.1.19 Alpha build 57，官網下載：
 
 ## 重現建置
 
-在 `/Users/jjc/cyder-wine-engine` 執行；先讀本 repo AGENTS.md。
+在 `$HOME/ogom/cyder-wine-engine` 執行；先讀本 repo AGENTS.md。
 `--workspace` 指向本 repo `build/` 下新的實驗目錄。原始資料下載到自己的 cache。
 
 ```bash
@@ -80,7 +80,7 @@ LLVM_MINGW="$PWD/build/llvm-mingw-20260616-ucrt-macos-universal/bin" \
 python3 tools/dxmt-pipeline-lab/test.py \
   --engine install/wine-cx26-x86_64 \
   --overlay build/dxmt-pipeline-lab/overlay \
-  --compatdb /Users/jjc/ogom/compatdb/compiled/compatdb.cdb \
+  --compatdb $HOME/ogom/Cyderbits/compatdb/compiled/compatdb.cdb \
   --output /private/tmp/cyder-pso-new-test
 ```
 

@@ -11,10 +11,10 @@
 
 ```bash
 python3 tools/dxmt-resource-study/reproduce.py \
-  --engine /Users/jjc/cyder-wine-engine/install/wine-cx26-x86_64 \
-  --overlay /Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/overlay \
-  --compiler /Users/jjc/cyder-wine-engine/build/llvm-mingw-20260616-ucrt-macos-universal/bin/x86_64-w64-mingw32-clang++ \
-  --compatdb /Users/jjc/ogom/compatdb/compiled/compatdb.cdb \
+  --engine $HOME/ogom/cyder-wine-engine/install/wine-cx26-x86_64 \
+  --overlay $HOME/ogom/cyder-wine-engine/build/dxmt-pipeline-lab/overlay \
+  --compiler $HOME/ogom/cyder-wine-engine/build/llvm-mingw-20260616-ucrt-macos-universal/bin/x86_64-w64-mingw32-clang++ \
+  --compatdb $HOME/ogom/Cyderbits/compatdb/compiled/compatdb.cdb \
   --output /private/tmp/dxmt-resource-reproduction \
   --expect-overflow-bug
 
