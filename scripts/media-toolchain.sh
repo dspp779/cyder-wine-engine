@@ -39,6 +39,30 @@ PY
   mv "$candidate" "$native"
 }
 
+# Print the Python that runs Meson. An explicit CYDER_HOST_PYTHON wins. The
+# system Python stays the default, but a Homebrew Meson newer than it supports
+# fails on import (typing.ParamSpec with 3.9), so fall back to the interpreter
+# Meson itself was installed for.
+media_host_python() {
+  local meson="$1" site="$2" system="${MEDIA_SYSTEM_PYTHON:-/usr/bin/python3}" own
+  if [[ -n "${CYDER_HOST_PYTHON:-}" ]]; then
+    printf "%s\n" "$CYDER_HOST_PYTHON"
+    return 0
+  fi
+  if PYTHONPATH="$site" "$system" -c "import mesonbuild.mesonlib" >/dev/null 2>&1; then
+    printf "%s\n" "$system"
+    return 0
+  fi
+  own="$(head -n 1 "$meson" 2>/dev/null | sed -n "s/^#![[:space:]]*//p")"
+  own="${own%% *}"
+  if [[ -n "$own" && -x "$own" ]]; then
+    echo "Note: $system cannot run this Meson; using $own (set CYDER_HOST_PYTHON to override)." >&2
+    printf "%s\n" "$own"
+    return 0
+  fi
+  printf "%s\n" "$system"
+}
+
 media_verify_x86_64() {
   "${CYDER_HOST_PYTHON:-python3}" - "$1" <<'PY'
 import pathlib, subprocess, sys

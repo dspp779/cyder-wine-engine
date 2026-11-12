@@ -477,7 +477,7 @@ import／release 流程；不要手動解壓覆蓋使用者 runtime。Cyder 應�
 | `DXVK` log 但實際是 WineD3D | DLL 沒有 builtin stamp、payload 未安裝或舊 engine 不認識 token | 檢查 offset 64、runtime payload、`cxcompatdb.so` 與 engine label |
 | DXMT 啟動後立即結束 | 缺 `winemetal.dll` 或 macOS 不符合 DXMT 要求 | 重新 ensure DXMT，確認 prefix 與 payload 的 Windows／unix 檔案完整 |
 | 打包後缺少 versioned MoltenVK 或 shim | 未跑 `install-moltenvk-dual-variant.sh` | 組裝 dual layout 後再 pack；Cyder012+ 需要雙 real + `.real` + wait-poll shim |
-| Meson 報 `typing.ParamSpec` 等 Python 錯誤 | media stack 預設用 `/usr/bin/python3`（3.9），對新版 Meson 太舊 | 以 `CYDER_HOST_PYTHON=<較新的 python3>` 指定 host Python 後重跑 `build-media-stack.sh` |
+| Meson 報 `typing.ParamSpec` 等 Python 錯誤 | `/usr/bin/python3`（3.9）對新版 Meson 太舊。media stack 現在會自動改用 Meson 自己的 Python；仍出現代表指定的 `CYDER_HOST_PYTHON` 太舊 | 把 `CYDER_HOST_PYTHON` 改成 3.10 以上的 python3，或取消設定後重跑 `build-media-stack.sh` |
 | GLib codegen 找不到 `distutils` | 新版 Python 已移除 `distutils` | 在 `CYDER_HOST_PYTHON` 指定的 Python 安裝 `setuptools` |
 | media stack 拒絕沿用 cache，或 GStreamer 指向舊路徑 | checkout 搬移後留下舊 prefix 的建置結果 | 把舊的 `install/media-*` 與 `build/cx26/media-*` 改名移開（不要直接刪），再重建 |
 | DXVK 建置缺 `glslangValidator` | `.brew-x86` 尚未安裝 glslang | 在專案的 x86_64 Homebrew 安裝 `glslang` 後重跑 |
