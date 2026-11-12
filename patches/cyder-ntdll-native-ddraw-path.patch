@@ -1,0 +1,64 @@
+--- a/dlls/ntdll/loader.c
++++ b/dlls/ntdll/loader.c
+@@ -3724,6 +3724,37 @@
+ }
+ 
+ 
++/* CYDER_NATIVE_DDRAW_PATH_V1: capture once before imports, never hot-switch. */
++static UNICODE_STRING cyder_ddraw_path;
++static NTSTATUS cyder_ddraw_path_status;
++static BOOL cyder_ddraw_path_enabled;
++
++static void init_cyder_ddraw_path(void)
++{
++    RTL_PATH_TYPE type;
++    const WCHAR *basename, *slash;
++
++    cyder_ddraw_path_status = get_env_var( L"CYDER_DDRAW_PATH", 0, &cyder_ddraw_path );
++    if (cyder_ddraw_path_status == STATUS_VARIABLE_NOT_FOUND) return;
++    if (!cyder_ddraw_path_status && !cyder_ddraw_path.Length)
++    {
++        RtlFreeUnicodeString( &cyder_ddraw_path );
++        return;
++    }
++    cyder_ddraw_path_enabled = TRUE;
++    if (cyder_ddraw_path_status) return;
++
++    type = RtlDetermineDosPathNameType_U( cyder_ddraw_path.Buffer );
++    basename = wcsrchr( cyder_ddraw_path.Buffer, '\\' );
++    slash = wcsrchr( cyder_ddraw_path.Buffer, '/' );
++    if (slash && (!basename || slash > basename)) basename = slash;
++    basename = basename ? basename + 1 : cyder_ddraw_path.Buffer;
++    if ((type != RtlPathTypeDriveAbsolute && type != RtlPathTypeUncAbsolute) ||
++        wcsicmp( basename, L"ddraw.dll" ))
++        cyder_ddraw_path_status = STATUS_OBJECT_PATH_SYNTAX_BAD;
++}
++
++
+ /***********************************************************************
+  *	find_builtin_without_file
+  *
+@@ -3882,6 +3913,15 @@
+     *pwm = NULL;
+     *redirected = FALSE;
+     nt_name->Buffer = NULL;
++
++    if (cyder_ddraw_path_enabled &&
++        (!wcsicmp( libname, L"ddraw" ) || !wcsicmp( libname, L"ddraw.dll" )))
++    {
++        if (cyder_ddraw_path_status) return cyder_ddraw_path_status;
++        TRACE( "CYDER_NATIVE_DDRAW_PATH_V1 %s -> %s\n", debugstr_w(libname), debugstr_us(&cyder_ddraw_path) );
++        return find_dll_file( load_path, cyder_ddraw_path.Buffer, nt_name, pwm, mapping,
++                              image_info, id, redirected, find_loaded );
++    }
+ 
+     if (!contains_path( libname ))
+     {
+@@ -5122,6 +5162,7 @@
+             InitializeListHead( &hash_table[i] );
+ 
+         init_user_process_params();
++        init_cyder_ddraw_path();
+         load_global_options();
+         version_init();
+         open_known_dll_ntdir();
