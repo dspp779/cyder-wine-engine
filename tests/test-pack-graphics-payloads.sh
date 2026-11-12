@@ -5,7 +5,7 @@ source "$ROOT/tests/assert.sh"
 
 help="$(bash "$ROOT/scripts/pack-graphics-payloads.sh" --help)"
 assert_contains "$help" "dxvk" "graphics pack help must list DXVK"
-assert_contains "$help" "dxvk2" "graphics pack help must list DXVK2"
+assert_contains "$help" "never packed" "graphics pack help must state DXVK 2 is not packed"
 assert_contains "$help" "dxmt" "graphics pack help must list DXMT"
 
 pack="$(<"$ROOT/scripts/pack-graphics-payloads.sh")"
@@ -52,13 +52,14 @@ chmod +x "$fake_zstd"
     --engine "$engine" --output-dir "$(basename "$output_dir")"
 )
 assert test -f "$output_dir/dxvk-unknown.tar.zst"
-assert test -f "$output_dir/dxvk2-unknown.tar.zst"
 assert test -f "$output_dir/dxmt-unknown.tar.zst"
 assert test -f "$output_dir/dxvk-version.txt"
-assert test -f "$output_dir/dxvk2-version.txt"
 assert test -f "$output_dir/dxmt-version.txt"
 assert test -f "$output_dir/dxvk-artifact-sha256.txt"
-assert test -f "$output_dir/dxvk2-artifact-sha256.txt"
+# DXVK 2 is unsupported until game-tested: present in the engine, never packed.
+assert test ! -e "$output_dir/dxvk2-unknown.tar.zst"
+assert test ! -e "$output_dir/dxvk2-version.txt"
+assert test ! -e "$output_dir/dxvk2-artifact-sha256.txt"
 assert test -f "$output_dir/dxmt-artifact-sha256.txt"
 
 # --force must replace existing archives instead of leaving zstd to fail on
@@ -69,7 +70,7 @@ assert test -f "$output_dir/dxmt-artifact-sha256.txt"
     --engine "$engine" --output-dir "$(basename "$output_dir")" --force
 )
 assert test -f "$output_dir/dxvk-unknown.tar.zst"
-assert test -f "$output_dir/dxvk2-unknown.tar.zst"
+assert test ! -e "$output_dir/dxvk2-unknown.tar.zst"
 assert test -f "$output_dir/dxmt-unknown.tar.zst"
 
 # Symlink payload source must be rejected

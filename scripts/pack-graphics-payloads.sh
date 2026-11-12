@@ -17,8 +17,9 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [--engine PATH] [--output-dir PATH] [--force]
 
-Package ENGINE/lib/dxvk, lib/dxvk2, and lib/dxmt as independent zstd graphics
-payloads. --channel release requires SIGN_IDENTITY and --revision cyder.N;
+Package ENGINE/lib/dxvk and lib/dxmt as independent zstd graphics payloads.
+DXVK 2 (lib/dxvk2) is not a supported Cyder payload until it passes game
+testing; it is never packed, even when present in the engine tree. --channel release requires SIGN_IDENTITY and --revision cyder.N;
 DXMT is signed only in staging, verified after archive round-trip, and immutable.
 Archives and version/checksum sidecars are written to
 dist/artifacts/graphics by default.
@@ -54,7 +55,6 @@ if [[ "$CHANNEL" == release ]]; then
 fi
 
 cyder_graphics_require_realpath_dir "$ENGINE/lib/dxvk" "DXVK"
-cyder_graphics_require_realpath_dir "$ENGINE/lib/dxvk2" "DXVK2"
 cyder_graphics_require_realpath_dir "$ENGINE/lib/dxmt" "DXMT"
 ZSTD_BIN="$(cyder_find_zstd 2>/dev/null || true)"
 [[ -x "$ZSTD_BIN" ]] || { echo "Missing bundled zstd" >&2; exit 1; }
@@ -136,7 +136,7 @@ pack_payload() {
     # archive before starting the replacement.
     rm -f "$archive"
     cp -R "$source" "$staged"
-    if [[ "$name" == dxvk || "$name" == dxvk2 ]]; then
+    if [[ "$name" == dxvk ]]; then
       python3 "$SCRIPT_DIR/stamp-wine-builtin-pe.py" "$staged"
     fi
     (
@@ -161,6 +161,9 @@ pack_payload() {
   echo "Created graphics artifact: $archive"
 }
 
+if [[ -e "$ENGINE/lib/dxvk2" ]]; then
+  echo "Skipping unsupported DXVK 2 payload: $ENGINE/lib/dxvk2 (not shipped until game-tested)" >&2
+fi
+
 pack_payload dxvk "$ENGINE/lib/dxvk"
-pack_payload dxvk2 "$ENGINE/lib/dxvk2"
 pack_payload dxmt "$ENGINE/lib/dxmt"

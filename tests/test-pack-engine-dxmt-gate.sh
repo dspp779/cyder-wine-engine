@@ -6,8 +6,13 @@ graphics_pack="$(cat "$ROOT/scripts/pack-graphics-payloads.sh")"
 engine_pack="$(cat "$ROOT/scripts/pack-engine-artifact.sh")"
 assert_contains "$graphics_pack" 'lib/dxmt' \
   "graphics pack must require the DXMT payload"
-assert_contains "$graphics_pack" 'lib/dxvk2' \
-  "graphics pack must require the DXVK2 payload"
+if [[ "$graphics_pack" == *'pack_payload dxvk2'* ]]; then
+  echo "ASSERT failed: graphics pack must not ship the untested DXVK 2 payload" >&2; exit 1
+fi
+assert_contains "$engine_pack" "--exclude 'lib/dxvk2'" \
+  "engine archive must exclude DXVK 2"
+assert_contains "$engine_pack" 'Engine archive must not contain lib/dxvk2' \
+  "engine pack must verify the final archive has no DXVK 2"
 assert_contains "$engine_pack" "pack-graphics-payloads.sh" \
   "engine pack must create graphics payloads before stripping the engine"
 assert_contains "$engine_pack" "--exclude 'lib/dxmt'" \
@@ -81,7 +86,7 @@ CYDER_ENGINE_ARTIFACTS_DIR="$artifacts" CYDER_ENGINE_VERSION_LABEL="test" \
   bash "$ROOT/scripts/pack-engine-artifact.sh" --media-profile minimal
 assert test -f "$artifacts/graphics/dxvk-unknown.tar.zst"
 assert test -f "$artifacts/graphics/dxmt-unknown.tar.zst"
-assert test -f "$artifacts/graphics/dxvk2-unknown.tar.zst"
+assert test ! -e "$artifacts/graphics/dxvk2-unknown.tar.zst"
 assert test -f "$artifacts/graphics/dxvk-version.txt"
 assert test -f "$artifacts/graphics/dxmt-version.txt"
 assert test -f "$artifacts/graphics/dxvk-artifact-sha256.txt"
