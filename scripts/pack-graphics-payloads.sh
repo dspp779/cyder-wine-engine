@@ -10,7 +10,6 @@ ENGINE="${WINE_INSTALL:-}"
 OUTPUT_DIR=""
 FORCE=0
 CHANNEL="${CYDER_GRAPHICS_CHANNEL:-test}"
-REVISION="${CYDER_GRAPHICS_PACKAGE_REVISION:-}"
 CANDIDATE=""
 
 usage() {
@@ -19,8 +18,11 @@ Usage: $(basename "$0") [--engine PATH] [--output-dir PATH] [--force]
 
 Package ENGINE/lib/dxvk and lib/dxmt as independent zstd graphics payloads.
 DXVK 2 (lib/dxvk2) is not a supported Cyder payload until it passes game
-testing; it is never packed, even when present in the engine tree. --channel release requires SIGN_IDENTITY and --revision cyder.N;
-DXMT is signed only in staging, verified after archive round-trip, and immutable.
+testing; it is never packed, even when present in the engine tree. --channel release requires a Developer ID SIGN_IDENTITY. DXMT keeps the upstream
+version (dxmt-0.80.tar.zst); Cyder only adds a Developer ID signature to
+winemetal.so in staging, verifies it after the archive round-trip, and reuses an
+existing verified archive unchanged. It is re-signed only when the upstream
+source or signing policy changes (move the old archive aside first).
 Archives and version/checksum sidecars are written to
 dist/artifacts/graphics by default.
 EOF
@@ -31,7 +33,7 @@ while [[ $# -gt 0 ]]; do
     --engine) ENGINE="${2:?Missing value for --engine}"; shift 2 ;;
     --output-dir) OUTPUT_DIR="${2:?Missing value for --output-dir}"; shift 2 ;;
     --channel) CHANNEL="${2:?Missing channel}"; shift 2 ;;
-    --revision) REVISION="${2:?Missing revision}"; shift 2 ;;
+    --revision) echo "--revision is retired: DXMT is packaged under its upstream version" >&2; exit 1 ;;
     --force) FORCE=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 1 ;;
@@ -49,8 +51,8 @@ cyder_graphics_require_realpath_dir() {
 
 [[ "$CHANNEL" == test || "$CHANNEL" == release ]] || { echo "Invalid graphics channel" >&2; exit 1; }
 if [[ "$CHANNEL" == release ]]; then
-  [[ "${SIGN_IDENTITY:-}" == 'Developer ID Application: '* && "$REVISION" =~ ^cyder\.[1-9][0-9]*$ ]] || {
-    echo "Release graphics require Developer ID Application and a new --revision cyder.N" >&2; exit 1;
+  [[ "${SIGN_IDENTITY:-}" == 'Developer ID Application: '* ]] || {
+    echo "Release graphics require a Developer ID Application SIGN_IDENTITY" >&2; exit 1;
   }
 fi
 
@@ -81,12 +83,17 @@ payload_version() {
 STAGING="$(mktemp -d "${TMPDIR:-/tmp}/cyder-graphics-pack.XXXXXX")"
 trap 'rm -rf "$STAGING"; [[ -z "$CANDIDATE" ]] || rm -f "$CANDIDATE"' EXIT
 
+dxmt_archive_is_signed_release() {
+  local listing
+  listing="$("$ZSTD_BIN" -dc "$1" | tar -tf -)" || return 1
+  grep -q '^dxmt/cyder-graphics-provenance.json$' <<<"$listing"
+}
+
 pack_payload() {
   local name="$1" source="$2" version archive version_file checksum_file staged
   version="$(payload_version "$name" "$source")"
   if [[ "$name" == dxmt && "$CHANNEL" == release ]]; then
     [[ "$version" == 0.80 ]] || { echo "Unreviewed DXMT version" >&2; return 1; }
-    version="$version-$REVISION"
   fi
   if [[ "$name" == dxmt && "$CHANNEL" != release && "$version" == *-cyder.* ]]; then
     echo "Cyder package revisions are reserved for release graphics" >&2; return 1
@@ -103,12 +110,17 @@ pack_payload() {
         read -r recorded_digest recorded_name <"$checksum_file"
         if [[ "$recorded_name" == "$(basename "$archive")" ]]; then
           [[ "$recorded_digest" == "$(shasum -a 256 "$archive" | awk '{print $1}')" ]] || {
-            echo "Existing signed archive checksum changed; use a new revision" >&2; return 1;
+            echo "Existing signed archive checksum changed; move it aside to re-sign" >&2; return 1;
           }
         fi
       fi
       python3 "$SCRIPT_DIR/graphics-signing.py" verify-archive --archive "$archive" --zstd "$ZSTD_BIN" \
-        --package-version "$version" --source-root "$source"
+        --package-version "$version" --source-root "$source" || {
+        echo "Existing $archive is not a verified signed release of the current upstream DXMT" >&2
+        echo "(legacy unsigned, changed source, or changed signing policy); move it aside to re-sign." >&2
+        return 1
+      }
+      echo "Reusing signed graphics artifact: $archive"
     else
       rm -rf "$staged"
       cp -R "$source" "$staged"
@@ -127,6 +139,10 @@ pack_payload() {
       rm -f "$CANDIDATE"
       CANDIDATE=""
     fi
+  elif [[ "$name" == dxmt && -f "$archive" ]] && dxmt_archive_is_signed_release "$archive"; then
+    # A test pack must never replace (or claim) a signed release archive.
+    [[ "$FORCE" -ne 1 ]] || { echo "Refusing to overwrite signed release archive $archive in the test channel" >&2; return 1; }
+    echo "Graphics artifact present (signed release): $archive"
   elif [[ -f "$archive" && "$FORCE" -ne 1 ]]; then
     echo "Graphics artifact present: $archive"
   else

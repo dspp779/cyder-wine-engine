@@ -52,10 +52,8 @@ Default off retains existing cache/force behavior without a PE verification clai
 export WINE_INSTALL="${WINE_INSTALL:-$PWD/install/wine-cx26-x86_64}"
 
 export SIGN_IDENTITY='Developer ID Application: …'
-# Inspect existing graphics packages and choose an unused revision for changed contents.
-export CYDER_GRAPHICS_PACKAGE_REVISION=cyder.1
-bash scripts/pack-graphics-payloads.sh --engine "$WINE_INSTALL" \
-  --channel release --revision "$CYDER_GRAPHICS_PACKAGE_REVISION"
+# Unchanged upstream DXMT reuses the existing signed dxmt-0.80.tar.zst.
+bash scripts/pack-graphics-payloads.sh --engine "$WINE_INSTALL" --channel release
 
 CYDER_ENGINE_VERSION_LABEL="$(head -n 1 config/engine-version.txt)" \
   bash scripts/pack-engine-artifact.sh --zst
@@ -73,18 +71,20 @@ trip. No loader entitlement set is copied onto the library.
 - Do not sign the source/install tree or end-user runtime. Do not use ad-hoc as a
   release fallback. Previously signed/unreviewed inputs stop for policy review;
   never force-replace an upstream/Apple signature.
-- Signed package names are `dxmt-0.80-cyder.N.tar.zst`; retain upstream v0.80 in
-  provenance. Even `--force` verifies/reuses an existing valid DXMT revision;
-  changed inputs, damaged caches or signature failures require a new revision.
+- The signed package keeps the upstream version: `dxmt-0.80.tar.zst`, identifier
+  `local.cyder.dxmt.0.80.winemetal`. Cyder only adds a Developer ID signature.
+  Even `--force` verifies/reuses the existing signed archive; changed upstream
+  inputs, signing policy, damaged caches or signature failures stop until the old
+  archive is moved aside. `--revision` / `cyder.N` naming is retired.
 - `SIGN_IDENTITY` must be exported for **both** graphics and engine commands.
-  The engine pack propagates release mode for Developer ID and requires
-  `CYDER_GRAPHICS_PACKAGE_REVISION`. Existing archives are not proof of signing.
+  The engine pack propagates release mode for Developer ID. Existing archives
+  are not proof of signing (the legacy unsigned archive has the same name).
 
 ## Upstream version and installation identity
 
-DXMT's displayed/upstream version remains **0.80**. `cyder.N` in existing artifact
-filenames, provenance and signing identifiers is a private build trace, not an
-upstream version or the runtime update predicate. The Cyder manifest generator
+DXMT's displayed, packaged and upstream version is **0.80**. Older artifacts named
+`0.80-cyder.N` remain verifiable for installed copies, but that naming is retired
+and is not the runtime update predicate. The Cyder manifest generator
 computes `installKey` from archive SHA-256 **and** signature policy. A same-version
 signature/content/policy change must be tested as an update, not skipped because
 `.cyder-graphics-version` still says 0.80.
@@ -99,8 +99,8 @@ installed files to bypass these guards.
 ## Post-checks
 
 - Run `python3 scripts/graphics-signing.py verify-archive --archive
-  dist/artifacts/graphics/dxmt-0.80-cyder.N.tar.zst --zstd <zstd-path>
-  --package-version 0.80-cyder.N` (as one command). This is read-only and must
+  dist/artifacts/graphics/dxmt-0.80.tar.zst --zstd <zstd-path>
+  --package-version 0.80` (as one command). This is read-only and must
   pass before handing the package to Cyder.
 - Dual MoltenVK layout present in the packed archive (shim + versioned reals).
 - `codesign -dv` on `bin/wine` and MoltenVK shim/reals → Developer ID.

@@ -434,7 +434,7 @@ dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder013.tar.xz
 dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder013.tar.xz.sha256
 dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder013.tar.xz.manifest.json
 dist/artifacts/graphics/dxvk-1.10.3.tar.zst
-dist/artifacts/graphics/dxmt-0.80-cyder.N.tar.zst
+dist/artifacts/graphics/dxmt-0.80.tar.zst   # Developer ID 簽署，沿用上游版本
 ```
 
 確認 engine archive 含 dual-variant MoltenVK：

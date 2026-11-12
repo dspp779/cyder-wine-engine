@@ -55,22 +55,33 @@ chmod +x "$TEMP/bin/python3" "$TEMP/bin/zstd"
 export HOMEBREW_PREFIX="$TEMP/empty-brew"
 export HOMEBREW_REPOSITORY="$HOMEBREW_PREFIX" HOMEBREW_CELLAR="$HOMEBREW_PREFIX/Cellar"
 export PATH="$TEMP/bin:$PATH" OGOM="$ROOT" CYDER_ZSTD="$TEMP/bin/zstd"
-export SIGN_IDENTITY='Developer ID Application: Fixture' CYDER_GRAPHICS_CHANNEL=release CYDER_GRAPHICS_PACKAGE_REVISION=cyder.1
+export SIGN_IDENTITY='Developer ID Application: Fixture' CYDER_GRAPHICS_CHANNEL=release
 pack() { bash "$ROOT/scripts/pack-graphics-payloads.sh" --engine "$TEMP/engine" --output-dir "$TEMP/artifacts" "$@"; }
 pack
-archive="$TEMP/artifacts/dxmt-0.80-cyder.1.tar.zst"
+archive="$TEMP/artifacts/dxmt-0.80.tar.zst"
 first="$(shasum -a 256 "$archive")"
-test "$(cat "$TEMP/artifacts/dxmt-version.txt")" == '0.80-cyder.1'
+test "$(cat "$TEMP/artifacts/dxmt-version.txt")" == '0.80'
+# Unchanged upstream DXMT: a later release pack reuses the signed archive, no re-sign.
+pack
+test "$first" == "$(shasum -a 256 "$archive")"
+if pack --revision cyder.3; then echo 'FAIL: retired --revision accepted' >&2; exit 1; fi
 test "$(wc -l <"$TEMP/sign-count" | tr -d ' ')" == 1
 pack --force
 test "$first" == "$(shasum -a 256 "$archive")"
 test "$(wc -l <"$TEMP/sign-count" | tr -d ' ')" == 1
 if CYDER_GRAPHICS_CHANNEL=test CYDER_DXMT_VERSION=0.80-cyder.1 pack --force; then
-  echo 'FAIL: test channel overwrote release namespace' >&2; exit 1
+  echo 'FAIL: test channel used a cyder revision name' >&2; exit 1
+fi
+if CYDER_GRAPHICS_CHANNEL=test pack --force; then
+  echo 'FAIL: test channel overwrote the signed dxmt-0.80 release archive' >&2; exit 1
 fi
 test "$first" == "$(shasum -a 256 "$archive")"
 printf 'changed source\n' >>"$TEMP/engine/lib/dxmt/version"
 if pack --force; then echo 'FAIL: cached source change accepted' >&2; exit 1; fi
 test "$first" == "$(shasum -a 256 "$archive")"
 if SIGN_IDENTITY=- pack; then echo 'FAIL: release ad-hoc accepted' >&2; exit 1; fi
+# A legacy unsigned dxmt-0.80.tar.zst in place must not be mistaken for a signed release.
+mv "$archive" "$TEMP/signed.keep"; head -c 2048 /dev/urandom >"$TEMP/u"; mkdir -p "$TEMP/ustage/dxmt"; cp "$TEMP/u" "$TEMP/ustage/dxmt/payload"
+(cd "$TEMP/ustage" && tar -cf - dxmt) >"$archive"
+if pack; then echo 'FAIL: legacy unsigned dxmt-0.80 accepted as release' >&2; exit 1; fi
 echo 'PASS: staged sign before archive, roundtrip, immutable cache even --force, changed source and ad-hoc fail closed'
