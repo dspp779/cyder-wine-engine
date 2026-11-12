@@ -37,7 +37,7 @@ and packing from **this** repository.
    `bash -lc 'source scripts/env-x86_64.sh; ...'`. Set `OGOM` to this checkout,
    so an inherited value cannot redirect build/install work elsewhere:
    ```sh
-   ENGINE_ROOT=/Users/jjc/cyder-wine-engine
+   ENGINE_ROOT=$HOME/ogom/cyder-wine-engine
    cd "$ENGINE_ROOT"
    export OGOM="$ENGINE_ROOT"
    ```

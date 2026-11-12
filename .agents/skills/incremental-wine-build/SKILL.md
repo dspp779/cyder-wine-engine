@@ -23,8 +23,14 @@ changing or building Wine. For WZ work also read
 
 ## Non-negotiable rules
 
+Work through the numbered sections in order. Each rule below exists because
+breaking it produced a build or a test result that had to be thrown away.
+
 - Set `OGOM=$HOME/ogom/cyder-wine-engine`; run project scripts with `bash`.
-- Do not source `scripts/env-x86_64.sh` into interactive zsh.
+- The interactive shell is zsh. Do not source `scripts/env-x86_64.sh` into it,
+  and wrap bash syntax in `bash -c '…'`. Use `grep`, not `rg`.
+- Call scripts by absolute path when chaining them; a relative `dirname $0`
+  fails from another directory.
 - Run manual host builds inside `bash -lc 'source scripts/env-x86_64.sh; ...'`.
 - Prefix manual host builds with `arch -x86_64`.
 - Preserve `MACOSX_DEPLOYMENT_TARGET` and `CYDER_MACOSX_VERSION_MIN_FLAG`.
@@ -43,7 +49,7 @@ cd "$ENGINE_ROOT"
 export OGOM="$ENGINE_ROOT"
 git status --short
 cat config/engine-version.txt
-rg '^prefix =' build/cx26/sources/wine/build64/config.status
+grep '^prefix =' build/cx26/sources/wine/build64/config.status
 ```
 
 The prefix must be `$HOME/ogom/cyder-wine-engine/install/wine-cx26-x86_64`.
@@ -95,9 +101,9 @@ payloads:
 ENGINE=$HOME/ogom/cyder-wine-engine/install/wine-cx26-x86_64
 cat "$ENGINE/version"
 file "$ENGINE/bin/wineserver" "$ENGINE/lib/wine/x86_64-unix/ntdll.so"
-otool -l "$ENGINE/bin/wineserver" | rg minos
-otool -l "$ENGINE/lib/wine/x86_64-unix/ntdll.so" | rg minos
-strings "$ENGINE/lib/wine/x86_64-unix/ntdll.so" | rg 'CYDER_MAPLESTORY|CYDER_IO'
+otool -l "$ENGINE/bin/wineserver" | grep minos
+otool -l "$ENGINE/lib/wine/x86_64-unix/ntdll.so" | grep minos
+strings "$ENGINE/lib/wine/x86_64-unix/ntdll.so" | grep -E 'CYDER_MAPLESTORY|CYDER_IO'
 test -f "$ENGINE/lib/dxvk/x86_64-windows/d3d11.dll"
 test -f "$ENGINE/lib/dxmt/x86_64-unix/winemetal.so"
 test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK-1.4.2.dylib"
@@ -138,10 +144,10 @@ Use `scripts/run-maplestory-cx26-d3dmetal.sh`, never an implicit runtime:
 
 ```bash
 ENGINE=$HOME/ogom/cyder-wine-engine/install/wine-cx26-x86_64
-EXE=/Users/jjc/games/tms/MapleStory.exe
+EXE="$HOME/Games/tms/MapleStory.exe"
 PREFIX=/private/tmp/cyder-cx26-test-prefix
 LOG_ROOT=/private/tmp/cyder-cx26-test-logs
-GPTK='/Users/jjc/Library/Application Support/Cyder-maplestory-oem25/runtime/apple_gptk'
+GPTK="$HOME/Library/Application Support/Cyder/runtime/apple_gptk"
 COMPATDB=$HOME/ogom/Cyderbits/compatdb/compiled/compatdb.cdb
 
 bash scripts/run-maplestory-cx26-d3dmetal.sh \
@@ -255,7 +261,11 @@ Formal Developer ID / shipping artifacts: use `.agents/skills/engine-release-pac
 instead of ad-hoc `SIGN_IDENTITY=-` packs.
 
 Deliver the archive, checksum, and manifest. Do not call a raw install tree a
-release. Stage or commit only the requested files.
+release. Stage or commit only the requested files, on a branch; unmerged work
+must not live only in an ignored scratch folder.
+
+Report the engine label, what was built, which tests ran, which game was
+launched and how far, and what was not tested.
 
 ## References
 
