@@ -128,7 +128,7 @@ builds can omit MoltenVK; the current release pack gate requires both variants.
 Incremental builds reuse `build/cx26/sources/wine/build64` and the install tree.
 See **[`docs/incremental-build-and-patches.md`](docs/incremental-build-and-patches.md)**
 for env/minOS rules, patch markers, cheatsheets, and pack gates. Agents
-(Codex, Cursor, Claude, Antigravity): start from [`AGENTS.md`](AGENTS.md) and
+start from [`AGENTS.md`](AGENTS.md) and
 [`docs/ai-agent-setup.md`](docs/ai-agent-setup.md).
 For the complete repeatable sequence from preflight through direct MapleStory
 testing and pack hand-off, use

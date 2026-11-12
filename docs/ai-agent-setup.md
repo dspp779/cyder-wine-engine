@@ -1,7 +1,6 @@
-# AI agent setup (multi-tool)
+# AI agent setup
 
-This repo keeps **one** canonical rule file and thin adapters so Codex, Cursor,
-Claude Code, and Antigravity/Gemini stay aligned.
+This repo keeps **one** rule file for every coding agent.
 
 ## Source of truth
 
@@ -10,23 +9,23 @@ Claude Code, and Antigravity/Gemini stay aligned.
 | [`AGENTS.md`](../AGENTS.md) | Shared agent instructions (edit here) |
 | [`docs/incremental-build-and-patches.md`](incremental-build-and-patches.md) | Full incremental / patch / pack guide |
 | [`docs/engine-development-test-workflow.zh-TW.md`](engine-development-test-workflow.zh-TW.md) | End-to-end build, direct-engine test, and pack hand-off runbook |
+| `.agents/skills/` | `incremental-wine-build` for daily build/patch; `engine-release-pack` for Developer ID shipping artifacts |
 
-## Per-tool adapters
+## Entry files
 
-| Tool | Files | Notes |
-|------|--------|------|
-| **Codex** | `AGENTS.md` | Native. Optional personal overrides: gitignored `AGENTS.override.md`. |
-| **Cursor** | `AGENTS.md` + `.cursor/rules/incremental-build-and-patches.mdc` | Rule is `alwaysApply` and points at the guide. |
-| **Claude Code** | `CLAUDE.md` | Imports `@AGENTS.md`; add Claude-only notes under that import. |
-| **Antigravity / Gemini** | `GEMINI.md` + `AGENTS.md` + `.agents/skills/incremental-wine-build/` + `.agents/skills/engine-release-pack/` | Incremental skill for daily build/patch; `engine-release-pack` for Developer ID shipping artifacts. |
+| Tool | File | Notes |
+|------|------|-------|
+| Codex and other AGENTS.md-aware tools | `AGENTS.md` | Read natively. |
+| Claude Code | `CLAUDE.md` | A one-line `@AGENTS.md` import. Claude Code reads `CLAUDE.md`, not `AGENTS.md`, so this stub must stay. |
 
-Do **not** duplicate long checklists into every stub. Change `AGENTS.md` and the
-incremental guide; stubs only import or summarize.
+There are no other per-tool files (the Gemini and Cursor stubs were removed).
+A tool that does not read `AGENTS.md` by default should be pointed at it in
+that tool's own settings rather than by adding another stub here.
 
-## Cyder app repo (ogom)
+## Cyder app repo (CyderBits)
 
-Engine work belongs here. The Cyder (ogom) checkout has a Cursor rule (and
-matching stubs if present) that redirects Wine-engine tasks to this repository.
+Engine work belongs here. The CyderBits checkout's `AGENTS.md` and its
+`cyder-wine-engine-redirect` skill send Wine-engine tasks to this repository.
 Open **this** workspace when doing incremental Wine builds or engine patches.
 
 ## Optional local overrides (not committed)
