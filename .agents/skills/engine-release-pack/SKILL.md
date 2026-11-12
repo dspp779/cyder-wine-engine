@@ -1,131 +1,110 @@
 ---
 name: engine-release-pack
 description: >-
-  Pack a shipping Wine engine with Developer ID signing, dual-variant MoltenVK
-  gates, and real DXVK/DXMT graphics payloads (never symlink sources). Use when
-  producing Cyder012+ release tarballs or repairing adhoc/broken graphics packs
-  for release.
+  Pack a shipping Wine engine and its DXVK/DXMT graphics payloads with
+  Developer ID signing, then hand them to CyderBits. Use when producing a
+  release engine archive, repacking graphics for a release, or repairing an
+  ad-hoc or broken pack. Not for daily builds (incremental-wine-build).
 ---
 
 # Engine release pack
 
-Formal shipping artifacts for Cyder. Do **not** use `SIGN_IDENTITY=-` here.
+Do the steps in order; stop when one fails. Never use `SIGN_IDENTITY=-` here.
+References: `docs/graphics-signing-policy.zh-TW.md`,
+`docs/build-engine-from-scratch.zh-TW.md`.
 
-## Preconditions
-
-1. Work in the engine repo:
-
-```bash
-cd /path/to/cyder-wine-engine  # locate the sibling checkout; do not run in CyderBits
-export OGOM="$PWD"   # config and build/install paths belong to the engine repo
-```
-
-2. Refuse adhoc for release packs. Require a **Developer ID Application**
-   identity from the keychain (never `SIGN_IDENTITY=-`).
-3. `WINE_INSTALL` must be a **real** tree — `install/wine-cx26-x86_64` or a full
-   extracted engine — **never** symlink `lib/dxvk`, `lib/dxvk2`, or `lib/dxmt`.
-   Symlink sources pack into stub archives; `pack-graphics-payloads.sh` refuses them.
-
-## Optional PE Authenticode
-
-Read `docs/pe-authenticode-release-signing.zh-TW.md` when PE signing is requested.
-`CYDER_PE_SIGNING=off` is the default: Apple Developer ID release packs do not
-require an Authenticode purchase, policy, signer or PE verifier. Keep the normal
-Apple signing/notarization and graphics release checks; preserve upstream PE
-signatures unchanged, including while stripping debug data. Unsigned PE alone
-is not an integrity failure, and prefix integrity diagnostics remain necessary.
-
-Only explicit `CYDER_PE_SIGNING=required` enables PE signing. It then requires
-a reviewed policy, provider adapter, osslsigncode and code-signing/TSA trust
-stores. Missing configuration or failed verification stops that opt-in pack;
-never silently downgrade or substitute test certificates. Credentials/provider
-adapter are not provisioned and are not required for the default workflow.
-
-When opted in, sign reviewed Cyder-built PE in staging after stripping, generate
-final hashes/provenance and verify the extracted archive. Existing archives are
-not reused/overwritten in this mode even with `--force`; use an unused label.
-Default off retains existing cache/force behavior without a PE verification claim.
-
-## Commands
+## 1. Preflight
 
 ```bash
+cd "$HOME/ogom/cyder-wine-engine"
+export OGOM="$PWD"
 export WINE_INSTALL="${WINE_INSTALL:-$PWD/install/wine-cx26-x86_64}"
+git status --short
+cat config/engine-version.txt "$WINE_INSTALL/version"
+security find-identity -v -p codesigning | grep "Developer ID Application"
+```
 
-export SIGN_IDENTITY='Developer ID Application: …'
-# Unchanged upstream DXMT reuses the existing signed dxmt-0.80.tar.zst.
+1. The two version lines must match. If not, the install tree is not the build
+   you mean to ship: rebuild first (`incremental-wine-build`).
+2. Everything meant for this engine is merged or on the branch you are
+   building. Check `git stash list` and other branches; an engine was once
+   packed without a patch that lived only in a scratch folder.
+3. `WINE_INSTALL` is a real tree. `lib/dxvk` and `lib/dxmt` must not be
+   symlinks: a symlink packs into a stub archive, and the packer refuses it.
+4. `bash tests/run.sh` passes.
+
+## 2. Pack graphics
+
+```bash
+export SIGN_IDENTITY='Developer ID Application: <name> (<team>)'
 bash scripts/pack-graphics-payloads.sh --engine "$WINE_INSTALL" --channel release
-
-CYDER_ENGINE_VERSION_LABEL="$(head -n 1 config/engine-version.txt)" \
-  bash scripts/pack-engine-artifact.sh --zst
 ```
 
-## DXMT source and signature policy
+- Existing archives are **reused**. After any DXVK source or patch change add
+  `--force`, then confirm the DXVK archive is new (date and SHA-256).
+- Signed DXMT is `dxmt-0.80.tar.zst`: unmodified upstream 0.80 with a Developer
+  ID signature on `winemetal.so`. It is verified and reused, never overwritten,
+  even with `--force`. If upstream DXMT or the signing policy changed, the
+  script stops; move the old archive aside, then rerun.
+- Do not sign the install tree or a user's runtime, and do not replace an
+  upstream or Apple signature. Unreviewed inputs stop for policy review.
+- DXVK 2 is never packed. If `dist/artifacts/graphics/` contains anything other
+  than DXVK, signed DXMT and their version/checksum files, move it aside:
+  CyderBits bundles every archive in that folder.
 
-Read `docs/graphics-signing-policy.zh-TW.md` for the reviewed upstream pin and
-regression commands. The current native policy covers DXMT upstream v0.80 only.
-`graphics-signing.py` checks every upstream payload digest, signs only the
-reviewed unsigned `winemetal.so` in staging, requires Cyder Developer ID plus a
-secure timestamp, records original/final hashes, and verifies the archive round
-trip. No loader entitlement set is copied onto the library.
-
-- Do not sign the source/install tree or end-user runtime. Do not use ad-hoc as a
-  release fallback. Previously signed/unreviewed inputs stop for policy review;
-  never force-replace an upstream/Apple signature.
-- The signed package keeps the upstream version: `dxmt-0.80.tar.zst`, identifier
-  `local.cyder.dxmt.0.80.winemetal`. Cyder only adds a Developer ID signature.
-  Even `--force` verifies/reuses the existing signed archive; changed upstream
-  inputs, signing policy, damaged caches or signature failures stop until the old
-  archive is moved aside. `--revision` / `cyder.N` naming is retired.
-- `SIGN_IDENTITY` must be exported for **both** graphics and engine commands.
-  The engine pack propagates release mode for Developer ID. Existing archives
-  are not proof of signing (the legacy unsigned archive has the same name).
-
-## Upstream version and installation identity
-
-DXMT's displayed, packaged and upstream version is **0.80**. Older artifacts named
-`0.80-cyder.N` remain verifiable for installed copies, but that naming is retired
-and is not the runtime update predicate. The Cyder manifest generator
-computes `installKey` from archive SHA-256 **and** signature policy. A same-version
-signature/content/policy change must be tested as an update, not skipped because
-`.cyder-graphics-version` still says 0.80.
-
-Runtime application belongs to CyderBits: it validates the signed publisher,
-materializes a new immutable digest object, and switches only under its global
-executor barrier with complete idle process evidence. Busy/unknown, unverified
-source or incomplete transactions defer without replacing the selected runtime.
-Do not manually overwrite `graphics/dxmt/0.80`, force-kill games, or ad-hoc-sign
-installed files to bypass these guards.
-
-## Post-checks
-
-- Run `python3 scripts/graphics-signing.py verify-archive --archive
-  dist/artifacts/graphics/dxmt-0.80.tar.zst --zstd <zstd-path>
-  --package-version 0.80` (as one command). This is read-only and must
-  pass before handing the package to Cyder.
-- Dual MoltenVK layout present in the packed archive (shim + versioned reals).
-- `codesign -dv` on `bin/wine` and MoltenVK shim/reals → Developer ID.
-- `dist/artifacts/graphics/dxvk-*.tar.zst` and `dxmt-*.tar.zst` each ≫ 1 MiB
-  (typical ~3.5 MiB / ~12 MiB).
-
-## Hand-off
-
-Give the engine manifest path **and** graphics artifacts directory to ogom.
-Engine import does not automatically copy the separate graphics packages:
+## 3. Pack the engine
 
 ```bash
-export CYDER_GRAPHICS_ARTIFACTS_DIR="$PWD/dist/artifacts/graphics"
+CYDER_ENGINE_VERSION_LABEL="$(head -n 1 config/engine-version.txt)" bash scripts/pack-engine-artifact.sh --zst
 ```
 
-Then:
+`SIGN_IDENTITY` must still be exported. The script checks minOS, the MoltenVK
+layout, capabilities and signatures, and fails rather than packing a bad tree.
+
+If the bundle gate fails on `libMoltenVK.dylib` with `minos 12.0` after a
+from-scratch build: run `scripts/install-moltenvk-dual-variant.sh`, then bundle
+again with `VULKAN_SOURCE=existing`. The versioned MoltenVK files may be 12.0;
+the unversioned shim must be 10.15.
+
+## 4. Check the result
 
 ```bash
-bash scripts/import-engine-release.sh --manifest <path> --apply
+python3 scripts/graphics-signing.py verify-archive --archive dist/artifacts/graphics/dxmt-0.80.tar.zst --zstd "$(command -v zstd)" --package-version 0.80
 ```
 
-For the full formal Cyder release (import → notarize → verify), use ogom’s
-`.agents/skills/cyder-release`.
+Then, in the packed engine archive:
 
-## Related
+1. MoltenVK layout: the shim `libMoltenVK.dylib`, `libMoltenVK-1.4.2.dylib`,
+   `libMoltenVK-1.2.10.dylib`, and the link `libMoltenVK.real.dylib`.
+2. `otool -l <file> | grep -A3 LC_BUILD_VERSION` on both versioned files shows
+   the macOS floor you intend to support. A current Xcode SDK cannot target
+   below macOS 12, which silently raises the floor of a rebuilt file.
+3. `codesign -dv` on `bin/wine` and the MoltenVK files shows Developer ID.
+4. The DXVK archive is about 3.5 MiB and DXMT about 12 MiB. Far smaller means a
+   stub.
 
-- Daily incremental build / adhoc pack: `.agents/skills/incremental-wine-build`
-- Graphics gate: `scripts/pack-graphics-payloads.sh` (rejects symlink sources)
+## 5. Hand off to CyderBits
+
+Give CyderBits the manifest path (`dist/artifacts/engine-….tar.zst.manifest.json`)
+and the graphics folder (`dist/artifacts/graphics`). Importing the engine does
+not copy graphics. Continue with CyderBits `.agents/skills/cyder-release`.
+
+Report: engine label, archive SHA-256, what changed since the previous engine,
+and which games were launched on it (or that none were).
+
+## PE Authenticode (optional)
+
+Off by default (`CYDER_PE_SIGNING=off`); an Apple Developer ID release needs no
+PE signing, and unsigned PE alone is not an integrity failure. Only an explicit
+`CYDER_PE_SIGNING=required` enables it. Read
+`docs/pe-authenticode-release-signing.zh-TW.md` first: it needs a reviewed
+policy, provider adapter and trust stores, and it stops on missing setup
+instead of downgrading or using test certificates.
+
+## Same-version DXMT changes
+
+A DXMT archive whose signature or policy changed while the version stays 0.80
+is still an update. CyderBits derives its install key from the archive SHA-256
+and signing policy, and applies it only when no game is running. Never
+overwrite `graphics/dxmt/0.80` by hand, force-quit games, or ad-hoc sign
+installed files to get around that.

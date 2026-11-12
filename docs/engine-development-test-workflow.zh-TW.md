@@ -8,7 +8,7 @@
 目前 CX26 產品基準為 `CX26.3.0-W11-Cyder013`，以
 `config/engine-release.json` 與 `config/engine-version.txt` 為 canonical contract。
 引擎工作一律在
-`/Users/jjc/cyder-wine-engine` 進行，不要透過 Cyder.app 來替代引擎測試。
+`$HOME/ogom/cyder-wine-engine` 進行，不要透過 Cyder.app 來替代引擎測試。
 
 ## 1. 先分清楚三種路徑
 
@@ -29,7 +29,7 @@ packed runtime 或 repo install，避免腳本自動找到另一份舊 engine。
 包住整段命令。先固定工作目錄與 engine 來源：
 
 ```bash
-ENGINE_ROOT=/Users/jjc/cyder-wine-engine
+ENGINE_ROOT=$HOME/ogom/cyder-wine-engine
 cd "$ENGINE_ROOT"
 export OGOM="$ENGINE_ROOT"
 export MACOSX_DEPLOYMENT_TARGET=10.15
