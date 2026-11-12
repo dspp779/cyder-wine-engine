@@ -1,8 +1,8 @@
 # Agent instructions (cyder-wine-engine)
 
-Canonical instructions for **Codex, Cursor, Claude Code, Antigravity/Gemini**,
-and any other AGENTS.md-aware tool. Tool-specific stubs (`CLAUDE.md`,
-`GEMINI.md`, `.cursor/rules/`, `.agents/skills/`) point here—do not fork rules.
+Canonical instructions for every coding agent. `CLAUDE.md` is a one-line
+`@AGENTS.md` import (Claude Code reads `CLAUDE.md`, not this file); there are
+no other per-tool files. Skills are under `.agents/skills/`.
 
 This repository is the Wine engine that actually runs Windows `.exe` files. It
 builds, patches, signs, and packs the engine consumed by Cyder. The application
@@ -61,13 +61,27 @@ bash tests/run.sh
 Add or extend the narrowest `tests/test-*.sh` when changing patch apply order,
 minOS wiring, or pack gates.
 
-## Multi-tool entrypoints
+Docs are part of the suite: `tests/test-release-contract.py` fails when a
+current (non-historical) doc, skill or example names an engine label other than
+the one in `config/engine-version.txt`. Write "the previous engine" instead of
+an older label, and run that test after editing docs.
 
-| Tool | Loads |
-|------|--------|
-| Codex / Cursor / many agents | `AGENTS.md` (this file) |
-| Claude Code | `CLAUDE.md` → imports this file |
-| Antigravity / Gemini | `GEMINI.md` + this file; skill under `.agents/skills/` |
-| Cursor (extra) | `.cursor/rules/incremental-build-and-patches.mdc` |
+Fresh-machine build failures (host Python, `distutils`, glslang, stale media
+prefixes, MoltenVK bundle order) are listed under 常見問題 in
+[`docs/build-engine-from-scratch.zh-TW.md`](docs/build-engine-from-scratch.zh-TW.md).
+Keep the checkout outside `~/Documents`, `~/Desktop` and `~/Downloads`
+(currently `~/ogom/cyder-wine-engine`, next to `~/ogom/Cyderbits`); unmerged
+work must live on a branch, not in ignored scratch folders. Game-level testing
+through Cyder.app is described in CyderBits `docs/development-testing.md`.
+
+## Skills and docs to read
+
+- Read `docs/incremental-build-and-patches.md` before any incremental Wine
+  `make` or new `patches/*.patch`.
+- Skills are not loaded automatically by every tool. Read
+  `.agents/skills/incremental-wine-build/SKILL.md` before building or patching,
+  and `.agents/skills/engine-release-pack/SKILL.md` before a Developer ID pack.
+- Keep engine work in this repo; Cyder.app / bottles belong in the sibling
+  CyderBits checkout.
 
 See [`docs/ai-agent-setup.md`](docs/ai-agent-setup.md).
