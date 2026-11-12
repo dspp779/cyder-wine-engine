@@ -5,7 +5,7 @@
 
 - `cyder-wine-engine`：CrossOver/Wine、MoltenVK、host dylib、CompatDB、簽署與
   engine archive。
-- `ogom`：Cyder app、DXVK/DXVK2/DXMT payload、runtime 安裝與啟動 prepend。
+- `ogom`：Cyder app、DXVK/DXMT payload、runtime 安裝與啟動 prepend。
 
 Engine repo 不會把 CrossOver source archive 或第三方 binary source 放進 Git；
 請只使用有權使用及重新散布的來源。
@@ -25,7 +25,7 @@ Canonical contract 為 [`config/engine-release.json`](../config/engine-release.j
 | MapleStory | CX26 MapleStory compatibility stack；D3DMetal / Apple GPTK 為主要路徑 |
 | MoltenVK | dual-variant 1.4.2 / 1.2.10；上游 real 套 capability + present 兩個 patch，timeline-wait 由 shim 提供 |
 | DXVK | 1.10.3，獨立 `lib/dxvk` payload |
-| DXVK2 | 上游 2.7.1，獨立 `lib/dxvk2` payload |
+| DXVK2 | **不出貨（待開發）**：上游 2.7.1 尚未通過遊戲實測；graphics pack 不打包 `lib/dxvk2`，engine pack 與 Cyder release verify 遇到即失敗 |
 | DXMT | 上游 0.80，獨立 `lib/dxmt` payload |
 
 MoltenVK 的 `--vulkan-source crossover` 參數名稱是 Wine 的 CrossOver Vulkan
@@ -43,7 +43,7 @@ flowchart LR
         CX[CrossOver FOSS 26.3 source archive]
         LLVM[llvm-mingw x86_64 toolchain]
         MVKS[上游 MoltenVK 1.4.2 / CX legacy 1.2.10]
-        DXVKS[DXVK / DXVK2 source]
+        DXVKS[DXVK source]
         DXMTS[DXMT 0.80 release]
         XCODE[完整 Xcode + macOS SDK]
     end
@@ -59,11 +59,11 @@ flowchart LR
         GP[pack-graphics-payloads.sh]
         EP[pack-engine-artifact.sh<br/>strip → bundle → sign → minOS → archive]
         EA[engine-wine-x86_64-*.tar.xz]
-        GA[graphics/*.tar.zst<br/>dxvk / dxvk2 / dxmt]
+        GA[graphics/*.tar.zst<br/>dxvk / dxmt]
     end
 
     subgraph O[ogom / Cyder]
-        OB[build-dxvk.sh<br/>build-dxvk2.sh<br/>fetch-dxmt.sh]
+        OB[build-dxvk.sh<br/>fetch-dxmt.sh]
         APP[Cyder.app resources]
         RT[~/.cyder/runtime<br/>engine + graphics/current-*]
         LAUNCH[cxcompatdb.so<br/>環境變數 + prepend]
@@ -91,7 +91,7 @@ flowchart LR
 ```
 
 重點是：engine archive 保留 Wine、`cxcompatdb.so` 與（若是 DXVK release profile）新版 MoltenVK，但排除
-`lib/dxvk`、`lib/dxvk2`、`lib/dxmt`；三種 graphics payload 由獨立 archive
+`lib/dxvk`、`lib/dxvk2`、`lib/dxmt`；兩種 graphics payload（DXVK、DXMT）由獨立 archive
 安裝，啟動時才由 CompatDB 依環境變數 prepend。MapleStory 的 D3DMetal profile
 不因為 MoltenVK 缺席而失效。
 
@@ -154,7 +154,7 @@ crossover-sources-26.3.0.tar.gz
 llvm-mingw-20260616-ucrt-macos-universal.tar.xz
 ```
 
-DXVK/DXVK2 的 source archive 或 Git checkout、DXMT release 由 `ogom` 的腳本
+DXVK 的 source archive 或 Git checkout、DXMT release 由 `ogom` 的腳本
 處理；詳見 `ogom/docs/build-dxvk.zh-TW.md`。
 
 ## 2. 準備 CrossOver source 與工具鏈
@@ -360,7 +360,7 @@ bash scripts/rebuild-wine-host-unix.sh
 
 不要把半成品直接複製到 `~/.cyder/runtime`。
 
-## 7. 建立 DXVK、DXVK2 與 DXMT payload
+## 7. 建立 DXVK 與 DXMT payload
 
 這些工作在 `ogom` 執行，且安裝到同一個 engine install tree：
 
@@ -369,7 +369,6 @@ cd /path/to/ogom
 ENGINE=/path/to/cyder-wine-engine/install/wine-cx26-x86_64
 
 bash scripts/build-dxvk.sh  --engine "$ENGINE"
-bash scripts/build-dxvk2.sh --engine "$ENGINE"
 bash scripts/fetch-dxmt.sh  --engine "$ENGINE"
 ```
 
@@ -377,11 +376,12 @@ bash scripts/fetch-dxmt.sh  --engine "$ENGINE"
 
 ```text
 $ENGINE/lib/dxvk/     # DXVK 1.10.3，Windows PE
-$ENGINE/lib/dxvk2/    # DXVK 2.7.1，Windows PE
 $ENGINE/lib/dxmt/     # DXMT 0.80，含 winemetal.dll/.so
 ```
 
-DXVK/DXVK2 的 PE 必須含 `Wine builtin DLL` stamp；上述 build script 及最後的
+DXVK 2（`build-dxvk2.sh`／`lib/dxvk2`）在通過遊戲實測前不屬於發布流程，不要在 release build 執行。
+
+DXVK 的 PE 必須含 `Wine builtin DLL` stamp；上述 build script 及最後的
 engine pack 都會檢查／補 stamp。DXMT 的 `winemetal.dll` 應在 ensure 時同步放入
 prefix，這是 runtime payload 的一部分，不是 MoltenVK。
 
@@ -434,8 +434,7 @@ dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder013.tar.xz
 dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder013.tar.xz.sha256
 dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder013.tar.xz.manifest.json
 dist/artifacts/graphics/dxvk-1.10.3.tar.zst
-dist/artifacts/graphics/dxvk2-2.7.1.tar.zst
-dist/artifacts/graphics/dxmt-0.80.tar.zst
+dist/artifacts/graphics/dxmt-0.80-cyder.N.tar.zst
 ```
 
 確認 engine archive 含 dual-variant MoltenVK：
@@ -451,18 +450,18 @@ tar -tJf dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder013.tar.xz \
 
 ## 9. 匯入 Cyder 並做 smoke test
 
-將 engine archive、sidecar manifest 與三個 graphics archive 交給 `ogom` 的
+將 engine archive、sidecar manifest 與兩個 graphics archive（DXVK、DXMT） 交給 `ogom` 的
 import／release 流程；不要手動解壓覆蓋使用者 runtime。Cyder 應驗證：
 
 - archive SHA-256 與 sidecar 一致；
 - embedded／sidecar manifest、`version` 與 NTDLL SHA-256 一致；
 - engine 中沒有 `lib/dxvk*`／`lib/dxmt`；
 - graphics payload 的 version／SHA sidecar 齊全；
-- runtime 建立 `current-dxvk`、`current-dxvk2`、`current-dxmt` 後，再建立 engine
+- runtime 建立 `current-dxvk`、`current-dxmt` 後，再建立 engine
   `lib/dxvk*`／`lib/dxmt` 的接線；
 - 啟動 log 明確記錄 graphics backend 與 payload 路徑；只有 DXVK 路徑額外記錄 MoltenVK。
 
-最後至少以 D3DMetal、`wined3d`、DXVK 1.x、DXVK2 各啟動一次；若測 DXMT，確認 macOS
+最後至少以 D3DMetal、`wined3d`、DXVK 1.x 各啟動一次；若測 DXMT，確認 macOS
 版本符合 DXMT 要求，並確認 prefix 內有 `winemetal.dll`。
 
 ## 常見問題

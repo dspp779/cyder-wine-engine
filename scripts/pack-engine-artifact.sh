@@ -414,6 +414,11 @@ while IFS= read -r -d '' signed_path; do
   fi
 done < <(find "$VERIFY_ROOT/wine-x86_64" -type f -print0)
 echo "==> Verified $verified_macho Mach-O signatures after archive extraction"
+# DXVK 2 is not a supported Cyder payload until it passes game testing.
+if [[ -n "$(find "$VERIFY_ROOT" -path '*/lib/dxvk2' -print -quit)" ]]; then
+  echo "Engine archive must not contain lib/dxvk2 (DXVK 2 is unsupported)" >&2
+  exit 1
+fi
 
 printf '%s\n' "$ENGINE_VERSION_LABEL" >"$CANDIDATE_ROOT/engine-version.txt"
 {
