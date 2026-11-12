@@ -24,3 +24,6 @@ __pycache__/
 *.tar.zst
 *.zip
 .worktrees/
+
+# Local reference clones / downloaded community patches (not shipping artifacts)
+third_party/

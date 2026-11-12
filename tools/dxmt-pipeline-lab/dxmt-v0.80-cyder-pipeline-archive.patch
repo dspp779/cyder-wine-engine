@@ -1,0 +1,352 @@
+--- a/src/d3d11/cyder_pipeline_archive.hpp
++++ b/src/d3d11/cyder_pipeline_archive.hpp
+@@ -0,0 +1,195 @@
++// Adapted from GameToMac 0.1.19 build 57 OverwatchRuntime, distributed with MIT license.
++// See LICENSE-DXMT and README.md for provenance.
++#pragma once
++#include "Metal.hpp"
++#include "version.h"
++#include "sha1/sha1_util.hpp"
++#include "util_env.hpp"
++#include "log/log.hpp"
++#include <atomic>
++#include <mutex>
++#include <string>
++#include <cstdio>
++#include <algorithm>
++
++namespace dxmt::cyderarchive {
++// Experimental graphics PSO cache only. Archives are local to this Mac/build.
++// Each PSO has its own archive: unrelated compilations never share a mutable
++// Metal archive or hold a global lock across compilation.
++// Bounded experimental cache. Use one process per cache directory.
++// A cache hit is accepted only when Metal verifies the exact pipeline.
++constexpr unsigned MaxFiles=4096;
++constexpr uint64_t Budget=256ULL*1024*1024, MaxEntry=8ULL*1024*1024;
++// Native Metal paths are UTF-8. Use Unicode extended Win32 paths for file
++// operations so non-ASCII usernames and long home directories work too.
++inline std::wstring winpath(const std::string &p) {
++  std::string z="Z:"+p; for(auto &c:z)if(c=='/')c='\\';
++  int n=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,z.data(),int(z.size()),nullptr,0);
++  if(!n)return {};
++  std::wstring out(size_t(n),L'\0');
++  MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,z.data(),int(z.size()),out.data(),n);
++  return L"\\\\?\\"+out;
++}
++inline uint64_t size(const std::wstring &p) {
++  WIN32_FILE_ATTRIBUTE_DATA d{};
++  if(!GetFileAttributesExW(p.c_str(),GetFileExInfoStandard,&d) || (d.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY))return 0;
++  return (uint64_t(d.nFileSizeHigh)<<32)|d.nFileSizeLow;
++}
++// A digest is an integrity check, not an authenticity/security boundary.
++// Do not hand truncated or modified files to the driver archive parser.
++inline std::string digest_file(const std::wstring &path) {
++  HANDLE file=CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,0,nullptr);
++  if(file==INVALID_HANDLE_VALUE)return {};
++  LARGE_INTEGER length{};
++  if(!GetFileSizeEx(file,&length)||length.QuadPart<=0||uint64_t(length.QuadPart)>MaxEntry){CloseHandle(file);return {};}
++  Sha1HashState hash;char buffer[65536];uint64_t remaining=length.QuadPart;
++  while(remaining){
++    DWORD read=0,want=DWORD(std::min<uint64_t>(remaining,sizeof(buffer)));
++    if(!ReadFile(file,buffer,want,&read,nullptr)||read!=want){CloseHandle(file);return {};}
++    hash.update(buffer,read);remaining-=read;
++  }
++  CloseHandle(file);return hash.final().string();
++}
++inline bool verified(const std::wstring &path) {
++  auto digest=digest_file(path);if(digest.empty())return false;
++  auto receipt=path+L".sha1";
++  if(size(receipt)!=40)return false;
++  HANDLE file=CreateFileW(receipt.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,0,nullptr);
++  if(file==INVALID_HANDLE_VALUE)return false;
++  char expected[40];DWORD read=0;
++  bool ok=ReadFile(file,expected,40,&read,nullptr)&&read==40&&digest==std::string(expected,40);
++  CloseHandle(file);return ok;
++}
++inline bool write_digest(const std::wstring &path,const std::string &digest) {
++  if(digest.size()!=40)return false;
++  HANDLE file=CreateFileW(path.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,0,nullptr);
++  if(file==INVALID_HANDLE_VALUE)return false;
++  DWORD written=0;bool ok=WriteFile(file,digest.data(),40,&written,nullptr)&&written==40;
++  CloseHandle(file);return ok;
++}
++struct Store {
++  std::string directory;
++  std::mutex publish_mutex;
++  uint64_t bytes=0;
++  unsigned files=0;
++  std::atomic<unsigned> logs{0};
++  Store() {
++    auto exe=env::getExeBaseName();
++    if(exe!="MapleStory" && exe!="cyder-pipeline-probe")return;
++    directory=env::getEnvVar("DXMT_CYDER_PIPELINE_CACHE");
++    if(directory.empty()||directory[0]!='/'){directory.clear();return;}
++    WIN32_FIND_DATAW data{};
++    HANDLE h=FindFirstFileW(winpath(directory+"/*.metalarc").c_str(),&data);
++    if(h!=INVALID_HANDLE_VALUE){do {
++      if(!(data.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY)){
++        bytes+=(uint64_t(data.nFileSizeHigh)<<32)|data.nFileSizeLow;files++;
++      }
++    }while(FindNextFileW(h,&data));FindClose(h);}
++  }
++  void report(const char *kind,const std::string &key) {
++    if(logs.fetch_add(1)<128)std::fprintf(stderr,"CYDER_PSO %s %s\n",kind,key.c_str());
++  }
++};
++inline Store& store(){static auto s=new Store;return *s;}
++
++inline Sha1Digest key(WMT::Device device,const WMTRenderPipelineInfo &i,
++                       const Sha1Digest &vs,const Sha1Digest &ps) {
++  Sha1HashState h;h.update(DXMT_VERSION, sizeof(DXMT_VERSION)-1);h.update(vs);h.update(ps);
++  h.update(device.registryID());
++  uint64_t major=0,minor=0,patch=0;WMTGetOSVersion(&major,&minor,&patch);
++  h.update(major);h.update(minor);h.update(patch);
++  // Explicit fields: never hash padding, pointers, or ephemeral Metal handles.
++  for(auto &c:i.colors){h.update(c.pixel_format);h.update(c.alpha_blend_operation);h.update(c.rgb_blend_operation);
++    h.update(c.src_rgb_blend_factor);h.update(c.dst_rgb_blend_factor);h.update(c.src_alpha_blend_factor);
++    h.update(c.dst_alpha_blend_factor);h.update(c.write_mask);h.update(c.blending_enabled);}
++  h.update(i.alpha_to_coverage_enabled);h.update(i.logic_operation_enabled);h.update(i.logic_operation);
++  h.update(i.rasterization_enabled);h.update(i.raster_sample_count);h.update(i.depth_pixel_format);h.update(i.stencil_pixel_format);
++  h.update(i.immutable_vertex_buffers);h.update(i.immutable_fragment_buffers);h.update(i.input_primitive_topology);
++  h.update(i.tessellation_partition_mode);h.update(i.max_tessellation_factor);h.update(i.tessellation_output_winding_order);h.update(i.tessellation_factor_step);
++  return h.final();
++}
++struct Pending {
++  WMT::Reference<WMT::BinaryArchive> archive;
++  std::string path;
++  // Called by the compilation worker AFTER ready/notify, never the render
++  // thread. The scheduler is joined before pipelines are destroyed.
++  void save() {
++    if(!archive || path.empty())return;
++    auto pool=WMT::MakeAutoreleasePool();
++    auto held=std::move(archive);auto &s=store();
++    auto temp=path+"."+std::to_string(GetCurrentProcessId())+"."+std::to_string(GetCurrentThreadId())+".tmp";
++    WMT::Error error;
++    held.serialize(temp.c_str(),error);
++    auto wtemp=winpath(temp),wpath=winpath(path);auto length=size(wtemp);
++    auto digest=digest_file(wtemp);
++    auto digest_temp=wtemp+L".sha1";
++    bool have_digest=write_digest(digest_temp,digest);
++    bool saved=false;
++    const char *reason=error?"serialization-error":!length?"missing-temp-file":length>MaxEntry?"entry-limit":"publish-error";
++    if(!error && length && length<=MaxEntry && have_digest){
++      std::lock_guard<std::mutex> lock(s.publish_mutex);
++      uint64_t old=size(wpath);
++      if(s.bytes>=old && s.bytes-old+length<=Budget && (old||s.files<MaxFiles)){
++        saved=MoveFileExW(wtemp.c_str(),wpath.c_str(),MOVEFILE_REPLACE_EXISTING)!=0;
++        if(saved){
++          s.bytes=s.bytes-old+length;if(!old)s.files++;
++          saved=MoveFileExW(digest_temp.c_str(),(wpath+L".sha1").c_str(),MOVEFILE_REPLACE_EXISTING)!=0;
++        }
++      } else reason=s.bytes>=old && s.bytes-old+length>Budget?"byte-limit":"file-limit";
++    }
++    if(!saved)DeleteFileW(wtemp.c_str());
++    DeleteFileW(digest_temp.c_str());
++    s.report(saved?"saved":reason,path.substr(path.find_last_of('/')+1));
++    path.clear();
++  }
++};
++inline WMT::Reference<WMT::RenderPipelineState> create(
++    WMT::Device device,WMTRenderPipelineInfo info,const Sha1Digest &vs,const Sha1Digest &ps,
++    WMT::Error &error,Pending &pending) {
++  // The v0.80 bridge returns autoreleased NSError pointers (+0).
++  // Local errors are borrowed; only the caller's owning Reference gets +1.
++  auto pool=WMT::MakeAutoreleasePool();
++  auto &s=store();
++  if(s.directory.empty()){
++    WMT::Error borrowed;
++    auto result=device.newRenderPipelineState(info,borrowed);
++    if(borrowed)borrowed.retain();error=borrowed;
++    return result;
++  }
++  auto digest=key(device,info,vs,ps).string();auto path=s.directory+"/"+digest+".metalarc";
++  auto length=size(winpath(path));
++  if(length && length<=MaxEntry && verified(winpath(path))){
++    WMT::Error load_error;
++    auto archive=device.newBinaryArchive(path.c_str(),load_error);
++    if(archive && !load_error){
++      obj_handle_t handle=archive.handle;
++      info.binary_archives_for_lookup.set(&handle);info.num_binary_archives_for_lookup=1;
++      info.fail_on_binary_archive_miss=true;
++      WMT::Error hit_error;
++      auto hit=device.newRenderPipelineState(info,hit_error);
++      if(hit && !hit_error){
++        s.report("hit",digest);return hit;
++      }
++    }
++  }
++  s.report("miss",digest);
++  info.binary_archives_for_lookup.set(nullptr);info.num_binary_archives_for_lookup=0;info.fail_on_binary_archive_miss=false;
++  bool can_save;
++  {std::lock_guard<std::mutex> lock(s.publish_mutex);can_save=s.bytes<Budget && s.files<MaxFiles;}
++  WMT::Error archive_error;
++  WMT::Reference<WMT::BinaryArchive> fresh;
++  if(can_save)fresh=device.newBinaryArchive(nullptr,archive_error);
++  if(fresh && !archive_error)info.binary_archive_for_serialization=fresh.handle;
++  WMT::Error borrowed;
++  auto result=device.newRenderPipelineState(info,borrowed);
++  if(!result && info.binary_archive_for_serialization){
++    // An optional cache must never prevent normal pipeline creation.
++    borrowed.handle=0;
++    info.binary_archive_for_serialization=0;
++    result=device.newRenderPipelineState(info,borrowed);fresh={};
++  }
++  if(borrowed)borrowed.retain();error=borrowed;
++  if(result && !error && fresh){pending.archive=std::move(fresh);pending.path=path;}
++  return result;
++}
++} // namespace dxmt::cyderarchive
+--- a/src/d3d11/d3d11_pipeline.cpp
++++ b/src/d3d11/d3d11_pipeline.cpp
+@@ -1,4 +1,5 @@
+ #include "Metal.hpp"
++#include "cyder_pipeline_archive.hpp"
+ #include "d3d11_private.h"
+ #include "d3d11_pipeline.hpp"
+ #include "d3d11_device.hpp"
+@@ -56,7 +57,7 @@
+     TRACE("Start compiling 1 PSO");
+ 
+     WMT::Reference<WMT::Error> err;
+-    MTL_COMPILED_SHADER vs, ps;
++    MTL_COMPILED_SHADER vs{}, ps{};
+     if (!VertexShader->GetShader(&vs)) {
+       return VertexShader;
+     }
+@@ -64,7 +65,7 @@
+       return PixelShader;
+     }
+ 
+-    WMTRenderPipelineInfo info;
++    WMTRenderPipelineInfo info{};
+     WMT::InitializeRenderPipelineInfo(info);
+ 
+     info.vertex_function = vs.Function;
+@@ -96,7 +97,7 @@
+     info.immutable_vertex_buffers = (1 << 16) | (1 << 29) | (1 << 30);
+     info.immutable_fragment_buffers = (1 << 29) | (1 << 30);
+ 
+-    state_ = device_->GetMTLDevice().newRenderPipelineState(info, err);
++    state_ = cyderarchive::create(device_->GetMTLDevice(), info, vs.CacheKey, ps.CacheKey, err, archive_pending_);
+ 
+     if (state_ == nullptr) {
+       ERR("Failed to create PSO: ", err.description().getUTF8String());
+@@ -115,7 +116,10 @@
+     ready_.notify_all();
+   }
+ 
++  void AfterCompleted() override { archive_pending_.save(); }
++
+ private:
++  cyderarchive::Pending archive_pending_;
+   UINT num_rtvs;
+   UINT ps_valid_render_targets;
+   WMTPixelFormat rtv_formats[8];
+--- a/src/d3d11/d3d11_pipeline_cache.cpp
++++ b/src/d3d11/d3d11_pipeline_cache.cpp
+@@ -63,6 +63,7 @@
+   }
+   bool get_done(ThreadpoolWork *task) { return task->GetIsDone(); }
+   void set_done(ThreadpoolWork *task) { task->SetIsDone(true); }
++  void after_done(ThreadpoolWork *task) { task->AfterCompleted(); }
+ };
+ 
+ class PipelineCache : public MTLD3D11PipelineCacheBase {
+@@ -190,7 +191,6 @@
+ 
+   ShaderCache& scache_;
+ 
+-  task_scheduler<ThreadpoolWork *> scheduler_;
+ 
+   MTLD3D11Device *device;
+   StateObjectCache<D3D11_BLEND_DESC1, IMTLD3D11BlendState> blend_states;
+@@ -217,6 +217,9 @@
+   std::unordered_map<ManagedShader, std::unique_ptr<MTLCompiledComputePipeline>> pipelines_cs_;
+   dxmt::mutex mutex_cs_;
+ 
++  // Join workers before destroying the pipelines they persist.
++  task_scheduler<ThreadpoolWork *> scheduler_;
++
+   CachedSM50Shader *CreateShader(const void *pBytecode,
+                                  uint32_t BytecodeLength) {
+     auto sha1 = Sha1HashState::compute(pBytecode, BytecodeLength);
+--- a/src/d3d11/d3d11_shader.cpp
++++ b/src/d3d11/d3d11_shader.cpp
+@@ -40,7 +40,10 @@
+   bool GetShader(MTL_COMPILED_SHADER *pShaderData) final {
+     bool ret = false;
+     if ((ret = ready_.load(std::memory_order_acquire))) {
+-      *pShaderData = {function_};
++      Sha1HashState key;
++      key.update(shader_->sha1()); key.update(variant_digest_);
++      key.update(sm50_common.flags); key.update(sm50_common.metal_version);
++      *pShaderData = {function_, key.final()};
+     }
+     return ret;
+   }
+--- a/src/d3d11/d3d11_shader.hpp
++++ b/src/d3d11/d3d11_shader.hpp
+@@ -14,6 +14,7 @@
+   NOTE: it's not retained by design
+   */
+   WMT::Function Function;
++  dxmt::Sha1Digest CacheKey{};
+ };
+ 
+ namespace dxmt {
+@@ -191,6 +192,7 @@
+   virtual ThreadpoolWork *RunThreadpoolWork() = 0;
+   virtual bool GetIsDone() = 0;
+   virtual void SetIsDone(bool state) = 0;
++  virtual void AfterCompleted() {}
+ };
+ 
+ class CompiledShader : public ThreadpoolWork {
+--- a/src/dxmt/dxmt_tasks.hpp
++++ b/src/dxmt/dxmt_tasks.hpp
+@@ -12,6 +12,7 @@
+   Task run_task(Task task);
+   bool get_done(Task task);
+   void set_done(Task task);
++  void after_done(Task task);
+ };
+ 
+ template <typename Task> class task_scheduler {
+@@ -115,6 +116,8 @@
+         }
+         worker_cond_.notify_all();
+         continuation_buffer.clear();
++        // Publish completion before optional disk I/O; never hold deps_mutex_.
++        task_trait.after_done(continuation);
+       } else {
+         std::unique_lock<dxmt::mutex> lock(deps_mutex_);
+         // spurious dependency
+--- a/src/util/sha1/sha1_util.cpp
++++ b/src/util/sha1/sha1_util.cpp
+@@ -1,3 +1,4 @@
++#include <functional>
+ /*
+  * This file is part of DXMT, Copyright (c) 2023 Feifan He
+  *
+--- a/src/util/util_env.cpp
++++ b/src/util/util_env.cpp
+@@ -26,13 +26,12 @@
+ 
+ std::string getEnvVar(const char *name) {
+ #ifdef _WIN32
+-  std::vector<WCHAR> result;
+-  result.resize(MAX_PATH + 1);
+-
+-  DWORD len = ::GetEnvironmentVariableW(str::tows(name).c_str(), result.data(),
+-                                        MAX_PATH);
+-  result.resize(len);
+-
++  auto key=str::tows(name);
++  DWORD capacity=GetEnvironmentVariableW(key.c_str(),nullptr,0);
++  if(!capacity || capacity>32768)return "";
++  std::vector<WCHAR> result(capacity,0);
++  DWORD length=GetEnvironmentVariableW(key.c_str(),result.data(),capacity);
++  if(!length || length>=capacity)return "";
+   return str::fromws(result.data());
+ #else
+   const char *result = std::getenv(name);

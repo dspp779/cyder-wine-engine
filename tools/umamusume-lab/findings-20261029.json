@@ -1,0 +1,112 @@
+{
+  "test_date_local": "2026-10-29–2026-10-30 (Asia/Taipei)",
+  "scope": "小萌台港澳繁中 PC 版；本機重新啟動、登入、培育教學及 DXMT/GPTK 對照。不是完整相容性認證。",
+  "environment": {
+    "mac": "Apple M4",
+    "macOS": "27.2",
+    "engine": "CX26.3.0-W11-Cyder012",
+    "game": "2.18.6-10300",
+    "launcher": "1.0.1.0",
+    "dxmt": "0.80",
+    "gptk_hud": "Game Porting Toolkit 4.0b3",
+    "graphics_api": "Direct3D 11"
+  },
+  "matrix": [
+    {
+      "backend": "DXMT 0.80",
+      "media_environment": "未指定外掛路徑",
+      "title_background": "白底；UI 仍顯示",
+      "in_game": "已見主介面／教學場景顯示",
+      "evidence": [
+        "dxmt-title.png",
+        "dxmt-home.png"
+      ]
+    },
+    {
+      "backend": "GPTK / D3DMetal",
+      "media_environment": "未指定外掛路徑",
+      "title_background": "白底；UI 仍顯示",
+      "in_game": "可登入主介面",
+      "evidence": [
+        "d3dmetal-title.png",
+        "d3dmetal-home-ready.png"
+      ]
+    },
+    {
+      "backend": "GPTK / D3DMetal",
+      "media_environment": "指定引擎內外掛、scanner 及獨立 registry",
+      "title_background": "背景影片恢復，已觀察不同影格",
+      "in_game": "成功開始培育，繼承特效與角色顯示，執行第一次速度訓練並看到跑步動畫",
+      "evidence": [
+        "d3dmetal-media-title.png",
+        "d3dmetal-inheritance.png",
+        "d3dmetal-first-speed-training.png"
+      ]
+    },
+    {
+      "backend": "DXMT 0.80",
+      "media_environment": "相同外掛路徑設定及另一份獨立 registry",
+      "title_background": "背景影片恢復，已保存不同影格",
+      "in_game": "重新登入後顯示培育事件角色與背景",
+      "evidence": [
+        "dxmt-media-title.png",
+        "dxmt-media-title-frame2.png",
+        "dxmt-media-resume.png"
+      ]
+    }
+  ],
+  "confirmed": [
+    "本機未指定媒體路徑時兩個後端都出現登入影片白底；指定已安裝的 GStreamer 外掛搜尋路徑後兩者均恢復。這是外掛探索／載入環境問題的直接證據。",
+    "預設環境日誌包含 h264_decoder_create 解碼器不可用及 videoconvert 無法建立。指定路徑後未再看到這兩項，登入影片可播放。",
+    "離線對照兩組均採全新私有 registry，預設組缺少 videoconvert/h264parse/vtdec/vtdec_hw/decodebin/qtdemux，明確路徑組全部找到；因此不能只歸因舊 registry。",
+    "avdec_h264 在明確路徑組仍缺少，但 vtdec/vtdec_hw 已可找到，且實際影片可播放；不需據此另外安裝解碼套件。",
+    "GPTK 載入其 x86_64-windows d3d11.dll/dxgi.dll 及 D3DMetal.framework；DXMT 載入 runtime/graphics/dxmt/0.80 的 d3d11.dll/dxgi.dll/winemetal。僅有 libd3dshared 被載入不足以判斷後端。",
+    "只調整測試程序環境；沒有修改全域 DXMT、引擎二進位檔、遊戲二進位檔或相容性資料庫。"
+  ],
+  "nonfatal_or_unresolved": [
+    "GPTK Player.log 出現 D3D11 multithread protection 0x80004002 並宣告改用 software video decoding，但影片仍成功播放，故不能當作白底的充分原因。",
+    "修正環境後仍有 H.264 encoder 不可用訊息；encoder 與 decoder 不同，不能把該訊息當作播放失敗。",
+    "先前長時間閒置後開始培育遇到連線錯誤，本次重新登入的 GPTK 工作階段成功開始培育；尚未證明閒置就是唯一原因。",
+    "培育中短暫黑／白轉場後恢復，繼承與速度訓練動畫可顯示；尚未完成整場比賽、完整培育或長時間穩定性測試。",
+    "訓練動畫後即為後端切換關閉遊戲，未以最終回合結算驗證伺服器存檔。",
+    "未以本輪結果證明最初使用者首頁空白的每個頁面皆已解決；登入影片的因果證據最完整。",
+    "有其他 Wine 應用同時執行、場景及限幀不完全一致，無法做 DXMT/GPTK 效能排名。",
+    "本輪未測 WineD3D/DXVK。",
+    "此環境不同於 Issue #11 的 M3 Pro/macOS 27.0；不能直接宣告回報者問題已修復。"
+  ],
+  "process_only_workaround": {
+    "ENGINE": "使用者實際選用引擎的絕對路徑",
+    "GST_PLUGIN_SYSTEM_PATH_1_0": "${ENGINE}/lib/wine/gstreamer-1.0",
+    "GST_PLUGIN_PATH_1_0": "${ENGINE}/lib/wine/gstreamer-1.0",
+    "GST_PLUGIN_SCANNER": "${ENGINE}/libexec/gstreamer-1.0/gst-plugin-scanner",
+    "GST_REGISTRY_1_0": "每次對照獨立、可寫入的測試 registry 路徑",
+    "application": "由受控程序環境啟動小萌啟動器，讓子遊戲繼承。這些是樣板值，需以實際絕對路徑展開。",
+    "rollback": "關閉本次賽馬娘及小萌啟動器，再用原啟動方式啟動；測試 registry 可刪除。不終止共享 wineserver。"
+  },
+  "upstream_boundary": "DXMT v0.73 的 release notes 提到修復賽馬娘登入影片，0.80 已晚於該版；該上游修復不能取代 Wine 媒體解碼器及外掛探索環境。未確認上游修復對應的精確 commit 與繁中版所有影片路徑。",
+  "next_product_step": "在 Cyder app 的啟動／runtime 媒體環境層製作可回復且具外掛存在檢查的修正，先限定測試範圍並驗證啟動器子程序繼承；不要改 DXMT 全域行為或強制此遊戲改用 GPTK。產品程式修正尚未實作。",
+  "offline_probe": {
+    "source": "tools/umamusume-lab/probe-media.py",
+    "command": "python3 tools/umamusume-lab/probe-media.py --engine /absolute/path/to/engine --output /tmp/uma-media-probe",
+    "result": "兩組私有全新 registry 對照已執行；factory 探測不等於完成解碼測試。"
+  },
+  "issue_reply_draft": "本機以繁中小萌版 2.18.6-10300、Cyder012 在 DXMT 0.80 與 GPTK 4.0b3 對照：兩者預設均可進入遊戲，但登入影片白底。日誌顯示 GStreamer 找不到 videoconvert 與 H.264 decoder。只在啟動器程序指定引擎內的 GStreamer 外掛／scanner 路徑並使用獨立 registry 後，兩個後端皆恢復登入影片；GPTK 也已進入培育及速度訓練動畫。這支持先檢查媒體 runtime 探索，不能只靠切換圖形後端。目前尚未驗證原回報環境與完整比賽。請分別保存實際引擎／後端、遊戲版本、等待下載完成後的同頁截圖，以及只含渲染／媒體錯誤的啟動紀錄和 Player.log 摘錄；請勿提供帳密、token 或完整網路請求。",
+  "privacy": "原始 launch/Player logs 僅在 gitignored logs 內供本機診斷，公開前須另行遮蔽登入與請求資訊。此報告未包含憑證。",
+  "artifacts_directory": "logs/umamusume-backend-ab-20261029",
+  "integration_audit_20261030": {
+    "verdict": "建議整合為媒體 runtime 啟動環境修正；不是賽馬娘強制後端規則。尚未修改產品程式。",
+    "additional_confirmed_evidence": "已安裝 libgstreamer 的字串仍包含建置機的 install/media-cx26-full-video-x86_64/lib/gstreamer-1.0 與 libexec/gstreamer-1.0/gst-plugin-scanner 絕對預設路徑；bundle 搬移了檔案與 dylib 依賴，但啟動層沒有補上 GST 外掛探索環境。",
+    "related_gaps": [
+      "一般 Cyder launch 與楓之谷 direct launcher 的媒體環境準備不一致；需共用明確的 runtime contract，涵蓋小萌等 launcher 子程序。",
+      "依引擎內容／版本及架構隔離可寫入 registry，測試升級、搬移、損壞 cache；尚未證明目前存在 cache 汙染。",
+      "pack gate 需在搬移後的最終引擎測 factory、scanner 及實際 H.264 解碼／色彩轉換，不能只檢查檔案存在。",
+      "diagnostics 應提供媒體元件可用性與解析後路徑摘要，避免 quiet diagnostics 導致無線索。"
+    ],
+    "integration_constraints": [
+      "只設定 Wine 子程序環境，不設定系統全域環境；由實際 engine_root 衍生路徑。",
+      "舊引擎／minimal profile／使用者自訂媒體環境需明確 fallback 或覆寫政策，切換引擎不能殘留舊路徑。",
+      "缺少 avdec_h264 是目前 full-video 配置停用 libav 的結果；已有 vtdec 且播放成功，不應為消除診斷字樣而新增 FFmpeg 或 encoder。",
+      "仍需無聲影片、含音訊影片、不同容器、空白／Unicode 路徑，以及 native spawn 與 launcher child 繼承測試。"
+    ]
+  }
+}

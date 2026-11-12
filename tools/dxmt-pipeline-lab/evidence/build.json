@@ -1,0 +1,8 @@
+{
+  "dll": "/Users/jjc/cyder-wine-engine/build/dxmt-pipeline-lab/build/d3d11.dll",
+  "sha256": "be4913fea6371c526bb62870d8d106e1a1bb4ae20017c2f70af452e068ec70b3",
+  "compiler": "/Users/jjc/cyder-wine-engine/build/llvm-mingw-20260616-ucrt-macos-universal/bin/x86_64-w64-mingw32-clang++",
+  "source_files": 69,
+  "source_runtime_identity": "cb6fa6f818d66dad2efb60eb0f1ea70e13cbb72f0e79f0fd5b1f97ccde28e780",
+  "version": "v0.80-cyder-pso-lab-cb6fa6f818d66dad"
+}

@@ -576,6 +576,12 @@ if [[ "$CX_VERSION" == "26" ]]; then
   # general CX26 message-wait path; it is not a MapleStory-only patch.
   apply_maplestory_patch "maplestory-cx26-message-wait-handoff.patch" \
     "dlls/win32u/message.c" "MapleStoryPort: preserve one driver wait result"
+  # GE-Proton MapleStory launch fixes (Wine bugs 59926 / 59927): generic
+  # Windows-contract behavior; applied for every CX26 build like message-wait.
+  apply_maplestory_patch "maplestory-cx26-kernelbase-charprev-null.patch" \
+    "dlls/kernelbase/string.c" "MapleStoryPort: CharPrev NULL start"
+  apply_maplestory_patch "maplestory-cx26-win32u-spi-sticky-filter-keys.patch" \
+    "dlls/win32u/sysparams.c" "MapleStoryPort: SPI sticky/filter success"
 
   if [[ "$MAPLESTORY" -eq 1 ]]; then
 

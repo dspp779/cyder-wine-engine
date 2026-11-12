@@ -1,8 +1,8 @@
 # MapleStory CX26 WZ userspace cache／mmap 實驗紀錄
 
-> 更新日期：2026-08-16  
-> 範圍：CX26／Cyder011 engine、MapleStory WZ 讀取、第一次攻擊卡頓  
-> 狀態：adaptive WZ cache 已列入 0.10.1 candidate；mmap／prewarm 仍為診斷實驗
+> 更新日期：2026-09-04  
+> 範圍：CX26／Cyder012 engine、MapleStory WZ 讀取、第一次攻擊卡頓、FAST_HIT、CPU 採樣、對空氣預熱  
+> 狀態：adaptive WZ cache 已出貨；FAST_HIT Stage 0／1 已實作但體感無改善；首次命中主因偏向 first-use（含 Metal PSO）與命中專屬資源，預熱方向見獨立設計文件
 
 本文件集中整理 2026-08-15～2026-08-16 針對「重新登入後第一次攻擊怪物會卡頓」
 所做的 WZ 讀取、userspace read-ahead、cache slot、mmap 與低干擾 log 實驗。
@@ -411,14 +411,22 @@ timeline 行為，不能確認 fill source。
   「集中式同步 fill」更容易被使用者感知。
 - 低干擾、輸出導向檔案後，黑畫面／初始化干擾明顯減少，且能進入遊戲畫面。
 - 低干擾模式下，第二次實際攻擊仍由使用者確認卡頓。
+- **2026-09-04：** `CYDER_MAPLESTORY_FILE_CACHE_FAST_HIT=1` 與 `=0` 體感皆為
+  「小卡」，無穩定可感知差異（見 §13）。
+- **2026-09-04：** 冷啟動首次打怪「蠻卡」當下 `sample` 可見
+  `D3DMetal.PSOCompilationQueue`／`MTLCompiler`；對空氣預熱後首次打怪降為
+  「小卡」（見 §13）。
 
 ### 尚未證實
 
 - WZ parser 是否真的使用 `NtMapViewOfSection` 或 host `mmap`。
 - `CYDER_MAPLESTORY_FILE_CACHE_MMAP=1` 的 runtime fill 是否成功；目前高 trace
   輪看到的是 `source=pread`，但沒有記錄 mmap 失敗原因。
-- 卡頓 frame 中真正佔用時間的是 cache fill、WZ 解壓／解析、資源 upload，還是
-  renderer／主執行緒同步。
+- ~~卡頓 frame 中真正佔用時間的是 cache fill、WZ 解壓／解析、資源 upload，還是
+  renderer／主執行緒同步。~~ → 2026-09-04 採樣已顯示 **Metal PSO 編譯** 與
+  部分 `NtReadFile`／cache_read 並存；不能再假設「只有 WZ I/O」。
+- 對空氣預熱能否產品化為自動、且不觸發防作弊／不誤傷怪物。
+- Metal／D3DMetal PSO 或 shader cache 跨行程是否已持久化、能否強制預熱。
 - Windows Cache Manager 的實際 MapleStory 行為與目前 userspace probe 的一一
   對應關係；目前只能做架構類比，不能宣稱已重現 Windows 的 section cache。
 - i386 helper 的 wined3d fallback 是否會影響某一個特定攻擊／特效；目前只能確定
@@ -426,23 +434,37 @@ timeline 行為，不能確認 fill source。
 
 ## 9. 目前結論
 
-最合理的工作假說是：
+2026-08 的工作假說（WZ 小讀取＋同步 fill）仍解釋「有大量 I/O 事件」的部分，
+但 **2026-09-04 的體感與 `sample` 把優先順序改了**：
 
-> 第一次攻擊觸發一批此前尚未 materialize 的 WZ 資源。parser 以大量小 offset
-> 查詢讀取索引，接著同步填入一批 8／32 KiB window，並可能同時進行解壓、圖片／
-> 字型／特效建立與 GPU resource upload。Rosetta 下 x86_64 Wine 反覆跨 Unix I/O
-> 路徑的成本，使「數千次小讀取」比現代 SSD 的總傳輸量更容易形成可見 hitch。
+> 使用者可感知的「首次打怪蠻卡」在 D3DMetal 路徑上，與 **Metal pipeline／shader
+> 首次編譯（PSOCompilationQueue）** 高度同時出現；對空氣預先放出攻擊／技能特效
+> 後，首次打怪可降到「小卡」。DXVK／DXMT 先前亦有類似首次卡頓，代表還有
+> **跨後端共用的命中／資源 first-use**，不能只靠換圖形後端解決。
+>
+> `FILE_CACHE_FAST_HIT`（TLS window＋unlocked fill）未改善體感，不應再當成
+> 首次命中 hitch 的主修補。既有 512-slot adaptive cache 仍保留為一般 WZ 小讀
+> 優化；下一步改做「命中路徑預熱」設計，見
+> [`maplestory-cx26-first-hit-prewarm-design.zh-TW.md`](maplestory-cx26-first-hit-prewarm-design.zh-TW.md)。
 
-userspace cache 的方向是對的，但目前的同步 read-ahead 仍可能把許多小成本集中
-成一次較大的 first-use pause。512 slots 主要解決 coverage 與 handle eviction，
-不等於已解決 fill timing；因此首次攻擊與首次被動技能仍是正式回歸測試的必要 gate。
-0.10.1 先納入 512-slot pread adaptive cache，透過 Cyder 偏好設定預設開啟，並保留
-進階關閉選項；若實機回歸顯示負面影響，回退到 256 slots 或關閉功能。mmap、
-prewarm 與低干擾診斷不納入本版。
+userspace cache 對 coverage／host read 仍有價值，但 **不能期待再靠 cache-hit
+fast path 消掉首次命中尖峰**。首次攻擊、首次被動技能、以及「預熱後是否只剩
+小卡」應納入回歸 gate。
 
 ## 10. 下一步建議
 
-### 10.1 先補齊低干擾 source／fill aggregate
+### 10.1 首次命中預熱（優先）
+
+依 §13 結果，優先實作／驗證：
+
+1. 跨 session 的 Metal／D3DMetal PSO／shader cache 行為。
+2. 進圖後、互動前，安全地 materialize「攻擊＋命中」路徑（不只對空氣）。
+3. 將手動預熱協議變成可重複的 A／B 與（若可行）產品 opt-in。
+
+細節與方案取捨見
+[`maplestory-cx26-first-hit-prewarm-design.zh-TW.md`](maplestory-cx26-first-hit-prewarm-design.zh-TW.md)。
+
+### 10.2 低干擾 source／fill aggregate（仍有用，降優先）
 
 不要恢復逐筆 log；在 `CYDER_IO cache_stats` 增加：
 
@@ -451,41 +473,20 @@ prewarm 與低干擾診斷不納入本版。
 - mmap／pread 各自的 fill bytes、總時間、最大值與 p50／p95 bucket。
 - cache fill 是否在 arm 後發生，以及 fill 所屬 WZ path。
 
-這樣一輪實驗即可回答 mmap 是否真的成功，不必再產生數 GB raw log。
+### 10.3 FAST_HIT／shared region
 
-### 10.2 固定四組 A/B
+`FAST_HIT` 維持 opt-in、預設關閉；在首次命中體感無改善前，**不要**進入
+Stage 2 shared region 作為 hitch 主線。若未來要優化「已順暢後的平均 CPU」，
+再重開 Bin 209 計量。
 
-同一 prefix、同一安全地圖、同一攻擊、每組至少三次：
-
-1. cache off。
-2. 512 slots + pread。
-3. 512 slots + mmap。
-4. 預熱／非同步 fill 方案。
-
-每輪都以不存在的 arm file 啟動，進入安全地圖後才 arm；只做一次攻擊，並記錄
-使用者體感與 aggregate。若要比較 cold／warm，必須明確重新啟動遊戲，不要只換
-地圖後把結果當成 cold start。
-
-### 10.3 產品化方向
-
-如果後續證明 mmap 有效，較安全的設計順序是：
-
-- 保留 512 或可調的 LRU handle table，但以穩定 file identity／path 管理 entry，
-  避免只靠有限 handle slot 造成 eviction。
-- 只對連續、短距離、重複的小讀取做 read-ahead；隨機 offset 不要盲目升級 32 KiB。
-- 大 payload 仍走 normal path，不把整個 WZ 或大資源塞進 metadata cache。
-- 在登入／地圖 loading 的非互動階段預熱，而不是在第一次攻擊的主執行緒同步填充。
-- 預熱必須有 bounded queue、取消機制與記憶體上限；不要因預讀拖慢畫面初始化。
-- mmap mapping 應可重用並在 close／invalidate 正確解除，且所有失敗要安全回退。
-
-正式 0.10.1 runtime 使用 pread adaptive cache；mmap 與 prewarm 維持關閉：
+正式 runtime 仍使用 pread adaptive cache；mmap 與舊版 in-process file prewarm
+維持關閉：
 
 ```text
 CYDER_MAPLESTORY_FILE_CACHE=1
 CYDER_MAPLESTORY_FILE_CACHE_MMAP=0
+CYDER_MAPLESTORY_FILE_CACHE_FAST_HIT=0
 ```
-
-低干擾統計與逐筆 I/O 記錄仍只供開發實驗使用，不由一般 launcher 開啟。
 
 ## 11. 測試操作與低干擾記錄規範
 
@@ -539,3 +540,91 @@ WINEDEBUG=-all,+timestamp,+pid,+winediag,+cyderio
 
 完整引擎建置、D3DMetal、prefix、window surface 與 renderer A/B 的歷史紀錄，
 請回到 [`maplestory-cx26-worklog.zh-TW.md`](maplestory-cx26-worklog.zh-TW.md)。
+
+## 13. 2026-09-04：FAST_HIT A/B、CPU 採樣、對空氣預熱
+
+### 13.1 固定條件
+
+| 項目 | 值 |
+|---|---|
+| Engine | `install/wine-cx26-x86_64`（含 `file-cache-fast-hit` patch） |
+| Prefix | `/private/tmp/cyder-cx26-fasthit-play` |
+| 啟動 | `scripts/run-maplestory-cx26-d3dmetal.sh`＋BeanFun argv |
+| 基線 | `CYDER_MAPLESTORY_FILE_CACHE=1`（512-slot adaptive） |
+| 圖形 | D3DMetal／GPTK（Cyder Application Support） |
+| 採樣 | macOS `sample MapleStory.exe 20 -file …`；聊天提示「開始」後使用者操作 |
+
+OTP／登入參數不寫入本文件。
+
+### 13.2 Stage 1 FAST_HIT 體感 A/B
+
+實作摘要（`patches/maplestory-cx26-file-cache-fast-hit.patch`）：
+
+- `CYDER_MAPLESTORY_FILE_CACHE_FAST_HIT=1`：TLS 複製最近 adaptive window，重複
+  hit 略過 table scan；fill 走 unlocked `pread`。
+- `CYDER_MAPLESTORY_IO_CACHE_TIMING=1`：行程結束印 `CYDER_IO cache_timing`。
+- 分片鎖因 flat global slot table 不安全而延後。
+- 預設皆 **關閉**。
+
+| 設定 | 首次打怪體感 |
+|---|---|
+| `FAST_HIT=1` | 小卡 |
+| `FAST_HIT=0` | 小卡（無穩定可感知差異） |
+
+**結論：** Stage 1 對「首次打怪 hitch」**無體感增益**；不應再把 FAST_HIT 當主修補。
+仍可保留為平均 CPU／鎖競爭診斷用 opt-in。
+
+### 13.3 冷啟動首次打怪＋`sample`（蠻卡）
+
+協議：背景跑 20s `sample`，聊天出現「開始」後立刻首次打怪；使用者回報「蠻卡」。
+
+代表性輸出：
+`/private/tmp/cyder-cx26-fasthit-play-logs/sample-first-hit-20s-183057.txt`
+
+觀察（同窗內同時出現，非單一根因證明）：
+
+- 重：`D3DMetal.PSOCompilationQueue`／`MTLCompiler`（Metal PSO／shader 編譯）。
+- 亦有：`NtReadFile`、部分 `cyder_maplestory_file_cache_read`。
+
+與歷史「DXVK／DXMT 也會首次卡」並讀：**後端各自有 first-use 成本，且還有跨後端
+共用冷路徑**；換後端不是主解法。
+
+### 13.4 手動對空氣預熱再打怪
+
+操作：進圖後、打怪前，先對空氣放普通攻擊／技能數下，再打第一隻怪。
+
+| 輪次 | 體感 |
+|---|---|
+| 非正式試跑 | 蠻卡 → 小卡（明顯改善） |
+| 正式採樣輪（時機正確） | 仍「小卡」；sample 仍可見部分 MTLCompiler／NtReadFile |
+
+代表性輸出：
+`/private/tmp/cyder-cx26-fasthit-play-logs/sample-prewarm-then-hit-20s-190629.txt`
+
+**結論：**
+
+1. **攻擊／技能 VFX 路徑**可被對空氣預熱大幅提前 materialize。
+2. **命中怪**仍帶殘餘「小卡」→ 命中特效、傷害數字、怪物受擊／資源等仍未完全暖好。
+3. 產品化預熱必須涵蓋 **攻擊放出＋命中／受擊**，不能只暖「揮空」。
+
+### 13.5 對後續方向的含義
+
+| 方向 | 狀態 |
+|---|---|
+| 再加深 WZ cache-hit fast path（Stage 2 shared region） | **降優先**；不解決首次命中體感 |
+| 擴大 host page-cache／WZ range prewarm | 輔助 I/O；**無法單獨**消掉 PSO 類 hitch |
+| 命中路徑 gameplay／shader／PSO 預熱 | **優先**；見設計文件 |
+
+設計文件：
+[`maplestory-cx26-first-hit-prewarm-design.zh-TW.md`](maplestory-cx26-first-hit-prewarm-design.zh-TW.md)。
+
+### 13.6 非互動後續（同日）：Metal disk cache 調查
+
+完整矩陣與決策門檻見設計文件 §5.1／§5.2。摘要：
+
+- D3DMetal 標 `CreateShaderCacheSession`／`ShaderCacheControl` 為 **Unsupported**。
+- 今日 D3DMetal 玩測寫入／更新的 OS cache 身份為
+  `com.codeweavers.CrossOver.wineloader`（~31 MiB）；**非** GPTK 目錄內獨立檔。
+- 該 cache **已存在**時，E1 樣本仍見大量 `PSOCompilationQueue`（蠻卡）→
+  跨行程 Metal cache **不足以**單獨解釋／消除 hitch；需 E2／E3 玩測定量。
+- DXMT 另有 `dxmt/MapleStory.exe`（含 `shaders_320.db`），與 D3DMetal 路徑分離。

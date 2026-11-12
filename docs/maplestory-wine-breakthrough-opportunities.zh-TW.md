@@ -133,16 +133,20 @@ runtime / bottle policy
 ### 建議建立 cross-source matrix
 
 ```text
-                                   Cyder CX26   Wine 11   GE-Proton   GMS macOS
-message-wait handoff                   yes         ?          ?           ?
+                                   Cyder CX26   Wine 11   GE-Proton   GMS macOS OEM*
+message-wait handoff                   yes         no         ?       OEM-internal
 NtYieldExecution Maple guard           yes         ?          ?           ?
-CharPrevA / CharPrevExA edge fix         ?         ?         yes          ?
-SPI_SETSTICKYKEYS/FILTERKEYS             ?         ?         yes          ?
-.tmp/.msf module-name behavior         yes         ?          ?           ?
+CharPrevA / CharPrevExA edge fix       yes         no        yes          ?
+SPI_SETSTICKYKEYS/FILTERKEYS           yes         no        yes          ?
+.tmp/.msf module-name behavior         yes         ?          ?          yes
 BlackXchg-specific behavior            yes         ?          ?           ?
 D3D shared-resource fixes              yes         ?          ?           ?
 media/GStreamer completeness           yes         ?          ?           ?
 ```
+
+\*GMS macOS OEM bisect 基線仍是 **CX 25.0.1.38865／`oem-maplestory-na-ngl-0.0.31`**（見 §3 與 delta 文）；本機 2026-09-06 未找到更新過的 Nexon MapleStory.app。
+
+詳細逐項與落地建議：[`maplestory-ge-proton-compatibility-delta.zh-TW.md`](maplestory-ge-proton-compatibility-delta.zh-TW.md)。
 
 ### 驗收目標
 
@@ -464,20 +468,12 @@ artifacts/gms-macos-runtime-manifest.json
 
 ### Experiment B — GE-Proton MapleStory patch cross-diff
 
-輸出：
+**初稿已完成（2026-09-06）：**  
+[`maplestory-ge-proton-compatibility-delta.zh-TW.md`](maplestory-ge-proton-compatibility-delta.zh-TW.md)
 
-```text
-docs/maplestory-ge-proton-compatibility-delta.zh-TW.md
-```
+本機副本：`third_party/linux_maplestory/`、`third_party/ge-proton-maplestory-patches/`（gitignore）。
 
-逐項回答：
-
-```text
-patch exists in CX26?
-TMS can trigger it?
-Windows observable behavior?
-generic Wine fix or game-specific policy?
-```
+**W1／W2 已納入 CX26 預設 patch stack**（每趟建置，同 message-wait）；install 已更新 `kernelbase.dll`／`win32u.so`。
 
 ### Experiment C — modern renderer first-hit benchmark
 

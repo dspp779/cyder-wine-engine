@@ -75,6 +75,20 @@ libraries 與未版本化 wait-poll shim 仍維持 10.15。因此這套 Vulkan �
 另建並驗證；Xcode 27 不支援這個目標。不要提高 Wine 的全域 minOS、改寫
 Mach-O load command，或把其他 dylib 改名來繞過 pack gate。
 
+### Cyder 啟動端的相容性檢查
+
+CyderBits 的 `scripts/cyder-moltenvk-variant.sh` 保留 macOS 12 以下優先選
+1.2.10 的舊引擎策略，但這僅產生候選版本。DXVK 啟動前，必須讀取目前
+shim 與所選 `.real` 的 **x86_64 slice** Mach-O minOS，再與主機版本比較；
+無法讀取、缺少 real 或 minOS 超出主機時停止啟動，不能以版本名稱作保證。
+舊單 dylib（包括 `lib64`）若實際 minOS 足夠低，仍可使用。
+WineD3D、D3DMetal、DXMT 不受這項 Vulkan 檢查限制；各自既有門檻仍適用。
+
+程式回歸測試只驗證建置目標、封裝與啟動阻擋契約。macOS 10.15／11 的舊
+產物、12／13 的新產物，仍需各自測試實際載入與遊戲。CyderBits Issue #7
+的 macOS 13 Intel GPU 黑畫面／間歇閃爍必須另做 rendering 驗收；Mach-O
+minOS 合格不代表該問題已修復，也不代表這批新產物已正式發行。
+
 ### Vulkan 建置前的 dual layout
 
 若任一 MoltenVK real 以 minOS 12.0 建出，先用

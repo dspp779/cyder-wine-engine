@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 tests=(
+  test-release-contract.sh
   test-engine-development-workflow.sh
   test-build-wine.sh
   test-build-bootstrap.sh

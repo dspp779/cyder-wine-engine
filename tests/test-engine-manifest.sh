@@ -11,7 +11,7 @@ ntdll_sha="$(printf 'a%.0s' {1..64})"
 artifact_sha="$(printf 'b%.0s' {1..64})"
 bash "$ROOT/scripts/write-engine-manifest.sh" \
   --output "$TMP/engine-manifest.json" \
-  --version "CX26.3.0-W11-Cyder012" \
+  --version "CX26.3.0-W11-Cyder013" \
   --ntdll-sha256 "$ntdll_sha" \
   --artifact "engine-test.tar.xz" \
   --artifact-sha256 "$artifact_sha"
@@ -22,7 +22,7 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "\"ntdllSHA256\": \"$ntdll_
 assert_contains "$(cat "$TMP/engine-manifest.json")" "\"artifactSHA256\": \"$artifact_sha\"" \
   "sidecar manifest should pin the archive"
 assert_eq "$(plutil -extract engineId raw -o - "$TMP/engine-manifest.json")" \
-  "cx26.3-w11-cyder012" \
+  "cx26.3-w11-cyder013" \
   "manifest should use the canonical release engine ID"
 assert_eq "$(plutil -extract minimumCyderVersion raw -o - "$TMP/engine-manifest.json")" \
   "0.9.6" \
@@ -53,6 +53,8 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-macos-tim
   "manifest should record the macOS wineserver timezone bias patch"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-wineserver-registry-fsync.patch" \
   "manifest should record the registry fsync patch"
+assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-winemac-gl-front-buffer-present.patch" \
+  "manifest should record the winemac front-buffer present patch"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-winemac-hide-ime-only-klid.patch" \
   "manifest should record the winemac IME-only KLID patch"
 assert_contains "$(cat "$TMP/engine-manifest.json")" "cyder-winemac-gl-front-buffer-present.patch" \

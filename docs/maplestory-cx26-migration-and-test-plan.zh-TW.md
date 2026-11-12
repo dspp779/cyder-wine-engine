@@ -81,7 +81,7 @@ GStreamer plugin scanner。
 路徑擴大；這裡的「完整」是指 OEM25 可用的影音插件集合，而不是任意抓取所有
 主機可選 codec。
 
-Cyder011 封裝時，`pack-engine-artifact.sh` 預設會將 full-video media stack 內嵌
+目前 release 封裝時，`pack-engine-artifact.sh` 預設會將 full-video media stack 內嵌
 至 engine：插件位於 `lib/wine/gstreamer-1.0/`，scanner 位於
 `libexec/gstreamer-1.0/`，核心 dylib 由 bundler 一併改寫為可重定位的
 `@loader_path` 依賴。只有非影片的縮減版才使用 `--media-profile minimal`。

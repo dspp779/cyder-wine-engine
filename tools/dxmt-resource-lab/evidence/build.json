@@ -1,0 +1,9 @@
+{
+  "dll": "/Users/jjc/cyder-wine-engine/build/dxmt-resource-lab-20261003/build/d3d11.dll",
+  "sha256": "2d51501f47499c63181ce0eee713ef8968c1c3aba0a4e94dc491e8281fd51971",
+  "compiler": "/Users/jjc/cyder-wine-engine/build/llvm-mingw-20260616-ucrt-macos-universal/bin/x86_64-w64-mingw32-clang++",
+  "winebuild": "/Users/jjc/cyder-wine-engine/build/arm64-experimental-cx26/build/tools/winebuild/winebuild",
+  "source_files": 69,
+  "source_runtime_identity": "5bec39a47b2ff7786981aa8840eb5810d97ed21f55b029e45694ae3e97232eaf",
+  "version": "v0.80-cyder-resource-lab-5bec39a47b2ff778"
+}

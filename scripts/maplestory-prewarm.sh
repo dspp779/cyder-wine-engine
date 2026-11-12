@@ -7,13 +7,18 @@ set -euo pipefail
 BLOCK_SIZE=4096
 GAME_ROOT=""
 MAX_BYTES="${CYDER_MAPLESTORY_PREWARM_MAX_BYTES:-268435456}"
+PROFILE="${CYDER_MAPLESTORY_PREWARM_PROFILE:-h1}"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") --game-root PATH [--max-bytes BYTES]
+Usage: $(basename "$0") --game-root PATH [--max-bytes BYTES] [--profile NAME]
 
 Read the selected WZ/resource ranges into the host filesystem cache before
 Wine starts. Missing files are skipped so this remains safe across data packs.
+
+Profiles:
+  h1              Default hit-path list (Effect + Mob + Morph)
+  effect-io-a     IO-A verify: Effect_000 + _Canvas_003/053 only
 EOF
 }
 
@@ -29,6 +34,11 @@ while [[ $# -gt 0 ]]; do
     --max-bytes)
       [[ $# -ge 2 ]] || die '--max-bytes requires BYTES'
       MAX_BYTES="$2"
+      shift
+      ;;
+    --profile)
+      [[ $# -ge 2 ]] || die '--profile requires NAME'
+      PROFILE="$2"
       shift
       ;;
     -h|--help)
@@ -96,15 +106,37 @@ warm_range() {
   report "done path=$relative_path offset=$aligned_offset length=$actual_length"
 }
 
-# These ranges come from the latest arm-scoped aggregate run:
-#   Mob/_Canvas/_Canvas_079.wz  -> first attack spike
-#   Effect_000.wz + Skill_00002/03/07.ms -> first passive/effect spike
-# The broad Sound_029.wz range is intentionally excluded because it spans
-# hundreds of MiB and is not needed for this focused first-use A/B.
-warm_range 'Data/Mob/_Canvas/_Canvas_079.wz' 92150703 65536 attack-mob-canvas
-warm_range 'Data/Effect/Effect_000.wz' 44087678 16777216 passive-effect
-warm_range 'Data/Packs/Skill_00007.ms' 840704 43334656 passive-skill-00007
-warm_range 'Data/Packs/Skill_00002.ms' 4096 71179264 passive-skill-00002
-warm_range 'Data/Packs/Skill_00003.ms' 5120 36268032 passive-skill-00003
+# This only warms the host page cache. It does not fill Wine userspace WZ
+# cache and is not a product default (launcher: CYDER_MAPLESTORY_PREWARM=1).
+report "profile=$PROFILE"
 
-report "summary ranges=$range_count bytes=$total_bytes skipped=$skipped_count max_bytes=$MAX_BYTES"
+case "$PROFILE" in
+  h1)
+    # Hit-path host prewarm ranges from H1 capture #2
+    # (2026-09-04, arm + first mob hit, feel=小卡).
+    warm_range 'Data/Effect/Effect_000.wz' 0 61727143 h1-effect-index
+    warm_range 'Data/Effect/_Canvas/_Canvas_003.wz' 0 33554432 h1-effect-canvas-003
+    warm_range 'Data/Effect/_Canvas/_Canvas_053.wz' 0 10485760 h1-effect-canvas-053
+    warm_range 'Data/Effect/_Canvas/_Canvas_041.wz' 0 4194304 h1-effect-canvas-041
+    warm_range 'Data/Effect/_Canvas/_Canvas_052.wz' 0 1048576 h1-effect-canvas-052
+    warm_range 'Data/Mob/_Canvas/_Canvas_001.wz' 0 1048576 h1-mob-canvas-001
+    warm_range 'Data/Mob/_Canvas/_Canvas_000.wz' 0 1048576 h1-mob-canvas-000
+    warm_range 'Data/Mob/_Canvas/_Canvas_075.wz' 0 1048576 h1-mob-canvas-075
+    warm_range 'Data/Mob/_Canvas/_Canvas_071.wz' 0 1048576 h1-mob-canvas-071
+    warm_range 'Data/Mob/_Canvas/_Canvas_079.wz' 0 1048576 h1-mob-canvas-079-prefix
+    warm_range 'Data/Mob/_Canvas/_Canvas_079.wz' 92150703 1048576 h1-mob-canvas-079-mid
+    warm_range 'Data/Morph/Morph_000.wz' 0 1611186 h1-morph
+    ;;
+  effect-io-a)
+    # IO-A exit summary: hottest Effect paths among hit-related files.
+    # Verify whether warming only these reduces first-hit hitch vs IO-A (小卡).
+    warm_range 'Data/Effect/Effect_000.wz' 0 61727143 io-a-effect-index
+    warm_range 'Data/Effect/_Canvas/_Canvas_003.wz' 0 33554432 io-a-effect-canvas-003
+    warm_range 'Data/Effect/_Canvas/_Canvas_053.wz' 0 10485760 io-a-effect-canvas-053
+    ;;
+  *)
+    die "unknown profile: $PROFILE (expected h1 or effect-io-a)"
+    ;;
+esac
+
+report "summary profile=$PROFILE ranges=$range_count bytes=$total_bytes skipped=$skipped_count max_bytes=$MAX_BYTES"

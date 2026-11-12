@@ -5,7 +5,9 @@
 錯誤的 engine install、舊 wineserver、污染的 build tree 或過量 log 而得到
 無法比較的結果。
 
-目前 CX26 產品基準為 `CX26.3.0-W11-Cyder011`。引擎工作一律在
+目前 CX26 產品基準為 `CX26.3.0-W11-Cyder013`，以
+`config/engine-release.json` 與 `config/engine-version.txt` 為 canonical contract。
+引擎工作一律在
 `/Users/jjc/cyder-wine-engine` 進行，不要透過 Cyder.app 來替代引擎測試。
 
 ## 1. 先分清楚三種路徑
@@ -168,7 +170,8 @@ otool -l "$ENGINE/lib/wine/x86_64-unix/ntdll.so" | rg minos
 
 產品 host binaries 與 dylibs 的 `minos` 不得高於 10.15；DXMT 可到 15.0，
 兩個具名 MoltenVK reals 可到 12.0，Vulkan 要求 macOS 12+；wait-poll shim
-仍維持 10.15，依 `scripts/pack-minos-scan.py` 的規則處理。此階段也要確認
+仍維持 10.15，依 `scripts/pack-minos-scan.py` 的規則處理。
+雙版本建置與組裝見 `build-engine-from-scratch.zh-TW.md`。此階段也要確認
 `strings` 能在 ntdll 找到需要的 MapleStory file-cache marker，避免測到舊的
 install：
 
@@ -331,7 +334,7 @@ tree 直接複製到 `~/.cyder/runtime` 後稱為 release；若要交給 Cyder�
 |---|---|
 | 系統 x86_64 `true` 出現 `Bad CPU type in executable` | Apple Silicon 先檢查／補裝 Rosetta，重跑執行探測後再測 Wine |
 | cxcompatdb 是 arm64／minOS 11.0 | compiler 缺少明確 target；重建為 x86_64、minOS 10.15，並重跑 `test-cyder-cxcompatdb.sh` |
-| `version` 不是 Cyder011 | `ENGINE` 指到舊 install；重新指定 `WINE_INSTALL` |
+| `version` 與 `config/engine-version.txt` 不一致 | `ENGINE` 指到舊 install；重新指定 `WINE_INSTALL` |
 | `prefix` 指到 `/tmp` | build64 configure state 錯；重新 configure 或完整建置 |
 | patch 重複 helper／guard | marker 檢查不在 forward patch 前；恢復乾淨 source 後重建 |
 | `built for macOS 15.0` | host incremental 遺漏 minOS；跑 `rebuild-wine-host-unix.sh` |

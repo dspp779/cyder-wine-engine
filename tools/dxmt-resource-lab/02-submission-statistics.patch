@@ -1,0 +1,162 @@
+--- a/src/dxmt/dxmt_statistics.hpp
++++ b/src/dxmt/dxmt_statistics.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include "util_flags.hpp"
+ #include <array>
++#include <algorithm>
+ #include <chrono>
+ 
+ namespace dxmt {
+@@ -41,6 +42,7 @@
+   uint32_t sync_count = 0;
+   clock::duration sync_interval{};
+   clock::duration commit_interval{};
++  clock::duration initializer_interval{};
+   uint32_t render_pass_count = 0;
+   uint32_t render_pass_optimized = 0;
+   uint32_t clear_pass_count = 0;
+@@ -63,6 +65,7 @@
+     sync_count = 0;
+     sync_interval = {};
+     commit_interval = {};
++    initializer_interval = {};
+     render_pass_count = 0;
+     render_pass_optimized = 0;
+     clear_pass_count = 0;
+@@ -118,14 +121,18 @@
+     min_.reset();
+     max_.reset();
+     average_.reset();
+-    current_frame = current_frame % kFrameStatisticsCount;
+-    for(unsigned i = 0; i < kFrameStatisticsCount; i++) {
+-      if (i == current_frame)
+-        continue; // deliberately exclude current frame since it
++    // PresentBoundary advances monotonically. Exclude the current (possibly
++    // still encoding) frame and never average uninitialized startup slots.
++    const auto samples = std::min<uint64_t>(current_frame, kFrameStatisticsCount - 1);
++    if (!samples) return;
++    for (uint64_t n = 1; n <= samples; n++) {
++      const auto i = (current_frame - n) % kFrameStatisticsCount;
++      if (n == 1) min_ = frames_[i];
+       min_.command_buffer_count = std::min(min_.command_buffer_count, frames_[i].command_buffer_count);
+       min_.sync_count = std::min(min_.sync_count, frames_[i].sync_count);
+-      min_.event_stall = std::min(min_.sync_count, frames_[i].event_stall);
++      min_.event_stall = std::min(min_.event_stall, frames_[i].event_stall);
+       min_.commit_interval = std::min(min_.commit_interval, frames_[i].commit_interval);
++      min_.initializer_interval = std::min(min_.initializer_interval, frames_[i].initializer_interval);
+       min_.sync_interval = std::min(min_.sync_interval, frames_[i].sync_interval);
+       min_.encode_prepare_interval = std::min(min_.encode_prepare_interval, frames_[i].encode_prepare_interval);
+       min_.encode_flush_interval = std::min(min_.encode_flush_interval, frames_[i].encode_flush_interval);
+@@ -137,6 +144,7 @@
+       max_.sync_count = std::max(max_.sync_count, frames_[i].sync_count);
+       max_.event_stall = std::max(max_.event_stall, frames_[i].event_stall);
+       max_.commit_interval = std::max(max_.commit_interval, frames_[i].commit_interval);
++      max_.initializer_interval = std::max(max_.initializer_interval, frames_[i].initializer_interval);
+       max_.sync_interval = std::max(max_.sync_interval, frames_[i].sync_interval);
+       max_.encode_prepare_interval = std::max(max_.encode_prepare_interval, frames_[i].encode_prepare_interval);
+       max_.encode_flush_interval = std::max(max_.encode_flush_interval, frames_[i].encode_flush_interval);
+@@ -148,21 +156,23 @@
+       average_.sync_count += frames_[i].sync_count;
+       average_.event_stall += frames_[i].event_stall;
+       average_.commit_interval += frames_[i].commit_interval;
++      average_.initializer_interval += frames_[i].initializer_interval;
+       average_.sync_interval += frames_[i].sync_interval;
+       average_.encode_prepare_interval += frames_[i].encode_prepare_interval;
+       average_.encode_flush_interval += frames_[i].encode_flush_interval;
+       average_.drawable_blocking_interval += frames_[i].drawable_blocking_interval;
+       average_.present_latency_interval += frames_[i].present_latency_interval;
+     }
+-    average_.command_buffer_count /= (kFrameStatisticsCount - 1);
+-    average_.sync_count /= (kFrameStatisticsCount - 1);
+-    average_.event_stall /= (kFrameStatisticsCount - 1);
+-    average_.commit_interval /= (kFrameStatisticsCount - 1);
+-    average_.sync_interval /= (kFrameStatisticsCount - 1);
+-    average_.encode_prepare_interval /= (kFrameStatisticsCount - 1);
+-    average_.encode_flush_interval /= (kFrameStatisticsCount - 1);
+-    average_.drawable_blocking_interval /= (kFrameStatisticsCount - 1);
+-    average_.present_latency_interval /= (kFrameStatisticsCount - 1);
++    average_.command_buffer_count /= samples;
++    average_.sync_count /= samples;
++    average_.event_stall /= samples;
++    average_.commit_interval /= samples;
++    average_.initializer_interval /= samples;
++    average_.sync_interval /= samples;
++    average_.encode_prepare_interval /= samples;
++    average_.encode_flush_interval /= samples;
++    average_.drawable_blocking_interval /= samples;
++    average_.present_latency_interval /= samples;
+   };
+ };
+ 
+--- a/src/dxmt/dxmt_command_queue.hpp
++++ b/src/dxmt/dxmt_command_queue.hpp
+@@ -150,6 +150,10 @@
+   std::array<CommandChunk, kCommandChunkCount> chunks;
+   uint64_t encoder_seq = 1;
+   uint64_t frame_count = 0;
++  bool resource_profile_ = false;
++  struct ResourceCommitSample { uint64_t frame, chunk, event, initializer_ns, ring_ns; };
++  std::array<ResourceCommitSample, 64> resource_commit_samples_{};
++  uint64_t resource_commit_count_ = 0;
+   uint32_t max_latency_ = 3;
+ 
+   dxmt::thread encodeThread;
+--- a/src/dxmt/dxmt_command_queue.cpp
++++ b/src/dxmt/dxmt_command_queue.cpp
+@@ -4,6 +4,7 @@
+ #include "util_env.hpp"
+ #include "util_win32_compat.h"
+ #include <atomic>
++#include <cstdio>
+ 
+ #define ASYNC_ENCODING 1
+ 
+@@ -35,6 +36,7 @@
+     cmd_library(device),
+     argument_encoding_ctx(*this, device, cmd_library),
+     initializer(device) {
++  resource_profile_ = env::getEnvVar("DXMT_CYDER_RESOURCE_PROFILE") == "1";
+   for (unsigned i = 0; i < kCommandChunkCount; i++) {
+     auto &chunk = chunks[i];
+     chunk.queue = this;
+@@ -67,6 +69,13 @@
+     chunk.reset();
+   };
+   event_listener_thread.join();
++  if (resource_profile_) {
++    const auto first = resource_commit_count_ > resource_commit_samples_.size() ? resource_commit_count_ - resource_commit_samples_.size() : 0;
++    for (auto i = first; i < resource_commit_count_; i++) {
++      const auto &s = resource_commit_samples_[i % resource_commit_samples_.size()];
++      std::fprintf(stderr, "CYDER_RESOURCE_COMMIT frame=%llu chunk=%llu event=%llu initializer_ns=%llu ring_ns=%llu\n", s.frame, s.chunk, s.event, s.initializer_ns, s.ring_ns);
++    }
++  }
+   TRACE("Destructed command queue");
+ }
+ 
+@@ -77,9 +86,12 @@
+   chunk.chunk_id = chunk_id;
+   chunk.chunk_event_id = GetNextEventSeqId();
+   chunk.frame_ = frame_count;
++  const auto initializer_start = resource_profile_ ? clock::now() : clock::time_point{};
+   chunk.resource_initializer_event_id = initializer.flushToWait();
++  const auto initializer_time = resource_profile_ ? clock::now() - initializer_start : clock::duration{};
+   auto& statistics = CurrentFrameStatistics();
+   statistics.command_buffer_count++;
++  statistics.initializer_interval += initializer_time;
+ #if ASYNC_ENCODING
+   ready_for_encode.fetch_add(1, std::memory_order_release);
+   ready_for_encode.notify_one();
+@@ -89,6 +101,12 @@
+   chunk_ongoing.fetch_add(1, std::memory_order_relaxed);
+   auto t1 = clock::now();
+   statistics.commit_interval += (t1 - t0);
++  if (resource_profile_) {
++    resource_commit_samples_[resource_commit_count_++ % resource_commit_samples_.size()] = {
++      frame_count, chunk_id, chunk.resource_initializer_event_id,
++      uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(initializer_time).count()),
++      uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count())};
++  }
+ 
+ #else
+   CommitChunkInternal(chunk, ready_for_encode.fetch_add(1, std::memory_order_relaxed));
