@@ -21,7 +21,7 @@ Canonical contract 為 [`config/engine-release.json`](../config/engine-release.j
 | CrossOver / Wine | CrossOver 26.3.0 / Wine 11.0 |
 | Engine label | `CX26.3.0-W11-Cyder013` |
 | Host | macOS x86_64，Apple Silicon 以 Rosetta 2 執行 |
-| Host minOS | 10.15；DXMT 可到 15.0，MoltenVK 1.4.2／1.2.10 reals 可到 12.0 |
+| Host minOS | 10.15；DXMT 可到 15.0，MoltenVK 1.4.2／1.2.10 reals 可到 12.0。**Cyder013 是最後支援 macOS 10.15／11 的引擎**：其 MoltenVK 1.2.10 沿用 Cyder012 的 minOS 10.15 binary（Xcode 27 SDK 最低只能建置 macOS 12）；之後的引擎僅支援 macOS 12+ |
 | MapleStory | CX26 MapleStory compatibility stack；D3DMetal / Apple GPTK 為主要路徑 |
 | MoltenVK | dual-variant 1.4.2 / 1.2.10；上游 real 套 capability + present 兩個 patch，timeline-wait 由 shim 提供 |
 | DXVK | 1.10.3，獨立 `lib/dxvk` payload |
