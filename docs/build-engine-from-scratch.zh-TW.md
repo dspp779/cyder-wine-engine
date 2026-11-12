@@ -58,7 +58,7 @@ flowchart LR
         EI[install/wine-cx26-x86_64<br/>Wine + cxcompatdb<br/>+ optional MoltenVK]
         GP[pack-graphics-payloads.sh]
         EP[pack-engine-artifact.sh<br/>strip → bundle → sign → minOS → archive]
-        EA[engine-wine-x86_64-*.tar.xz]
+        EA[engine-*.tar.zst]
         GA[graphics/*.tar.zst<br/>dxvk / dxmt]
     end
 
@@ -219,7 +219,7 @@ OEM25 的實際插件集合中。
 
 ```bash
 CYDER_ENGINE_VERSION_LABEL="$(head -n 1 config/engine-version.txt)" \
-  bash scripts/pack-engine-artifact.sh --xz --force
+  bash scripts/pack-engine-artifact.sh --zst --force
 ```
 
 只有刻意製作非影片的縮減版時才使用
@@ -408,7 +408,7 @@ bash tests/run.sh
 ```bash
 CYDER_ENGINE_VERSION_LABEL="$(head -n 1 config/engine-version.txt)" \
 SIGN_IDENTITY='-' \
-  bash scripts/pack-engine-artifact.sh --xz --force
+  bash scripts/pack-engine-artifact.sh --zst --force
 ```
 
 打包器預設使用 `full-video` media profile；若只是測試最小影音 fallback，需明確
@@ -423,16 +423,16 @@ copy（排除 lib/dxvk、lib/dxvk2、lib/dxmt）
 → bundle relocatable dylibs
 → codesign
 → host minOS scan
-→ tar.xz
+→ tar.zst
 → 解壓後再次驗證簽章
 ```
 
 輸出：
 
 ```text
-dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder013.tar.xz
-dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder013.tar.xz.sha256
-dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder013.tar.xz.manifest.json
+dist/artifacts/engine-CX26-3-0-W11-Cyder013.tar.zst
+dist/artifacts/engine-CX26-3-0-W11-Cyder013.tar.zst.sha256
+dist/artifacts/engine-CX26-3-0-W11-Cyder013.tar.zst.manifest.json
 dist/artifacts/graphics/dxvk-1.10.3.tar.zst
 dist/artifacts/graphics/dxmt-0.80.tar.zst   # Developer ID 簽署，沿用上游版本
 ```
@@ -440,7 +440,7 @@ dist/artifacts/graphics/dxmt-0.80.tar.zst   # Developer ID 簽署，沿用上游
 確認 engine archive 含 dual-variant MoltenVK：
 
 ```bash
-tar -tJf dist/artifacts/engine-wine-x86_64-CX26-3-0-W11-Cyder013.tar.xz \
+zstd -dc dist/artifacts/engine-CX26-3-0-W11-Cyder013.tar.zst | tar -tf - \
   | grep -E 'libMoltenVK|lib/dxvk|lib/dxmt'
 ```
 

@@ -58,7 +58,7 @@ macOS 27 的 `arch -x86_64` 也不能保證 clang 輸出架構，需同時檢查
 接著確認 build tree 的 install prefix：
 
 ```bash
-rg '^prefix =' build/cx26/sources/wine/build64/config.status
+grep '^prefix =' build/cx26/sources/wine/build64/config.status
 ```
 
 結果必須指向：
@@ -162,9 +162,9 @@ test -f "$ENGINE/lib/dxvk/x86_64-windows/d3d11.dll"
 test -f "$ENGINE/lib/dxvk/i386-windows/d3d11.dll"
 test -f "$ENGINE/lib/dxmt/x86_64-unix/winemetal.so"
 
-otool -l "$ENGINE/bin/wine" | rg minos
-otool -l "$ENGINE/bin/wineserver" | rg minos
-otool -l "$ENGINE/lib/wine/x86_64-unix/ntdll.so" | rg minos
+otool -l "$ENGINE/bin/wine" | grep minos
+otool -l "$ENGINE/bin/wineserver" | grep minos
+otool -l "$ENGINE/lib/wine/x86_64-unix/ntdll.so" | grep minos
 ```
 
 產品 host binaries 與 dylibs 的 `minos` 不得高於 10.15；DXMT 可到 15.0，
@@ -176,9 +176,9 @@ install：
 
 ```bash
 strings "$ENGINE/lib/wine/x86_64-unix/ntdll.so" \
-  | rg 'CYDER_MAPLESTORY_FILE_CACHE'
+  | grep 'CYDER_MAPLESTORY_FILE_CACHE'
 
-rg -F 'CYDER_MAPLESTORY_FILE_CACHE_SLOTS 512' \
+grep -F 'CYDER_MAPLESTORY_FILE_CACHE_SLOTS 512' \
   "$ENGINE_ROOT/build/cx26/sources/wine/dlls/ntdll/unix/file.c"
 ```
 
@@ -319,7 +319,7 @@ trace 不是預設值，因為它們會放大 log I/O 並干擾卡頓實驗。�
 ```bash
 CYDER_ENGINE_VERSION_LABEL="$(head -n 1 config/engine-version.txt)" \
 SIGN_IDENTITY='-' \
-  bash scripts/pack-engine-artifact.sh --xz --force
+  bash scripts/pack-engine-artifact.sh --zst --force
 ```
 
 pack 會檢查 DXVK、minOS、codesign 與 archive round-trip。不要把 raw install

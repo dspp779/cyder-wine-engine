@@ -16,7 +16,7 @@ bundle a pinned engine artifact during the first extraction phase.
 - Host: macOS x86_64; native on Intel, Rosetta on Apple Silicon
 - Product deployment floor: macOS 10.15 (`.env` / `MACOSX_DEPLOYMENT_TARGET`, default 10.15)
 - Architectures: x86_64 host with i386 and x86_64 Windows PE support
-- Graphics: dual-variant MoltenVK 1.4.2 / 1.2.10, DXVK 1.10.3, DXVK2 2.7.1, DXMT 0.80
+- Graphics: dual-variant MoltenVK 1.4.2 / 1.2.10, DXVK 1.10.3, DXMT 0.80 (DXVK 2 is not packed until it passes game testing)
 
 The canonical release contract is
 [`config/engine-release.json`](config/engine-release.json), with the same label
@@ -50,8 +50,9 @@ installation checks, and explicit x86_64 compiler targets. The 10.15 deployment
 floor describes generated host binaries; it does not make every macOS version
 a supported build host or guarantee every graphics backend works there.
 
-完整的首次建置流程（包括 Xcode、MoltenVK、Wine、graphics payload、測試及封裝）請看
-[`docs/build-engine-from-scratch.zh-TW.md`](docs/build-engine-from-scratch.zh-TW.md)。
+The complete first build (Xcode, MoltenVK, Wine, graphics payloads, tests and
+packing) is in
+[`docs/build-engine-from-scratch.zh-TW.md`](docs/build-engine-from-scratch.zh-TW.md).
 
 ```sh
 bash scripts/build-wine.sh --cx 26 --prepare-only
@@ -59,8 +60,8 @@ bash scripts/build-wine.sh --cx 26 --bootstrap-brew --install-deps \
   --configure-only --without-vulkan
 ```
 
-上面是只準備 source、Homebrew 與基礎依賴的最小流程；完整 engine 請依照上方的
-從零建置文件接續執行。
+These commands only prepare the sources, Homebrew and base dependencies; continue
+with the from-scratch guide for a complete engine.
 
 For the MapleStory production candidate, enable the compatibility stack on the
 single CX26 engine build:
@@ -93,7 +94,7 @@ reduced fallback only:
 
 ```sh
 CYDER_ENGINE_VERSION_LABEL="$(head -n 1 config/engine-version.txt)" \
-  bash scripts/pack-engine-artifact.sh --xz --force
+  bash scripts/pack-engine-artifact.sh --zst
 ```
 
 The packaged engine stores GStreamer plugins under
@@ -103,7 +104,10 @@ payloads remain separate as DXMT/DXVK artifacts.
 
 Graphics builds default to `MOLTENVK_DEPLOYMENT_TARGET=12.0` for both versioned
 MoltenVK reals, independently of the Wine/media host floor (10.15). Vulkan
-therefore requires macOS 12+; choosing the legacy version does not restore
+therefore requires macOS 12+ with a freshly built pair; choosing the legacy
+version does not restore Vulkan on macOS 10.15/11. Cyder013 is the exception:
+it reuses the previous engine's 1.2.10 binary (minOS 10.15) because a current
+Xcode SDK cannot target below macOS 12, so it is the last engine that supports
 Vulkan on macOS 10.15/11. See the
 [compatibility guide](docs/macos-rosetta-compatibility.zh-TW.md).
 
@@ -137,15 +141,15 @@ testing and pack hand-off, use
 The patch application is idempotent and can migrate a Cyder006 combined
 frame-walk patch into the current split patch set.
 
-Large ignored trees live in this repo (not CyderBits/ogom):
+Large ignored trees live in this repo (not CyderBits):
 
 - `.brew-x86`
 - `build`
 - `install`
 - `tools/archives`
 
-A CyderBits/ogom checkout may keep compatibility symlinks pointing here so old
-scripts still resolve the same paths. Prefer building and packing from this
+A CyderBits checkout keeps symlinks pointing here so its scripts resolve the
+same paths. Prefer building and packing from this
 repository.
 
 Host minOS comes from `.env` (`MACOSX_DEPLOYMENT_TARGET`, see `.env.example`)
@@ -159,9 +163,11 @@ bash scripts/rebuild-wine-host-unix.sh
 ## Test
 
 ```sh
-bash tests/test-release-contract.sh
 bash tests/run.sh
 ```
+
+`tests/run.sh` stops at the first failing test. Run a single test directly, for
+example `bash tests/test-release-contract.sh` after editing a doc or skill.
 
 The offline release-contract regression compares current docs, scripts, and
 examples with config, including both MoltenVK variants. Historical release
@@ -181,12 +187,12 @@ FRAME_WALK_WINE_RUNTIME=/path/to/wine-x86_64 \
 ```sh
 CYDER_ENGINE_VERSION_LABEL="$(head -n 1 config/engine-version.txt)" \
 SIGN_IDENTITY='Developer ID Application: …' \
-  bash scripts/pack-engine-artifact.sh --xz --force
+  bash scripts/pack-engine-artifact.sh --zst
 ```
 
 Outputs are placed in `dist/artifacts/`:
 
-- compressed engine archive;
+- compressed engine archive (`engine-<label>.tar.zst`);
 - archive `.sha256`;
 - embedded engine manifest;
 - archive sidecar `.manifest.json`;
