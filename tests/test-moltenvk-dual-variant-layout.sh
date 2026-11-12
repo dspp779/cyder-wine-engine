@@ -11,13 +11,14 @@ unix="$tmp/lib/wine/x86_64-unix"
 mkdir -p "$unix" "$tmp/reals"
 
 # Tiny x86_64 dylibs stand in for MoltenVK reals (no Xcode MoltenVK build needed).
+# Like the shipping reals, they declare minos 12.0.
 sdk="$(xcrun --sdk macosx --show-sdk-path)"
 cat >"$tmp/probe.c" <<'EOF'
 int cyder_moltenvk_dual_probe = 1;
 EOF
 for ver in 1.4.2 1.2.10; do
   arch -x86_64 env "${CYDER_HOST_CLANG:-/usr/bin/clang}" -arch x86_64 \
-    -mmacosx-version-min=10.15 \
+    -mmacosx-version-min=12.0 \
     -isysroot "$sdk" \
     -dynamiclib \
     -o "$tmp/reals/libMoltenVK-$ver.dylib" \
