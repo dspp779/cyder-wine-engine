@@ -40,6 +40,25 @@ CC='/custom/clang -arch x86_64' CXX='/custom/clang++ -arch x86_64' \
 OBJC='/custom/objc -arch x86_64' OBJCXX='/custom/objcpp -arch x86_64' media_prepare_native_file
 assert_contains "$(cat "$MEDIA_BUILD/cyder-native.ini")" "c = ['/custom/clang', '-arch', 'x86_64']" 'preserve caller compilers'
 
+# Host Python selection: explicit override, then a system Python that can
+# import Meson, then the interpreter in Meson's own shebang.
+mkdir -p "$tmp/py/site/mesonbuild"
+: > "$tmp/py/site/mesonbuild/__init__.py"
+: > "$tmp/py/site/mesonbuild/mesonlib.py"
+printf '#!/bin/bash\nexit 0\n' > "$tmp/py/good"
+printf '#!/bin/bash\nexit 1\n' > "$tmp/py/old"
+printf '#!/bin/bash\nexit 0\n' > "$tmp/py/own"
+chmod +x "$tmp/py/good" "$tmp/py/old" "$tmp/py/own"
+printf '#!%s\nimport sys\n' "$tmp/py/own" > "$tmp/py/meson"
+assert_eq "$(CYDER_HOST_PYTHON=/explicit/python MEDIA_SYSTEM_PYTHON="$tmp/py/old" media_host_python "$tmp/py/meson" "$tmp/py/site" 2>/dev/null)" \
+  /explicit/python 'explicit host Python wins'
+assert_eq "$(unset CYDER_HOST_PYTHON; MEDIA_SYSTEM_PYTHON="$tmp/py/good" media_host_python "$tmp/py/meson" "$tmp/py/site" 2>/dev/null)" \
+  "$tmp/py/good" 'a system Python that imports Meson stays the default'
+assert_eq "$(unset CYDER_HOST_PYTHON; MEDIA_SYSTEM_PYTHON="$tmp/py/old" media_host_python "$tmp/py/meson" "$tmp/py/site" 2>/dev/null)" \
+  "$tmp/py/own" 'a system Python too old for Meson falls back to the Meson interpreter'
+assert_eq "$(unset CYDER_HOST_PYTHON; MEDIA_SYSTEM_PYTHON="$tmp/py/old" media_host_python "$tmp/py/missing" "$tmp/py/site" 2>/dev/null)" \
+  "$tmp/py/old" 'without a usable Meson interpreter keep the system Python'
+
 # Build real Mach-O outputs through the production MESON_CMD and native file,
 # not a mock compiler: this catches Rosetta's arm64 default on macOS 27.
 export OGOM="$ROOT"
@@ -53,7 +72,8 @@ MESON_PACKAGE="$(find "$HOMEBREW_PREFIX/lib" -type d -path '*/site-packages/meso
 export PYTHON_SITE="${MESON_PACKAGE%/mesonbuild}"
 export MEDIA_BUILD="$tmp/real"
 export MEDIA_INSTALL="$tmp/install"
-export SYSTEM_PYTHON="${CYDER_HOST_PYTHON:-/usr/bin/python3}"
+SYSTEM_PYTHON="$(media_host_python "$MESON" "$PYTHON_SITE")"
+export SYSTEM_PYTHON
 if [[ -n "${CYDER_HOST_CLANG:-}" ]]; then
   export CC="$CYDER_HOST_CLANG -arch x86_64" OBJC="$CYDER_HOST_CLANG -arch x86_64"
   export CXX="${CYDER_HOST_CLANGXX:-${CYDER_HOST_CLANG}++} -arch x86_64"
