@@ -19,7 +19,7 @@ STUB
 printf 'existing archive\n' >"$TEMP/artifacts/engine-wine-x86_64-fixture.tar.xz"
 run_pack() {
   env -u CYDER_PE_SIGNING_POLICY -u CYDER_PE_SIGNER -u CYDER_PE_VERIFY_TOOL \
-    SIGN_IDENTITY='Developer ID Application: Fixture' CYDER_GRAPHICS_PACKAGE_REVISION=cyder.1 \
+    SIGN_IDENTITY='Developer ID Application: Fixture' \
     OGOM="$TEMP/project" WINE_INSTALL="$TEMP/engine" MEDIA_INSTALL="$TEMP/media" \
     CYDER_ENGINE_MEDIA_PROFILE=minimal CYDER_ENGINE_VERSION_LABEL=fixture \
     CYDER_ENGINE_ARTIFACTS_DIR="$TEMP/artifacts" CYDER_TEST_GRAPHICS_CALLS="$TEMP/graphics-calls" \
@@ -110,7 +110,7 @@ chmod +x "$TEMP/reject-tools/file" "$TEMP/reject-tools/codesign"
 if env -u CYDER_PE_SIGNING SIGN_IDENTITY='Developer ID Application: Fixture' \
   OGOM="$TEMP/project" WINE_INSTALL="$TEMP/engine" MEDIA_INSTALL="$TEMP/media" \
   CYDER_ENGINE_MEDIA_PROFILE=minimal CYDER_ENGINE_VERSION_LABEL=fixture-new \
-  CYDER_ENGINE_ARTIFACTS_DIR="$TEMP/artifacts" CYDER_GRAPHICS_PACKAGE_REVISION=cyder.1 \
+  CYDER_ENGINE_ARTIFACTS_DIR="$TEMP/artifacts" \
   CYDER_TEST_GRAPHICS_CALLS="$TEMP/graphics-calls" PATH="$TEMP/reject-tools:$PATH" \
   bash "$TEMP/project/scripts/pack-engine-artifact.sh" --force >"$TEMP/force-rejected.log" 2>&1; then
   echo 'FAIL: injected Mach-O round-trip rejection accepted' >&2; exit 1
@@ -135,7 +135,7 @@ rmdir "$TEMP/artifacts/engine-wine-x86_64-fixture-locked.tar.xz.pack-lock"
 env -u CYDER_PE_SIGNING SIGN_IDENTITY='Developer ID Application: Fixture' \
   OGOM="$TEMP/project" WINE_INSTALL="$TEMP/engine" MEDIA_INSTALL="$TEMP/media" \
   CYDER_ENGINE_MEDIA_PROFILE=minimal CYDER_ENGINE_VERSION_LABEL=fixture-new \
-  CYDER_ENGINE_ARTIFACTS_DIR="$TEMP/artifacts" CYDER_GRAPHICS_PACKAGE_REVISION=cyder.1 \
+  CYDER_ENGINE_ARTIFACTS_DIR="$TEMP/artifacts" \
   CYDER_TEST_GRAPHICS_CALLS="$TEMP/graphics-calls" \
   bash "$TEMP/project/scripts/pack-engine-artifact.sh" --force >"$TEMP/force-success.log" 2>&1
 python3 - "$TEMP" <<'PYTEST'

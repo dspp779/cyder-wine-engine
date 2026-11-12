@@ -174,7 +174,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 else
   graphics_pack_args=(--engine "$WINE_INSTALL")
   if [[ "${SIGN_IDENTITY:-}" == 'Developer ID Application: '* ]]; then
-    graphics_pack_args+=(--channel release --revision "${CYDER_GRAPHICS_PACKAGE_REVISION:?Set a new graphics revision cyder.N}")
+    graphics_pack_args+=(--channel release)
   fi
   if [[ "$FORCE" -eq 1 ]]; then
     graphics_pack_args+=(--force)
