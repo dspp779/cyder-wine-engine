@@ -10,7 +10,8 @@ description: >-
 
 # Incremental Wine build and test
 
-Use only in `/Users/jjc/cyder-wine-engine`. Do not use Cyder.app for engine tests.
+Use only in the engine checkout (`~/ogom/cyder-wine-engine`; the examples below
+write it as `$HOME/ogom/cyder-wine-engine`). Do not use Cyder.app for engine tests.
 
 ## Read first
 
@@ -22,7 +23,7 @@ changing or building Wine. For WZ work also read
 
 ## Non-negotiable rules
 
-- Set `OGOM=/Users/jjc/cyder-wine-engine`; run project scripts with `bash`.
+- Set `OGOM=$HOME/ogom/cyder-wine-engine`; run project scripts with `bash`.
 - Do not source `scripts/env-x86_64.sh` into interactive zsh.
 - Run manual host builds inside `bash -lc 'source scripts/env-x86_64.sh; ...'`.
 - Prefix manual host builds with `arch -x86_64`.
@@ -37,7 +38,7 @@ changing or building Wine. For WZ work also read
 Run before every change:
 
 ```bash
-ENGINE_ROOT=/Users/jjc/cyder-wine-engine
+ENGINE_ROOT=$HOME/ogom/cyder-wine-engine
 cd "$ENGINE_ROOT"
 export OGOM="$ENGINE_ROOT"
 git status --short
@@ -45,7 +46,7 @@ cat config/engine-version.txt
 rg '^prefix =' build/cx26/sources/wine/build64/config.status
 ```
 
-The prefix must be `/Users/jjc/cyder-wine-engine/install/wine-cx26-x86_64`.
+The prefix must be `$HOME/ogom/cyder-wine-engine/install/wine-cx26-x86_64`.
 Use `build/cx26/sources/wine` for source, `build64` for objects, `install/...`
 for the engine, and `/private/tmp/...` only for disposable test state. If the
 prefix is wrong, stop and reconfigure or run the full build.
@@ -57,7 +58,7 @@ For every patch, update the patch file, stable marker/apply list in
 narrowest relevant test. Then run:
 
 ```bash
-OGOM=/Users/jjc/cyder-wine-engine \
+OGOM=$HOME/ogom/cyder-wine-engine \
   bash scripts/build-wine.sh --cx 26 --maplestory --dry-run
 ```
 
@@ -65,7 +66,7 @@ Use the full build when patch order, configure, toolchain, prefix, or source
 state is uncertain:
 
 ```bash
-OGOM=/Users/jjc/cyder-wine-engine MACOSX_DEPLOYMENT_TARGET=10.15 \
+OGOM=$HOME/ogom/cyder-wine-engine MACOSX_DEPLOYMENT_TARGET=10.15 \
   bash scripts/build-wine.sh --cx 26 --maplestory \
   --with-vulkan --vulkan-source crossover --jobs 8
 ```
@@ -73,7 +74,7 @@ OGOM=/Users/jjc/cyder-wine-engine MACOSX_DEPLOYMENT_TARGET=10.15 \
 For a proven single host module:
 
 ```bash
-bash -lc 'cd /Users/jjc/cyder-wine-engine; export OGOM=/Users/jjc/cyder-wine-engine;
+bash -lc 'cd $HOME/ogom/cyder-wine-engine; export OGOM=$HOME/ogom/cyder-wine-engine;
 source scripts/env-x86_64.sh; arch -x86_64 make -j4 dlls/ntdll/ntdll.so'
 ```
 
@@ -91,14 +92,13 @@ Before a game test, confirm the version, architecture, minOS, patch markers, and
 payloads:
 
 ```bash
-ENGINE=/Users/jjc/cyder-wine-engine/install/wine-cx26-x86_64
+ENGINE=$HOME/ogom/cyder-wine-engine/install/wine-cx26-x86_64
 cat "$ENGINE/version"
 file "$ENGINE/bin/wineserver" "$ENGINE/lib/wine/x86_64-unix/ntdll.so"
 otool -l "$ENGINE/bin/wineserver" | rg minos
 otool -l "$ENGINE/lib/wine/x86_64-unix/ntdll.so" | rg minos
 strings "$ENGINE/lib/wine/x86_64-unix/ntdll.so" | rg 'CYDER_MAPLESTORY|CYDER_IO'
 test -f "$ENGINE/lib/dxvk/x86_64-windows/d3d11.dll"
-test -f "$ENGINE/lib/dxvk2/x86_64-windows/d3d11.dll"
 test -f "$ENGINE/lib/dxmt/x86_64-unix/winemetal.so"
 test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK-1.4.2.dylib"
 test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK-1.2.10.dylib"
@@ -107,8 +107,10 @@ test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.dylib"
 strings "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.dylib" | grep -q cyder-moltenvk-timeline-wait-poll
 ```
 
-Product host binaries must declare minOS ≤ 10.15; DXMT is the documented
-macOS 15+ exception. Do not test an install whose version or markers do not
+Product host binaries must declare minOS ≤ 10.15; DXMT (macOS 15+) and the
+versioned MoltenVK reals (up to 12.0) are the documented exceptions. DXVK 2 is
+not a release payload until it has passed game testing, so its absence from the
+install tree is not a failure. Do not test an install whose version or markers do not
 match the source change.
 
 ## 4. Handle Mach and sandbox failures
@@ -135,12 +137,12 @@ port and break the next client. Do not kill Wine processes system-wide.
 Use `scripts/run-maplestory-cx26-d3dmetal.sh`, never an implicit runtime:
 
 ```bash
-ENGINE=/Users/jjc/cyder-wine-engine/install/wine-cx26-x86_64
+ENGINE=$HOME/ogom/cyder-wine-engine/install/wine-cx26-x86_64
 EXE=/Users/jjc/games/tms/MapleStory.exe
 PREFIX=/private/tmp/cyder-cx26-test-prefix
 LOG_ROOT=/private/tmp/cyder-cx26-test-logs
 GPTK='/Users/jjc/Library/Application Support/Cyder-maplestory-oem25/runtime/apple_gptk'
-COMPATDB=/Users/jjc/ogom/compatdb/compiled/compatdb.cdb
+COMPATDB=$HOME/ogom/Cyderbits/compatdb/compiled/compatdb.cdb
 
 bash scripts/run-maplestory-cx26-d3dmetal.sh \
   --launch-exe "$EXE" --wine-install "$ENGINE" \

@@ -21,7 +21,7 @@ Canonical contract 為 [`config/engine-release.json`](../config/engine-release.j
 | CrossOver / Wine | CrossOver 26.3.0 / Wine 11.0 |
 | Engine label | `CX26.3.0-W11-Cyder013` |
 | Host | macOS x86_64，Apple Silicon 以 Rosetta 2 執行 |
-| Host minOS | 10.15；DXMT 可到 15.0，MoltenVK 1.4.2／1.2.10 reals 可到 12.0。**Cyder013 是最後支援 macOS 10.15／11 的引擎**：其 MoltenVK 1.2.10 沿用 Cyder012 的 minOS 10.15 binary（Xcode 27 SDK 最低只能建置 macOS 12）；之後的引擎僅支援 macOS 12+ |
+| Host minOS | 10.15；DXMT 可到 15.0，MoltenVK 1.4.2／1.2.10 reals 可到 12.0。**Cyder013 是最後支援 macOS 10.15／11 的引擎**：其 MoltenVK 1.2.10 沿用前一版引擎的 minOS 10.15 binary（Xcode 27 SDK 最低只能建置 macOS 12）；之後的引擎僅支援 macOS 12+ |
 | MapleStory | CX26 MapleStory compatibility stack；D3DMetal / Apple GPTK 為主要路徑 |
 | MoltenVK | dual-variant 1.4.2 / 1.2.10；上游 real 套 capability + present 兩個 patch，timeline-wait 由 shim 提供 |
 | DXVK | 1.10.3，獨立 `lib/dxvk` payload |
@@ -477,6 +477,14 @@ import／release 流程；不要手動解壓覆蓋使用者 runtime。Cyder 應�
 | `DXVK` log 但實際是 WineD3D | DLL 沒有 builtin stamp、payload 未安裝或舊 engine 不認識 token | 檢查 offset 64、runtime payload、`cxcompatdb.so` 與 engine label |
 | DXMT 啟動後立即結束 | 缺 `winemetal.dll` 或 macOS 不符合 DXMT 要求 | 重新 ensure DXMT，確認 prefix 與 payload 的 Windows／unix 檔案完整 |
 | 打包後缺少 versioned MoltenVK 或 shim | 未跑 `install-moltenvk-dual-variant.sh` | 組裝 dual layout 後再 pack；Cyder012+ 需要雙 real + `.real` + wait-poll shim |
+| Meson 報 `typing.ParamSpec` 等 Python 錯誤 | media stack 預設用 `/usr/bin/python3`（3.9），對新版 Meson 太舊 | 以 `CYDER_HOST_PYTHON=<較新的 python3>` 指定 host Python 後重跑 `build-media-stack.sh` |
+| GLib codegen 找不到 `distutils` | 新版 Python 已移除 `distutils` | 在 `CYDER_HOST_PYTHON` 指定的 Python 安裝 `setuptools` |
+| media stack 拒絕沿用 cache，或 GStreamer 指向舊路徑 | checkout 搬移後留下舊 prefix 的建置結果 | 把舊的 `install/media-*` 與 `build/cx26/media-*` 改名移開（不要直接刪），再重建 |
+| DXVK 建置缺 `glslangValidator` | `.brew-x86` 尚未安裝 glslang | 在專案的 x86_64 Homebrew 安裝 `glslang` 後重跑 |
+| DXVK 建置找不到 `crossover-sources-25.0.1.tar.gz` | CyderBits `build-dxvk.sh` 的預設來源仍是舊版封存檔 | CX26.3 內含相同的 DXVK 1.10.3；設定 `DXVK_SOURCE_ARCHIVE=tools/archives/crossover-sources-26.3.0.tar.gz` |
+| 從零建置時 bundle gate 因 `libMoltenVK.dylib` minos 12.0 失敗 | `--vulkan-source crossover` 先把 12.0 的 real 複製成未版本化檔名，dual layout 尚未組裝 | 先跑 `install-moltenvk-dual-variant.sh`，再以 `VULKAN_SOURCE=existing` 重新 bundle |
+| 新建的 MoltenVK 1.2.10 變成 minos 12.0 | 目前的 Xcode SDK 無法以低於 macOS 12 為目標 | Cyder013 是最後支援 macOS 10.15／11 的引擎，沿用前一版引擎的 10.15 版 1.2.10；之後的引擎僅支援 macOS 12+ |
+| 長時間建置中途卡住、等不到輸出 | checkout 位於 `~/Documents`／`~/Desktop`／`~/Downloads`，macOS 隱私權提示擋住背景程序 | 把 checkout 放在這些資料夾之外（目前為 `~/ogom/cyder-wine-engine`） |
 
 ## 相關文件
 
