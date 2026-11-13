@@ -93,6 +93,9 @@ def main(argv) -> int:
         print(f"Usage: {argv[0]} <engine-tree> [allowlist.tsv]", file=sys.stderr)
         return 2
     root = Path(argv[1])
+    if not root.is_dir():
+        print(f"Refusing to scan: engine tree is not a directory: {root}", file=sys.stderr)
+        return 1
     allowlist = Path(argv[2]) if len(argv) == 3 else DEFAULT_ALLOWLIST
     rows = load_allowlist(allowlist)
     violations = scan(root, rows)

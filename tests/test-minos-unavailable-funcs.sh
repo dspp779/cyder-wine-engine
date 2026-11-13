@@ -36,10 +36,13 @@ if host_system == 'darwin'
   functions += ['pthread_cpu_number_np']
 endif
 MESON
+# SDK 27 also declares pipe2; verify extraction against explicit function lists.
+expected_ac="$(python3 "$PROBE" --floor 10.15 dladdr1 pipe2 sched_yield pthread_cpu_number_np)"
+expected_meson="$(python3 "$PROBE" --floor 10.15 pipe2 poll pthread_cpu_number_np)"
 assert_eq "$(python3 "$PROBE" --floor 10.15 --configure-ac "$TMP/configure.ac")" \
-  "pthread_cpu_number_np	11.0" "configure.ac checks are probed (AC_CHECK_LIB is not overridable here)"
+  "$expected_ac" "configure.ac checks are probed (AC_CHECK_LIB is not overridable here)"
 assert_eq "$(python3 "$PROBE" --floor 10.15 --meson-build "$TMP/meson.build")" \
-  "pthread_cpu_number_np	11.0" "meson functions and functions += lists are probed"
+  "$expected_meson" "meson functions and functions += lists are probed"
 
 # A newer SDK (pipe2 in SDK 27) reports through the same clang message.
 cat >"$TMP/fake-cc" <<'SH'
@@ -57,6 +60,16 @@ printf '#!/bin/bash\necho "probe.c:1:10: fatal error: '"'"'stdio.h'"'"' file not
 chmod +x "$TMP/broken-cc"
 if python3 "$PROBE" --floor 10.15 --cc "$TMP/broken-cc" pipe2 2>/dev/null; then
   echo "a broken probe compiler must fail the build" >&2; exit 1
+fi
+
+# Driver errors and compiler crashes do not necessarily say "fatal error".
+if python3 "$PROBE" --floor 10.15 --cc '/usr/bin/clang --cyder-invalid-option' pipe2 2>/dev/null; then
+  echo "invalid compiler arguments must fail the build" >&2; exit 1
+fi
+printf '#!/bin/bash\nexit 42\n' >"$TMP/crashed-cc"
+chmod +x "$TMP/crashed-cc"
+if python3 "$PROBE" --floor 10.15 --cc "$TMP/crashed-cc" pipe2 2>/dev/null; then
+  echo "a silent compiler failure must fail the build" >&2; exit 1
 fi
 
 # build-wine.sh passes each finding to configure as ac_cv_func_<name>=no.

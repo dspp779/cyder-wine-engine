@@ -83,8 +83,19 @@ def unavailable(functions, floor: str, cc: str):
         ]
         proc = subprocess.run(cmd, capture_output=True, text=True)
     err = proc.stderr
-    if "fatal error" in err:
-        raise RuntimeError(f"probe compile failed:\n{err}")
+    # Missing declarations are expected when probing non-macOS functions.
+    # Other errors (including driver errors without "fatal error") must not
+    # turn a broken compiler invocation into an empty successful result.
+    errors = [line for line in err.splitlines() if "error:" in line]
+    expected_error = re.compile(
+        r"use of undeclared identifier '\w+'|"
+        r"'\w+' is only available on macOS [\d.]+ or newer|"
+        r"'\w+' is unavailable"
+    )
+    if ("fatal error" in err or
+            any(not expected_error.search(line) for line in errors) or
+            (proc.returncode != 0 and not errors)):
+        raise RuntimeError(f"probe compile failed (exit {proc.returncode}):\n{err}")
     wanted = set(functions)
     found = {}
     for name, version in ONLY_AVAILABLE_RE.findall(err):

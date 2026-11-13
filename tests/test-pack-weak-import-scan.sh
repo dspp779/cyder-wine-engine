@@ -57,6 +57,15 @@ if python3 "$SCAN" "$ENGINE" "$TMP/bad.tsv" >/dev/null 2>&1; then
   echo "ASSERT failed: a row without a guard column must be rejected" >&2; exit 1
 fi
 
+# A typo or missing engine tree must never produce an all-clear result.
+if python3 "$SCAN" "$TMP/missing-engine" >"$TMP/missing.out" 2>"$TMP/missing.err"; then
+  echo "ASSERT failed: a missing engine tree must refuse the scan" >&2; exit 1
+fi
+assert_contains "$(<"$TMP/missing.err")" "not a directory" "missing input names the error"
+if python3 "$SCAN" "$UNIX/notes.txt" >/dev/null 2>&1; then
+  echo "ASSERT failed: a file cannot be scanned as an engine tree" >&2; exit 1
+fi
+
 # Rows must never wave through the Cyder013 crash.
 if grep -E $'^(_pipe2|_strchrnul|\\*)\t' "$ROOT/config/weak-import-allowlist.tsv"; then
   echo "ASSERT failed: _pipe2/_strchrnul must be removed at build time, not allowlisted" >&2; exit 1
