@@ -101,6 +101,8 @@ assert_contains "$output" "$ROOT/patches/cyder-winemac-gl-front-buffer-present.p
   "build should present winemac OpenGL front-buffer flushes"
 assert_contains "$output" "$ROOT/patches/cyder-kernelbase-disk-free-space-fallback.patch" \
   "build should retry GetDiskFreeSpaceExW on a real mapped volume when the device root cannot be opened"
+assert_contains "$output" "$ROOT/patches/cyder-wpcap-pcap-init-availability.patch" \
+  "build should call pcap_init only where macOS provides it"
 assert_contains "$output" "$ROOT/patches/cyder-ntdll-query-directory-object-trace.patch" \
   "build should remove obsolete QDO TRACE before applying optnone"
 # Tarball trees skip make_*; git checkouts regenerate.

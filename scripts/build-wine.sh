@@ -459,6 +459,9 @@ apply_cyder_patch() {
   elif [[ "$(basename "$patch_file")" == "cyder-wined3d-gl-sm5-feature-level-11.patch" ]] &&
        grep -Fq 'CyderGLShaderModel5' "$WINE_SRC/dlls/wined3d/wined3d_main.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-wpcap-pcap-init-availability.patch" ]] &&
+       grep -Fq 'pcap_init() is macOS 12.1+' "$WINE_SRC/dlls/wpcap/unixlib.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
   else
     echo "Cannot apply required Wine patch: $patch_file" >&2
     exit 1
@@ -549,6 +552,7 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/wine-winemac-initialize-style-masks.patch"
   apply_cyder_patch "$OGOM/patches/wine-win32u-full-client-visible-rect.patch"
   apply_cyder_patch "$OGOM/patches/cyder-ntdll-native-ddraw-path.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-wpcap-pcap-init-availability.patch"
 
   apply_maplestory_patch() {
       local patch_name="$1"
@@ -675,6 +679,21 @@ fi
 if [[ ${#CONFIGURE_VULKAN_FLAG[@]} -gt 0 ]]; then
   CONFIGURE_CMD+=("${CONFIGURE_VULKAN_FLAG[@]}")
 fi
+
+# configure only checks that a function links. A newer SDK declares functions
+# the floor lacks (pipe2 in SDK 27), so HAVE_PIPE2 got set and ntdll called a
+# NULL weak import on macOS 15.8. Mark every such function as missing.
+MINOS_UNAVAILABLE=""
+if [[ -f "$WINE_SRC/configure.ac" ]]; then
+  MINOS_UNAVAILABLE="$(python3 "$SCRIPT_DIR/minos-unavailable-funcs.py" \
+    --floor "$CYDER_MIN_OS_TARGET" --cc "${CC:-/usr/bin/clang -arch x86_64}" \
+    --configure-ac "$WINE_SRC/configure.ac")"
+fi
+while IFS=$'\t' read -r func introduced; do
+  [[ -n "$func" ]] || continue
+  echo "host minOS: $func needs macOS $introduced; configure override ac_cv_func_$func=no"
+  CONFIGURE_CMD+=("ac_cv_func_$func=no")
+done <<<"$MINOS_UNAVAILABLE"
 
 echo "configure command:"
 printf '  '

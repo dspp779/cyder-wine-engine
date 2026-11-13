@@ -28,7 +28,10 @@ This checkout is `~/ogom/cyder-wine-engine`.
    `scripts/pack-minos-scan.py`: DXMT under `lib/dxmt/` (up to 15.0) and the
    versioned MoltenVK files `libMoltenVK-1.4.2.dylib` and
    `libMoltenVK-1.2.10.dylib` (up to 12.0). The unversioned MoltenVK shim stays
-   at 10.15.
+   at 10.15. `minos` is not enough: a function the SDK has and the floor lacks
+   is a weak import that is NULL on older macOS. `scripts/pack-weak-import-scan.py`
+   refuses any macOS weak import without a reviewed row in
+   `config/weak-import-allowlist.tsv`.
 3. **Patches are applied by `scripts/build-wine.sh`**, never by editing an
    install tree. A new patch needs: the patch file, its entry and marker in
    `build-wine.sh`, `patches/README.md`, `config/engine-release.json`, and a test.
@@ -73,6 +76,7 @@ editing any doc or skill.
 
 | Symptom | Cause | Do |
 |---|---|---|
+| Engine crashes at startup on older macOS (`server_pipe` jumps to 0) though `minos` is 10.15 | A newer SDK declares a function (`pipe2`, SDK 27) so configure enables it; it is a NULL weak import below that macOS | `scripts/minos-unavailable-funcs.py` turns these off in Wine and GLib; anything else: guard the call or override the check, never allowlist an unguarded call |
 | Host binary reports `minos 15.0` or arm64 | Build ran without the project environment | `bash scripts/rebuild-wine-host-unix.sh`; do not patch single objects |
 | `server_mach_port` errors, hang before a window | No Mach/desktop access (sandbox) | Rerun in a desktop session; do not change Wine code |
 | Test result does not match the change | Wrong engine, prefix or wineserver was used | Record all three before each run; discard runs where any is unknown |

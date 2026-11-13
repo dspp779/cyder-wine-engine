@@ -193,6 +193,7 @@ BUILD_PATH=/fake/mingw/bin:/fake/brew/bin:/usr/bin:/bin
 HOMEBREW_PREFIX=/fake/brew
 VULKAN_PKG_PC_PATH=/fake/brew/lib/pkgconfig
 WINE_INSTALL=/fake/install
+WINE_SRC=/fake/src
 BUILD_TESTS=0
 MAPLESTORY=0
 CONFIGURE_ONLY=0

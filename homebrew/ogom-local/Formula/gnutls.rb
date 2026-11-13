@@ -38,7 +38,7 @@ class Gnutls < Formula
   depends_on "texinfo" => :build
   depends_on "ca-certificates" => :no_linkage
   depends_on "gmp"
-  depends_on "libidn2"
+  depends_on "ogom/local/libidn2"
   depends_on "libtasn1"
   depends_on "libunistring"
   depends_on "nettle"

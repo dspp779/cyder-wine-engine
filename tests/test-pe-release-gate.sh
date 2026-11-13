@@ -54,7 +54,9 @@ cp "$ROOT/scripts/write-engine-manifest.sh" "$TEMP/project/scripts/"
 for helper in strip-wine-install.sh bundle-wine-dylibs.sh sign-wine.sh; do
   printf '#!/usr/bin/env bash\nexit 0\n' >"$TEMP/project/scripts/$helper"
 done
-printf 'import sys\nsys.exit(0)\n' >"$TEMP/project/scripts/pack-minos-scan.py"
+for gate in pack-minos-scan.py pack-weak-import-scan.py; do
+  printf 'import sys\nsys.exit(0)\n' >"$TEMP/project/scripts/$gate"
+done
 python3 - "$TEMP/engine" <<'CAPABILITY'
 from pathlib import Path
 import struct,sys

@@ -1,0 +1,17 @@
+--- a/dlls/wpcap/unixlib.c
++++ b/dlls/wpcap/unixlib.c
+@@ -248,7 +248,14 @@
+ static NTSTATUS wrap_init( void *args )
+ {
+     const struct init_params *params = args;
++#ifdef __APPLE__
++    /* pcap_init() is macOS 12.1+; older libpcap needs no init, so report success. */
++    if (__builtin_available( macOS 12.1, * ))
++        return pcap_init( params->opt, params->errbuf );
++    return 0;
++#else
+     return pcap_init( params->opt, params->errbuf );
++#endif
+ }
+ 
+ static NTSTATUS wrap_lib_version( void *args )
