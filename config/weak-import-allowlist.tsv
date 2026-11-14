@@ -1,0 +1,23 @@
+# Weak imports from macOS system libraries that scripts/pack-weak-import-scan.py
+# accepts. A weak import is NULL on a macOS that lacks the symbol, so each
+# entry must name the guard that keeps it from being called there.
+# Cyder013 shipped an unguarded _pipe2 (SDK 27) and crashed on macOS 15.8.
+#
+# Columns (tab-separated): symbol glob, engine-relative path glob, guard.
+# Review the call site before adding a row; never add a row to make a pack pass.
+__availability_version_check	*	Runtime behind __builtin_available / @available; checked by libSystem itself.
+___darwin_check_fd_set_overflow	*	SDK FD_SET inline tests the symbol address before calling (sys/_types/_fd_def.h).
+___ulock_wait2	lib/wine/x86_64-unix/ntdll.so	msync.c ulock_wait: __builtin_available(macOS 11.0).
+_pthread_cpu_number_np	lib/wine/x86_64-unix/ntdll.so	thread.c NtGetCurrentProcessorNumber: __builtin_available(macOS 11.0).
+_os_sync_wait_on_address	lib/wine/x86_64-unix/ntdll.so	sync.c futex_wait: __builtin_available(macOS 14.4).
+_os_sync_wait_on_address_with_timeout	lib/wine/x86_64-unix/ntdll.so	sync.c futex_wait: __builtin_available(macOS 14.4).
+_os_sync_wake_by_address_any	lib/wine/x86_64-unix/ntdll.so	sync.c futex_wake_one: __builtin_available(macOS 14.4).
+_pcap_init	lib/wine/x86_64-unix/wpcap.so	cyder-wpcap-pcap-init-availability.patch: __builtin_available(macOS 12.1).
+_cl*	lib/wine/x86_64-unix/opencl.so	OpenCL 1.1 entry points weak by SDK design (CL_EXTENSION_WEAK_LINK); present since macOS 10.7.
+_HVF_*	lib/wine/x86_64-unix/libfreetype.6.dylib	FreeType calls libhvf only after __isPlatformVersionAtLeast(15.4).
+_kCGColorSpaceITUR_2100_*	lib/wine/x86_64-unix/libMoltenVK-1.2.10.dylib	Present on macOS 11; the 1.2.10 real's floor is 12.0.
+_MTLCommandBufferEncoderInfoErrorKey	lib/wine/x86_64-unix/libMoltenVK-1.2.10.dylib	MVKQueue::handleMTLCommandBufferError checks &MTLCommandBufferEncoderInfoErrorKey != nullptr before reading the key.
+_OBJC_CLASS_$_MTLBlitPassDescriptor	lib/wine/x86_64-unix/libMoltenVK-1.2.10.dylib	MVKCommandEncoder uses this only for queued pipeline-stage timestamp queries; MVKDevice enables stage sampling only after respondsToSelector(supportsCounterSampling:).
+_OBJC_CLASS_$_MTLCommandBufferDescriptor	lib/wine/x86_64-unix/libMoltenVK-1.2.10.dylib	MVKQueue::getMTLCommandBuffer checks respondsToSelector(commandBufferWithDescriptor:) and falls back to legacy command-buffer methods.
+_OBJC_CLASS_$_MTLMeshRenderPipelineDescriptor	lib/wine/x86_64-unix/libMoltenVK-1.2.10.dylib	macOS 13 class; a missing weak class is nil, so [... new] returns nil and the mesh pipeline fails to create.
+_OBJC_CLASS_$_MTLResidencySetDescriptor	lib/wine/x86_64-unix/libMoltenVK-1.4.2.dylib	MVKDevice::initQueues uses it only when the residencySets feature check passes.

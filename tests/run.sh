@@ -61,6 +61,9 @@ tests=(
   test-pack-engine-dxmt-gate.sh
   test-pack-minos-scan.sh
   test-pack-minos-scan-moltenvk-exempt.sh
+  test-pack-weak-import-scan.sh
+  test-minos-unavailable-funcs.sh
+  test-wpcap-pcap-init-availability.sh
 )
 
 for test_file in "${tests[@]}"; do
