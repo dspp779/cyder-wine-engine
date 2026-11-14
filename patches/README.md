@@ -116,7 +116,9 @@ With `CYDER_MAPLESTORY_READAHEAD=1`, once fills on a handle keep moving
 forward (gaps ≤ 1 MiB, two in a row) it issues an asynchronous
 `fcntl(F_RDADVISE)` for the next 2 MiB past a moving frontier, the way the NT
 cache manager reads ahead. Off by default; applies on top of the adaptive cache
-patches and is **not** in the apply list yet. Measurements and the reasoning
+patches and is **not** in the apply list yet. Game test (2026-11-15, DXVK,
+files evicted, one run): first-hit window fills 388 → 108 ms, longest frame
+gap ~1 s → 291 ms. Measurements and the reasoning
 are in CyderBits `docs/games/maplestory/stutter-test-plan.md` (branch
 `claude/stutter-trace`).
 
