@@ -16,6 +16,7 @@ tests=(
   test-cyder-cxcompatdb.sh
   test-cyder-minos-env.sh
   test-ntdll-frame-walk-patches.sh
+  test-ntdll-mono-gs-last-error.sh
   test-pe-release-gate.sh
   test-strip-wine-install.sh
   test-sign-wine.sh
