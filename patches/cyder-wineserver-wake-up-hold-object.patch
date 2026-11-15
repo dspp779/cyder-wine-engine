@@ -1,0 +1,26 @@
+--- a/server/thread.c	2026-11-15 15:46:16
++++ b/server/thread.c	2026-11-15 15:46:16
+@@ -1390,6 +1390,14 @@
+ {
+     struct list *ptr;
+     int ret;
++
++    /* cyder: wake_up holds obj. Waking a thread of a dying process can kill
++     * it (send_thread_wakeup gets EPIPE -> kill_thread), and the last thread
++     * of that process closes its handles; when one held the last reference
++     * to obj, obj was freed while this loop still walked its wait queue.
++     * Waiters hold references, so a non-empty queue means obj is alive. */
++    if (list_empty( &obj->wait_queue )) return;
++    grab_object( obj );
+ 
+     LIST_FOR_EACH( ptr, &obj->wait_queue )
+     {
+@@ -1399,6 +1407,8 @@
+         /* restart at the head of the list since a wake up can change the object wait queue */
+         ptr = &obj->wait_queue;
+     }
++
++    release_object( obj );
+ }
+ 
+ /* return the apc queue to use for a given apc type */
