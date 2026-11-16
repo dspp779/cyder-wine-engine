@@ -203,6 +203,7 @@ brew_x86() {
 
 # Vendored tap: homebrew/ogom-local → .brew-x86/.../ogom/homebrew-local (ogom/local).
 # gnutls drops homebrew-core's "older clang" GitLab .diff (HTTP 403 on fetch).
+# libidn2 tells gnulib that strchrnul (macOS 15.4) is newer than the floor.
 brew_x86_ensure_local_tap() {
   local src="$OGOM/homebrew/ogom-local"
   local dest="$HOMEBREW_PREFIX/Library/Taps/ogom/homebrew-local"
@@ -221,6 +222,7 @@ brew_x86_ensure_local_tap() {
 brew_x86_runtime_formula() {
   case "$1" in
     gnutls | ogom/local/gnutls) printf '%s\n' "ogom/local/gnutls" ;;
+    libidn2 | ogom/local/libidn2) printf '%s\n' "ogom/local/libidn2" ;;
     *) printf '%s\n' "$1" ;;
   esac
 }
@@ -263,7 +265,7 @@ brew_x86_install_runtime() {
 
   for formula in "$@"; do
     case "$formula" in
-      gnutls | ogom/local/gnutls) need_local_tap=1 ;;
+      gnutls | ogom/local/gnutls | libidn2 | ogom/local/libidn2) need_local_tap=1 ;;
     esac
   done
   if [[ "$need_local_tap" -eq 1 ]]; then
@@ -397,8 +399,22 @@ EOF
     fi
   fi
 
+  # A vendored formula replaces a keg built from another tap (homebrew-core's
+  # libidn2 imports strchrnul weakly even at minos 10.15).
+  _ogom_formula_wrong_tap() {
+    local f="$1" receipt
+    [[ "$f" == */*/* ]] || return 1
+    receipt="$HOMEBREW_PREFIX/opt/$(brew_x86_runtime_formula_leaf "$f")/INSTALL_RECEIPT.json"
+    [[ -f "$receipt" ]] || return 1
+    ! grep -Eq "\"tap\"[[:space:]]*:[[:space:]]*\"${f%/*}\"" "$receipt"
+  }
+
   for formula in "${formulae[@]}"; do
-    if brew_x86 list --versions "$formula" >/dev/null 2>&1; then
+    if _ogom_formula_wrong_tap "$formula"; then
+      echo "brew_x86_install_runtime: replacing $(brew_x86_runtime_formula_leaf "$formula") from another tap with $formula"
+      brew_x86 uninstall --ignore-dependencies "$(brew_x86_runtime_formula_leaf "$formula")"
+      missing+=("$formula")
+    elif brew_x86 list --versions "$formula" >/dev/null 2>&1; then
       if _ogom_formula_needs_rebuild "$formula"; then
         reinstall+=("$formula")
       else

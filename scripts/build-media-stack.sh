@@ -146,6 +146,23 @@ if [[ -f "$MEDIA_BUILD/glib-build/build.ninja" ]]; then
 else
   "${MESON_CMD[@]}" setup "$MEDIA_BUILD/glib-build" "$GLIB_SRC" "${GLIB_SETUP_ARGS[@]}"
 fi
+# has_function() only checks that a symbol links, so SDK 27 turns on HAVE_PIPE2
+# and GLib calls a NULL weak import on macOS without pipe2 (15.8 included).
+# Drop the define for every function the floor lacks; GLib falls back to pipe().
+GLIB_CONFIG_H="$MEDIA_BUILD/glib-build/config.h"
+GLIB_UNAVAILABLE="$("$SYSTEM_PYTHON" "$SCRIPT_DIR/minos-unavailable-funcs.py" \
+  --floor "$MACOSX_DEPLOYMENT_TARGET" --cc "${CC:-/usr/bin/clang -arch x86_64}" \
+  --meson-build "$GLIB_SRC/meson.build")"
+while IFS=$'\t' read -r func introduced; do
+  [[ -n "$func" ]] || continue
+  define="HAVE_$(tr '[:lower:]' '[:upper:]' <<<"$func")"
+  echo "host minOS: $func needs macOS $introduced; removing $define from GLib config.h"
+  sed -i '' "/^#define $define 1\$/d" "$GLIB_CONFIG_H"
+  if grep -qE "^#define $define([[:space:]]|\$)" "$GLIB_CONFIG_H"; then
+    echo "Could not remove $define from $GLIB_CONFIG_H" >&2
+    exit 1
+  fi
+done <<<"$GLIB_UNAVAILABLE"
 "${MESON_CMD[@]}" compile -C "$MEDIA_BUILD/glib-build" -j "$JOBS"
 media_verify_x86_64 "$MEDIA_BUILD/glib-build"
 "${MESON_CMD[@]}" install -C "$MEDIA_BUILD/glib-build"
@@ -266,5 +283,6 @@ fi
 
 media_verify_x86_64 "$MEDIA_INSTALL"
 "$SYSTEM_PYTHON" "$SCRIPT_DIR/pack-minos-scan.py" "$MEDIA_INSTALL" "$MACOSX_DEPLOYMENT_TARGET"
+"$SYSTEM_PYTHON" "$SCRIPT_DIR/pack-weak-import-scan.py" "$MEDIA_INSTALL"
 
 echo "${MEDIA_PROFILE} CX$CX_VERSION media stack installed: $MEDIA_INSTALL"

@@ -113,6 +113,12 @@ test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.dylib"
 strings "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.dylib" | grep -q cyder-moltenvk-timeline-wait-poll
 ```
 
+Then check weak imports, which `minos` does not show:
+
+```bash
+python3 "$HOME/ogom/cyder-wine-engine/scripts/pack-weak-import-scan.py" "$ENGINE"
+```
+
 Product host binaries must declare minOS ≤ 10.15; DXMT (macOS 15+) and the
 versioned MoltenVK reals (up to 12.0) are the documented exceptions. DXVK 2 is
 not a release payload until it has passed game testing, so its absence from the
@@ -232,6 +238,8 @@ bash tests/test-maplestory-file-cache-patch.sh
 bash tests/test-maplestory-d3dmetal-launcher.sh
 bash tests/test-engine-manifest.sh
 bash tests/test-pack-minos-scan.sh
+bash tests/test-pack-weak-import-scan.sh
+bash tests/test-minos-unavailable-funcs.sh
 bash tests/run.sh
 ```
 

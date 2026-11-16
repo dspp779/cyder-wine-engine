@@ -349,6 +349,8 @@ python3 "$SCRIPT_DIR/verify-native-ddraw-capability.py" --root "$ENGINE_TREE" \
 
 # Fail closed: every host Mach-O must stay at/below the product minOS floor.
 python3 "$SCRIPT_DIR/pack-minos-scan.py" "$ENGINE_TREE" "${MACOSX_DEPLOYMENT_TARGET:-10.15}"
+# minos alone missed Cyder013's NULL _pipe2: also refuse unguarded weak imports.
+python3 "$SCRIPT_DIR/pack-weak-import-scan.py" "$ENGINE_TREE"
 NTDLL="$ENGINE_TREE/lib/wine/x86_64-windows/ntdll.dll"
 [[ -f "$NTDLL" ]] || {
   echo "Missing packaged NTDLL: $NTDLL" >&2
