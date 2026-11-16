@@ -39,6 +39,10 @@ grep -Fq 'CYDER_MONO_GS_LASTERROR' "$FILE" || fail "opt-out variable missing"
 grep -Fq 'if (!is_builtin) cyder_fix_mono_last_error( *module, nt, nt_name );' "$FILE" || fail "loader hook missing"
 # Thunks read through the TEB pointer at %gs:0x30, never %gs:0x68.
 grep -Fq '"movq %gs:0x30,%" #reg64' "$FILE" || fail "thunk does not read the TEB pointer"
+# Stores ("mov r32, %gs:0x68") go to the TEB through a scratch register.
+grep -Fq 'cyder_mono_gls_thunks[16]' "$FILE" || fail "store thunks missing"
+grep -Fq '"movl %" #src32 ",0x68(%" #scratch64 ")' "$FILE" || fail "store thunk does not write through the TEB pointer"
+grep -Fq "op[0] != 0x8b && op[0] != 0x89" "$FILE" || fail "scanner does not match stores"
 # Emitter replacement: mov r64,%gs:0x30 (65 48 8B ..) then mov r32,0x68(r64).
 grep -Fq '*code++ = 0x30; *code++ = 0; *code++ = 0; *code++ = 0;' "$FILE" || fail "emitter does not load %gs:0x30"
 grep -Fq '*code++ = 0x68;' "$FILE" || fail "emitter does not read offset 0x68"

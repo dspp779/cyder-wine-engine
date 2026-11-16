@@ -6,6 +6,8 @@
  *   3. managed: File.Exists(missing)                   (expect False)
  *   4. managed: Directory.GetFiles(existing dir)       (expect no exception)
  *   5. managed: Marshal.GetLastWin32Error after (3)
+ *   6. host TSD slot %gs:0x68 is unchanged by Mono (it holds the macOS gmtime
+ *      buffer pointer on macOS; Mono must not write the last error there)
  *
  * usage: monoerr.exe <game-root-windows-path> <existing-dir> <missing-file>
  */
@@ -38,7 +40,10 @@ int main(int argc, char **argv)
     DWORD err;
     void *domain, *image, *klass, *m, *s, *r, *args[1];
 
+    unsigned long long gs68_before, gs68_after;
+
     if (argc < 4) { printf("usage: monoerr <game-root> <existing-dir> <missing-file>\n"); return 2; }
+    __asm__ volatile ("movq %%gs:0x68, %0" : "=r" (gs68_before));
 
     /* 1. native enumeration */
     snprintf(path, sizeof(path), "%s\\*", argv[2]);
@@ -92,6 +97,9 @@ int main(int argc, char **argv)
     r = invoke(m, args, "managed Directory.GetFiles(existing)");
     if (r) printf("managed Directory.GetFiles(existing) = OK (%d files)\n",
                   (int)((unsigned long long (*)(void *))F(mono_array_length))(r));
+    __asm__ volatile ("movq %%gs:0x68, %0" : "=r" (gs68_after));
+    printf("%%gs:0x68 before=%#llx after=%#llx %s\n", gs68_before, gs68_after,
+           gs68_before == gs68_after ? "(unchanged)" : "(CHANGED)");
     fflush(stdout);
     return 0;
 }

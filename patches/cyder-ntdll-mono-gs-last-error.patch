@@ -20,11 +20,10 @@
  
      /* create the MODREF */
  
-@@ -5102,7 +5108,186 @@
- 
+@@ -5103,6 +5109,219 @@
      wine_get_host_version( &sysname, NULL );
      return !strcmp( sysname, "Darwin" );
-+}
+ }
 +
 +/* cyder: mono gs LastErrorValue
 + *
@@ -32,9 +31,10 @@
 + * ThreadLocalStoragePointer (0x58) and Peb (0x60) are mirrored there.  Unity
 + * Mono reads TEB.LastErrorValue inline as "mov r32, %gs:0x68" (for example in
 + * mono_marshal_set_last_error), so Marshal.GetLastWin32Error() returns host TSD
-+ * garbage and managed file APIs throw.  Rewrite those reads in Mono DLLs into a
-+ * call to a thunk that loads LastErrorValue through the real TEB pointer.
-+ * Each thunk only writes its destination register and leaves the flags alone.
++ * garbage and managed file APIs throw.  Rewrite those reads (and the matching
++ * "mov r32, %gs:0x68" stores) in Mono DLLs into calls to thunks that access
++ * LastErrorValue through the real TEB pointer.  A load thunk only writes its
++ * destination register; no thunk changes the flags.
 + * CYDER_MONO_GS_LASTERROR=0 disables it.
 + */
 +#define CYDER_GLE_THUNK(reg64, reg32) \
@@ -47,6 +47,37 @@
 +CYDER_GLE_THUNK(r8, r8d)   CYDER_GLE_THUNK(r9, r9d)   CYDER_GLE_THUNK(r10, r10d) CYDER_GLE_THUNK(r11, r11d)
 +CYDER_GLE_THUNK(r12, r12d) CYDER_GLE_THUNK(r13, r13d) CYDER_GLE_THUNK(r14, r14d) CYDER_GLE_THUNK(r15, r15d)
 +#undef CYDER_GLE_THUNK
++
++/* Mono also saves and restores the last error around helper calls with
++ * "mov %gs:0x68, r32 ... mov r32, %gs:0x68".  Once the reads are fixed, a
++ * restore must go to the TEB too: writing %gs:0x68 would overwrite the host
++ * gmtime() buffer pointer kept in that TSD slot.  The store thunks save one
++ * scratch register and leave the flags and every other register alone. */
++#define CYDER_GLS_THUNK(src32, scratch64) \
++    __ASM_GLOBAL_FUNC( cyder_mono_gls_##src32, \
++                       "pushq %" #scratch64 "\n\t" \
++                       "movq %gs:0x30,%" #scratch64 "\n\t" \
++                       "movl %" #src32 ",0x68(%" #scratch64 ")\n\t" \
++                       "popq %" #scratch64 "\n\t" \
++                       "ret" )
++CYDER_GLS_THUNK(eax, rcx)  CYDER_GLS_THUNK(ecx, rax)  CYDER_GLS_THUNK(edx, rax)  CYDER_GLS_THUNK(ebx, rax)
++CYDER_GLS_THUNK(ebp, rax)  CYDER_GLS_THUNK(esi, rax)  CYDER_GLS_THUNK(edi, rax)
++CYDER_GLS_THUNK(r8d, rax)  CYDER_GLS_THUNK(r9d, rax)  CYDER_GLS_THUNK(r10d, rax) CYDER_GLS_THUNK(r11d, rax)
++CYDER_GLS_THUNK(r12d, rax) CYDER_GLS_THUNK(r13d, rax) CYDER_GLS_THUNK(r14d, rax) CYDER_GLS_THUNK(r15d, rax)
++#undef CYDER_GLS_THUNK
++
++extern void cyder_mono_gls_eax(void), cyder_mono_gls_ecx(void), cyder_mono_gls_edx(void), cyder_mono_gls_ebx(void);
++extern void cyder_mono_gls_ebp(void), cyder_mono_gls_esi(void), cyder_mono_gls_edi(void);
++extern void cyder_mono_gls_r8d(void), cyder_mono_gls_r9d(void), cyder_mono_gls_r10d(void), cyder_mono_gls_r11d(void);
++extern void cyder_mono_gls_r12d(void), cyder_mono_gls_r13d(void), cyder_mono_gls_r14d(void), cyder_mono_gls_r15d(void);
++
++static void (*const cyder_mono_gls_thunks[16])(void) =
++{
++    cyder_mono_gls_eax, cyder_mono_gls_ecx, cyder_mono_gls_edx, cyder_mono_gls_ebx,
++    NULL /* esp */, cyder_mono_gls_ebp, cyder_mono_gls_esi, cyder_mono_gls_edi,
++    cyder_mono_gls_r8d, cyder_mono_gls_r9d, cyder_mono_gls_r10d, cyder_mono_gls_r11d,
++    cyder_mono_gls_r12d, cyder_mono_gls_r13d, cyder_mono_gls_r14d, cyder_mono_gls_r15d,
++};
 +
 +extern void cyder_mono_gle_eax(void), cyder_mono_gle_ecx(void), cyder_mono_gle_edx(void), cyder_mono_gle_ebx(void);
 +extern void cyder_mono_gle_ebp(void), cyder_mono_gle_esi(void), cyder_mono_gle_edi(void);
@@ -73,7 +104,7 @@
 +    if (base[4] != '-' && base[4] != '.') return FALSE;  /* mono.dll, mono-2.0-*.dll */
 +    p = base + len - 4;
 +    return !wcsnicmp( p, L".dll", 4 );
- }
++}
 +
 +/* Replacement for Mono's JIT emitter of OP_GET_LAST_ERROR (amd64, Windows),
 + * guint8 *emit_get_last_error( guint8 *code, int dreg ), which emits
@@ -151,18 +182,20 @@
 +        for (p = start; p <= end; p++)
 +        {
 +            unsigned int rex = 0, reg, len;
++            void (*thunk)(void);
 +            unsigned char *op;
 +            INT_PTR rel;
 +
 +            if (p[0] != 0x65) continue;  /* %gs: */
 +            op = p + 1;
 +            if (*op == 0x44) { rex = 8; op++; }  /* REX.R: r8d..r15d */
-+            if (op[0] != 0x8b || (op[1] & 0xc7) != 0x04 || op[2] != 0x25 ||
-+                op[3] != 0x68 || op[4] || op[5] || op[6]) continue;  /* mov r32, [disp32 0x68] */
++            if ((op[0] != 0x8b && op[0] != 0x89) || (op[1] & 0xc7) != 0x04 || op[2] != 0x25 ||
++                op[3] != 0x68 || op[4] || op[5] || op[6]) continue;  /* mov r32 <-> [disp32 0x68] */
 +            reg = rex | ((op[1] >> 3) & 7);
 +            len = (op + 7) - p;
-+            if (!cyder_mono_gle_thunks[reg]) continue;
-+            rel = (char *)cyder_mono_gle_thunks[reg] - (char *)(p + 5);
++            thunk = op[0] == 0x8b ? cyder_mono_gle_thunks[reg] : cyder_mono_gls_thunks[reg];
++            if (!thunk) continue;
++            rel = (char *)thunk - (char *)(p + 5);
 +            if (rel != (INT32)rel) { skipped++; continue; }
 +            p[0] = 0xe8;  /* call rel32 */
 +            *(INT32 *)(p + 1) = (INT32)rel;

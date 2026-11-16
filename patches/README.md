@@ -192,7 +192,10 @@ wrapper its JIT emits, so it got host TSD data (slot 13 is libc's `gmtime`
 buffer) instead of the error, and managed file APIs threw (Cities: Skylines II
 stopped at start-up with `IOException`). When a native `mono.dll` or
 `mono-*.dll` is mapped on macOS, the PE loader rewrites each such read into a
-call to a thunk that loads the value through `%gs:0x30` (the real TEB), and
+call to a thunk that loads the value through `%gs:0x30` (the real TEB). Mono
+also saves and restores the last error with `mov r32, %gs:0x68` stores; those
+become calls to store thunks that write through the TEB, so the host `gmtime()`
+pointer in that TSD slot is never overwritten. The loader also
 redirects the JIT emitter (`emit_get_last_error`, matched by its body) to emit
 the same TEB-based read. Writing the error into `%gs:0x68` instead was
 rejected: it would corrupt the host `gmtime()` buffer pointer.
