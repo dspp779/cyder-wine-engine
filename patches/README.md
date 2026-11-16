@@ -45,12 +45,14 @@ Patch order for the CX26.3 / Wine 11.0 Cyder engine:
 38. `maplestory-cx26-fullscreen-restore.patch`
 39. `maplestory-cx26-no-sched-yield.patch`
 40. `maplestory-cx26-file-cache-adaptive.patch`
-41. `maplestory-cx26-io-ring.patch`
-42. `maplestory-cx26-io-ring-arm.patch`
-43. `maplestory-cx26-io-summary.patch`
-44. `maplestory-cx26-io-timeline.patch`
-45. `maplestory-cx26-io-cache-stats.patch`
-46. `maplestory-cx26-section-map-summary.patch`
+41. `maplestory-cx26-file-cache-capacity.patch`
+42. `maplestory-cx26-wz-readahead.patch`
+43. `maplestory-cx26-io-ring.patch`
+44. `maplestory-cx26-io-ring-arm.patch`
+45. `maplestory-cx26-io-summary.patch`
+46. `maplestory-cx26-io-timeline.patch`
+47. `maplestory-cx26-io-cache-stats.patch`
+48. `maplestory-cx26-section-map-summary.patch`
 
 `w1-win32u-vulkan-soname.patch` is not part of the default patch set. It is a
 special-case build-only fallback for CX26 source trees where `win32u/vulkan.c`
@@ -110,7 +112,8 @@ repro. See
 [`docs/maplestory-cx26-h2-file-cache-prewarm-spec.zh-TW.md`](../docs/maplestory-cx26-h2-file-cache-prewarm-spec.zh-TW.md)
 and findings §5.3.
 
-`maplestory-cx26-wz-readahead.patch` (experimental, 2026-11) adds
+`maplestory-cx26-wz-readahead.patch` (2026-11, in the release stack since
+Cyder014) adds
 Windows-style read-ahead to the adaptive WZ cache. The first hit scans large
 WZ files forward with 8–208 KiB gaps (`Sound/Sound_030.wz`,
 `Etc/_Canvas/_Canvas_009.wz`); macOS only reads ahead for contiguous reads, so
@@ -118,12 +121,14 @@ each 8 KiB window fill waits for the SSD alone (~70 µs, ~370 ms per first hit).
 With `CYDER_MAPLESTORY_READAHEAD=1`, once fills on a handle keep moving
 forward (gaps ≤ 1 MiB, two in a row) it issues an asynchronous
 `fcntl(F_RDADVISE)` for the next 2 MiB past a moving frontier, the way the NT
-cache manager reads ahead. Off by default; applies on top of the adaptive cache
-patches and is **not** in the apply list yet. Game test (2026-11-15, DXVK,
+cache manager reads ahead. The engine keeps it off unless the variable is set;
+Cyder sets it together with `CYDER_MAPLESTORY_FILE_CACHE` for MapleStory under
+the single "MapleStory WZ read optimization" setting (on by default). It only
+runs inside the adaptive cache's window fill, so it is inert when the cache is
+off. Game test (2026-11-15, DXVK,
 files evicted, one run): first-hit window fills 388 → 108 ms, longest frame
 gap ~1 s → 291 ms. Measurements and the reasoning
-are in CyderBits `docs/games/maplestory/stutter-test-plan.md` (branch
-`claude/stutter-trace`).
+are in CyderBits `docs/games/maplestory/stutter-test-plan.md`.
 
 The following patches are development-only diagnostics and are not in the
 release patch stack: `maplestory-cx26-io-ring.patch`,
@@ -441,6 +446,7 @@ strings as “already applied”:
 | `maplestory-cx26-no-sched-yield.patch` | `if (is_maplestory_process()) return STATUS_NO_YIELD_PERFORMED;` (`dlls/ntdll/unix/sync.c`) |
 | `maplestory-cx26-file-cache-adaptive.patch` | `CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW` (`dlls/ntdll/unix/file.c`) |
 | `maplestory-cx26-file-cache-capacity.patch` | `CYDER_MAPLESTORY_FILE_CACHE_SLOTS 512` (`dlls/ntdll/unix/file.c`) |
+| `maplestory-cx26-wz-readahead.patch` | `CYDER_MAPLESTORY_READAHEAD_CHUNK` (`dlls/ntdll/unix/file.c`) |
 | `maplestory-cx26-file-cache-fast-hit.patch` | `CYDER_MAPLESTORY_FILE_CACHE_FAST_HIT_MARKER` (`dlls/ntdll/unix/file.c`) |
 | `maplestory-cx26-file-cache-hit-prewarm.patch` | `CYDER_MAPLESTORY_FILE_CACHE_HIT_PREWARM_MARKER` (`dlls/ntdll/unix/file.c`) |
 | `maplestory-cx26-io-cache-stats.patch` | `CYDER_MAPLESTORY_IO_CACHE_STATS` (`dlls/ntdll/unix/file.c`) |

@@ -631,6 +631,10 @@ if [[ "$CX_VERSION" == "26" ]]; then
       "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW"
     apply_maplestory_patch "maplestory-cx26-file-cache-capacity.patch" \
       "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_FILE_CACHE_SLOTS 512"
+    # Windows-style read-ahead for forward WZ scans with gaps; gated at run
+    # time by CYDER_MAPLESTORY_READAHEAD (Cyder sets it with the WZ cache).
+    apply_maplestory_patch "maplestory-cx26-wz-readahead.patch" \
+      "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_READAHEAD_CHUNK"
   fi
 fi
 
