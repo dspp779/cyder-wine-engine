@@ -55,6 +55,19 @@ assert_contains "$(strings "$unix/libMoltenVK.dylib")" "cyder-moltenvk-timeline-
 assert_contains "$(otool -L "$unix/libMoltenVK.dylib")" "@loader_path/libMoltenVK.real.dylib" \
   "shim must re-export .real"
 
+# The input real may sit in the target folder; it must not be deleted first.
+inplace="$tmp/inplace"
+mkdir -p "$inplace"
+cp "$tmp/reals/libMoltenVK-1.4.2.dylib" "$inplace/libMoltenVK-1.4.2.src.dylib"
+cp "$tmp/reals/libMoltenVK-1.2.10.dylib" "$inplace/libMoltenVK-1.2.10.dylib"
+LLVM_MINGW="$tmp/fake-llvm" bash "$ROOT/scripts/install-moltenvk-dual-variant.sh" \
+  --unix-lib "$inplace" --v142 "$inplace/libMoltenVK-1.4.2.src.dylib" --skip-shim
+assert test -f "$inplace/libMoltenVK-1.4.2.dylib"
+if [[ -e "$inplace/libMoltenVK-1.2.10.dylib" ]]; then
+  echo "installer must remove the stale 1.2.10 real (in-place input)" >&2
+  exit 1
+fi
+
 # Missing real must fail closed.
 rm -rf "$unix"
 mkdir -p "$unix"

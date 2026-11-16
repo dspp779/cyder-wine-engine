@@ -44,12 +44,16 @@ done
 
 mkdir -p "$UNIX_LIB"
 # An older two-real layout may still be in the tree; only one real ships.
-for stale in "$UNIX_LIB"/libMoltenVK-*.dylib; do
+# Copy the input first so it survives even when it sits in UNIX_LIB.
+staged_real="$(mktemp "${TMPDIR:-/tmp}/cyder-mvk-real.XXXXXX")"
+trap 'rm -f "$staged_real"' EXIT
+cp -p "$V142" "$staged_real"
+for stale in "$UNIX_LIB"/libMoltenVK-[0-9]*.[0-9]*.[0-9]*.dylib; do
   [[ -e "$stale" && "$(basename "$stale")" != "libMoltenVK-${DEFAULT_VARIANT}.dylib" ]] || continue
   echo "Removing stale MoltenVK real $(basename "$stale")"
   rm -f "$stale"
 done
-cp -p "$V142" "$UNIX_LIB/libMoltenVK-1.4.2.dylib"
+cp -p "$staged_real" "$UNIX_LIB/libMoltenVK-1.4.2.dylib"
 chmod 755 "$UNIX_LIB/libMoltenVK-1.4.2.dylib"
 
 # Prefer a versioned install name so dlopen via .real stays unambiguous.
