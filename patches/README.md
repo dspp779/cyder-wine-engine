@@ -478,13 +478,13 @@ and legacy-GPU MSL cap; timeline-wait is **not** applied to the real):
 | `cyder-moltenvk-crossover-capability-hacks.patch` | Port the three CrossOver DXVK compatibility advertisements (`geometryShader`, `pipelineStatisticsQuery`, `shaderCullDistance`) required for the D3D10/11 feature-level probe to reach 10_x/11_1. It deliberately does not fake `VK_EXT_transform_feedback` or the AMD bitwise-not compiler workaround. |
 | `cyder-moltenvk-present-autoreleasepool.patch` | Drain `@autoreleasepool` on Metal present / presented-handler threads. |
 | `cyder-moltenvk-legacy-gpu-msl-cap.patch` | Cap MSL at 2.4 on macOS GPUs below GPU Family Mac 2 (e.g. NVIDIA Kepler on macOS 13+ via OpenCore Legacy Patcher). Their Metal 2.x-era backend rejects `-std=metal3.2` and crashes `MTLCompilerService` (`GeForceAIRPlugin`) on some MSL 3.x shaders, which hangs DXVK pipeline creation. Supported Macs on macOS 13+ are all Mac 2 or Apple family and are unaffected. |
-| `cyder-moltenvk-timeline-wait-poll.patch` | **Retained for reference / optional local experiments.** Dual-variant engines deliver the equivalent host-wait fix via `tools/cyder-mvk-timeline-wait-poll/` as `libMoltenVK.dylib` (shim) over versioned `.real` dylibs — do not bake this into the 1.4.2 / 1.2.10 reals. |
+| `cyder-moltenvk-timeline-wait-poll.patch` | **Retained for reference / optional local experiments.** Dual-variant engines deliver the equivalent host-wait fix via `tools/cyder-mvk-timeline-wait-poll/` as `libMoltenVK.dylib` (shim) over versioned `.real` dylibs — do not bake this into the 1.4.2 real. |
 
 The default graphics build is pinned to upstream MoltenVK **1.4.2** by
 `scripts/ensure-moltenvk-source.sh` (SHA-256 is checked before extraction). The
 1.4.2 real may declare minos 12.0; product floor for other host Mach-O remains
-macOS 10.15. Set `MOLTENVK_SOURCE=crossover-foss` for the legacy **1.2.10** real
-used in the dual-variant layout; `custom` requires an explicit `MOLTENVK_SRC`.
+macOS 10.15. `MOLTENVK_SOURCE=crossover-foss` builds the CrossOver FOSS tree for comparison
+only (its legacy real no longer ships); `custom` requires an explicit `MOLTENVK_SRC`.
 
 CrossOver's other capability changes were reviewed but are not silently copied
 into the 1.4.2 tree:
@@ -505,12 +505,12 @@ Markers: `Cyder: Metal scheduled-handler threads` (`MVKImage.mm`) and
 `Cyder: GPUs below GPU Family Mac 2` (`MVKDevice.mm`) on the real;
 wait-poll shim marker `cyder-moltenvk-timeline-wait-poll` on `libMoltenVK.dylib`.
 
-Dual-variant engines ship:
+The current engine ships:
 
 ```text
-libMoltenVK-1.4.2.dylib / libMoltenVK-1.2.10.dylib   # reals
-libMoltenVK.real.dylib -> selected real
-libMoltenVK.dylib                                  # wait-poll shim
+libMoltenVK-1.4.2.dylib                  # real
+libMoltenVK.real.dylib -> libMoltenVK-1.4.2.dylib
+libMoltenVK.dylib                        # wait-poll shim
 ```
 
 For local development, build/install the re-export shim with Apple clang:

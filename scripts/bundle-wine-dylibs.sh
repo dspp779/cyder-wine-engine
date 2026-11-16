@@ -201,6 +201,14 @@ if media_lib and media_lib.is_dir():
             if candidate:
                 seeds.append(candidate)
 
+# The current engine ships only the MoltenVK 1.4.2 real. A tree from the
+# earlier two-real layout still holds a legacy real; drop it before it can
+# become a dependency seed below.
+for p in sorted(unix_lib.glob("libMoltenVK-*.dylib")):
+    if p.name != "libMoltenVK-1.4.2.dylib":
+        print(f"  remove retired MoltenVK real {p.name}")
+        p.unlink()
+
 # Follow existing dylibs and the dependencies of every Mach-O Unix module.
 # winegstreamer.so is the important non-dylib case: it introduces the bundled
 # GLib/GStreamer graph and therefore must be a dependency seed.
@@ -465,15 +473,14 @@ if bad:
         print(f"  {b} -> {d}", file=sys.stderr)
     sys.exit(1)
 
-# Dual-variant MoltenVK keeps versioned reals plus a .real symlink that is
-# not always a dependency-graph seed (resolve() collapses it to the target).
+# MoltenVK keeps its versioned real plus a .real symlink that is not always a
+# dependency-graph seed (resolve() collapses it to the target).
 MOLTENVK_DUAL_KEEP = {
     "libMoltenVK.dylib",
     "libMoltenVK.real.dylib",
     "libMoltenVK-1.4.2.dylib",
-    "libMoltenVK-1.2.10.dylib",
 }
-MOLTENVK_REAL_NAMES = {"libMoltenVK-1.4.2.dylib", "libMoltenVK-1.2.10.dylib"}
+MOLTENVK_REAL_NAMES = {"libMoltenVK-1.4.2.dylib"}
 MOLTENVK_REAL_CEILING = (12, 0, 0)
 
 # Drop orphaned third-party dylibs left from a previous (broader) seed graph —
@@ -488,7 +495,7 @@ for p in sorted(unix_lib.iterdir()):
 
 # Product floor gate: every remaining bundled .dylib must have Mach-O minos
 # ≤ MACOSX_DEPLOYMENT_TARGET (default 10.15). Bottles built for 14/15 fail here.
-# Exception: the two versioned MoltenVK reals may declare up to 12.0.
+# Exception: the versioned MoltenVK real may declare up to 12.0.
 # The unversioned shim keeps the product floor; Vulkan requires macOS 12+.
 def parse_version(v: str):
     parts = []
@@ -560,5 +567,5 @@ if high:
     sys.exit(1)
 
 print("OK: runtime dylibs are relocatable under", unix_lib)
-print(f"OK: all bundled dylibs have minos ≤ {floor} (MoltenVK 1.4.2 / 1.2.10 reals ≤ 12.0)")
+print(f"OK: all bundled dylibs have minos ≤ {floor} (MoltenVK 1.4.2 real ≤ 12.0)")
 PY

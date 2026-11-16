@@ -31,21 +31,22 @@ done
 mkdir -p "$tmp/fake-llvm/bin"
 printf '#!/bin/sh\nexit 97\n' > "$tmp/fake-llvm/bin/clang"
 chmod +x "$tmp/fake-llvm/bin/clang"
+# A tree from the Cyder012/013 two-real layout still holds 1.2.10.
+cp "$tmp/reals/libMoltenVK-1.2.10.dylib" "$unix/libMoltenVK-1.2.10.dylib"
 LLVM_MINGW="$tmp/fake-llvm" bash "$ROOT/scripts/install-moltenvk-dual-variant.sh" \
   --unix-lib "$unix" \
-  --v142 "$tmp/reals/libMoltenVK-1.4.2.dylib" \
-  --v1210 "$tmp/reals/libMoltenVK-1.2.10.dylib" \
-  --default 1.4.2
+  --v142 "$tmp/reals/libMoltenVK-1.4.2.dylib"
 
 assert test -f "$unix/libMoltenVK-1.4.2.dylib"
-assert test -f "$unix/libMoltenVK-1.2.10.dylib"
-for ver in 1.4.2 1.2.10; do
-  assert_contains "$(otool -arch x86_64 -l "$unix/libMoltenVK-$ver.dylib")" 'minos 12.0' \
-    "installer must preserve real minOS; legacy version name does not lower it"
-done
+if [[ -e "$unix/libMoltenVK-1.2.10.dylib" ]]; then
+  echo "installer must remove the stale 1.2.10 real" >&2
+  exit 1
+fi
+assert_contains "$(otool -arch x86_64 -l "$unix/libMoltenVK-1.4.2.dylib")" 'minos 12.0' \
+  "installer must preserve real minOS"
 assert test -L "$unix/libMoltenVK.real.dylib"
 assert_eq "$(readlink "$unix/libMoltenVK.real.dylib")" "libMoltenVK-1.4.2.dylib" \
-  ".real must default to 1.4.2"
+  ".real must point at 1.4.2"
 assert test -f "$unix/libMoltenVK.dylib"
 assert_eq "$(lipo -archs "$unix/libMoltenVK.dylib")" x86_64 "shim must remain thin x86_64"
 assert_contains "$(otool -l "$unix/libMoltenVK.dylib")" 'minos 10.15' "shim must retain the product floor"
@@ -59,12 +60,19 @@ rm -rf "$unix"
 mkdir -p "$unix"
 if bash "$ROOT/scripts/install-moltenvk-dual-variant.sh" \
   --unix-lib "$unix" \
-  --v142 "$tmp/reals/libMoltenVK-1.4.2.dylib" \
-  --v1210 "$tmp/missing.dylib" \
-  --default 1.4.2 2>"$tmp/err"; then
-  echo "expected missing 1.2.10 to fail" >&2
+  --v142 "$tmp/missing.dylib" 2>"$tmp/err"; then
+  echo "expected missing 1.4.2 to fail" >&2
   exit 1
 fi
-assert_contains "$(cat "$tmp/err")" "Missing 1.2.10 real" "error should name missing 1.2.10"
+assert_contains "$(cat "$tmp/err")" "Missing 1.4.2 real" "error should name missing 1.4.2"
 
-echo "PASS moltenvk dual-variant layout installer"
+# The retired 1.2.10 option is rejected, not silently ignored.
+if bash "$ROOT/scripts/install-moltenvk-dual-variant.sh" \
+  --unix-lib "$unix" \
+  --v142 "$tmp/reals/libMoltenVK-1.4.2.dylib" \
+  --v1210 "$tmp/reals/libMoltenVK-1.2.10.dylib" 2>"$tmp/err"; then
+  echo "expected --v1210 to be rejected" >&2
+  exit 1
+fi
+
+echo "PASS moltenvk 1.4.2 layout installer"

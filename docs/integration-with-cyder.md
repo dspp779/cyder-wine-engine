@@ -17,9 +17,10 @@ Cyder must reject an archive when its sidecar digest, embedded manifest,
 Cyder; the engine project must never mutate a user's Cyder prefix.
 
 Cyder012+ ships a **dual-variant** MoltenVK layout: versioned reals
-(`libMoltenVK-1.4.2.dylib`, `libMoltenVK-1.2.10.dylib`), a
-`libMoltenVK.real.dylib` symlink selecting one of them, and a wait-poll
-`libMoltenVK.dylib` shim that re-exports `.real`. Upstream 1.4.2 reals get
+behind a `libMoltenVK.real.dylib` symlink and a wait-poll
+`libMoltenVK.dylib` shim that re-exports `.real`. The current engine keeps
+that layout with one real, `libMoltenVK-1.4.2.dylib`; the legacy real and the
+Cyder-side variant setting were removed. Upstream 1.4.2 reals get
 capability + present patches only; timeline-wait stays in the shim. See
 [`patches/README.md`](../patches/README.md) (MoltenVK section) and
 `scripts/install-moltenvk-dual-variant.sh`.

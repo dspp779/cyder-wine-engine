@@ -4,7 +4,7 @@
 Autoconf `AC_CHECK_FUNCS` and Meson `cc.has_function` only test that a symbol
 links. A newer SDK declares functions such as `pipe2` (SDK 27) with an
 availability attribute, so the link succeeds, the build defines `HAVE_PIPE2`,
-and the call becomes a weak import that is NULL on older macOS. Cyder013
+and the call becomes a weak import that is NULL on older macOS. The previous engine
 crashed in `server_pipe` on macOS 15.8 this way.
 
 This probe compiles one translation unit at the floor with clang's

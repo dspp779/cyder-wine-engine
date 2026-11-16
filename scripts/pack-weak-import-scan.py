@@ -3,7 +3,7 @@
 
 A symbol newer than the deployment target becomes a weak import: it is NULL on
 an older macOS, and an unguarded call jumps to address 0. The minos scan cannot
-see this (Cyder013's ntdll.so had minos 10.15 and still called a NULL _pipe2 on
+see this (the previous engine's ntdll.so had minos 10.15 and still called a NULL _pipe2 on
 macOS 15.8). Every weak import from /usr/lib or /System must match a reviewed
 row in config/weak-import-allowlist.tsv that names its runtime guard.
 Weak imports from bundled libraries (@rpath, @loader_path) are not checked.

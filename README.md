@@ -11,12 +11,12 @@ bundle a pinned engine artifact during the first extraction phase.
 
 ## Current release target
 
-- Engine: `CX26.3.0-W11-Cyder013`
+- Engine: `CX26.3.0-W11-Cyder014`
 - Base: CrossOver 26.3.0 / Wine 11.0
 - Host: macOS x86_64; native on Intel, Rosetta on Apple Silicon
 - Product deployment floor: macOS 10.15 (`.env` / `MACOSX_DEPLOYMENT_TARGET`, default 10.15)
 - Architectures: x86_64 host with i386 and x86_64 Windows PE support
-- Graphics: dual-variant MoltenVK 1.4.2 / 1.2.10, DXVK 1.10.3, DXMT 0.80 (DXVK 2 is not packed until it passes game testing)
+- Graphics: MoltenVK 1.4.2 (one real behind the wait-poll shim), DXVK 1.10.3, DXMT 0.80 (DXVK 2 is not packed until it passes game testing)
 
 The canonical release contract is
 [`config/engine-release.json`](config/engine-release.json), with the same label
@@ -102,13 +102,11 @@ The packaged engine stores GStreamer plugins under
 their relocatable runtime dylibs beside the Unix Wine modules. Graphics
 payloads remain separate as DXMT/DXVK artifacts.
 
-Graphics builds default to `MOLTENVK_DEPLOYMENT_TARGET=12.0` for both versioned
-MoltenVK reals, independently of the Wine/media host floor (10.15). Vulkan
-therefore requires macOS 12+ with a freshly built pair; choosing the legacy
-version does not restore Vulkan on macOS 10.15/11. Cyder013 is the exception:
-it reuses the previous engine's 1.2.10 binary (minOS 10.15) because a current
-Xcode SDK cannot target below macOS 12, so it is the last engine that supports
-Vulkan on macOS 10.15/11. See the
+Graphics builds default to `MOLTENVK_DEPLOYMENT_TARGET=12.0` for the versioned
+MoltenVK real, independently of the Wine/media host floor (10.15). Vulkan
+therefore requires macOS 12+. The previous engine was the last to support
+Vulkan on macOS 10.15/11 (it reused an older minOS 10.15 legacy real); this
+engine ships the 1.4.2 real only. See the
 [compatibility guide](docs/macos-rosetta-compatibility.zh-TW.md).
 
 For the Cyder MoltenVK path (upstream 1.4.2 with capability + present patches):
@@ -119,11 +117,11 @@ bash scripts/build-graphics-stack.sh --cx 26 --moltenvk-source upstream
 bash scripts/build-wine.sh --cx 26 --with-vulkan --vulkan-source crossover
 ```
 
-Before release packaging, assemble both `libMoltenVK-1.4.2.dylib` and
-`libMoltenVK-1.2.10.dylib`, the `libMoltenVK.real.dylib` selection symlink, and
-the `libMoltenVK.dylib` wait-poll shim with
-`scripts/install-moltenvk-dual-variant.sh`. The real dylibs do not receive the
-timeline-wait source patch. Both versioned reals may declare minOS 12.0;
+Before release packaging, assemble `libMoltenVK-1.4.2.dylib`, the
+`libMoltenVK.real.dylib` symlink pointing at it, and the `libMoltenVK.dylib`
+wait-poll shim with `scripts/install-moltenvk-dual-variant.sh` (the name is
+kept from the earlier two-real layout; it removes any stale legacy real). The
+real does not receive the timeline-wait source patch. The versioned real may declare minOS 12.0;
 Vulkan requires macOS 12+. The shim stays at the 10.15 product floor.
 The [from-scratch guide](docs/build-engine-from-scratch.zh-TW.md) includes the
 legacy real build and dual-variant assembly commands. D3DMetal development

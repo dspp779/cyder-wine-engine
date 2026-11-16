@@ -1,6 +1,6 @@
 # 從零建置 Cyder Wine Engine
 
-本文件以目前 Cyder013 目標為例，說明如何從空白 checkout 建立可供 Cyder
+本文件以目前 Cyder014 目標為例，說明如何從空白 checkout 建立可供 Cyder
 測試的完整 engine 與 graphics payload。它涵蓋兩個 sibling repository：
 
 - `cyder-wine-engine`：CrossOver/Wine、MoltenVK、host dylib、CompatDB、簽署與
@@ -16,14 +16,14 @@ Canonical contract 為 [`config/engine-release.json`](../config/engine-release.j
 與 [`config/engine-version.txt`](../config/engine-version.txt)；兩者 label 必須一致。
 下列 pack 範例直接讀 config，不另寫死 release label。
 
-| 項目 | Cyder013 目標 |
+| 項目 | Cyder014 目標 |
 |---|---|
 | CrossOver / Wine | CrossOver 26.3.0 / Wine 11.0 |
-| Engine label | `CX26.3.0-W11-Cyder013` |
+| Engine label | `CX26.3.0-W11-Cyder014` |
 | Host | macOS x86_64，Apple Silicon 以 Rosetta 2 執行 |
-| Host minOS | 10.15；DXMT 可到 15.0，MoltenVK 1.4.2／1.2.10 reals 可到 12.0。**Cyder013 是最後支援 macOS 10.15／11 的引擎**：其 MoltenVK 1.2.10 沿用前一版引擎的 minOS 10.15 binary（Xcode 27 SDK 最低只能建置 macOS 12）；之後的引擎僅支援 macOS 12+ |
+| Host minOS | 10.15；DXMT 可到 15.0，MoltenVK 1.4.2 real 可到 12.0。前一版引擎是最後支援 macOS 10.15／11 的引擎；本版起僅支援 macOS 12+，且只打包 MoltenVK 1.4.2 |
 | MapleStory | CX26 MapleStory compatibility stack；D3DMetal / Apple GPTK 為主要路徑 |
-| MoltenVK | dual-variant 1.4.2 / 1.2.10；上游 real 套 capability + present 兩個 patch，timeline-wait 由 shim 提供 |
+| MoltenVK | 1.4.2（單一 real）；上游 real 套 capability + present 兩個 patch，timeline-wait 由 shim 提供 |
 | DXVK | 1.10.3，獨立 `lib/dxvk` payload |
 | DXVK2 | **不出貨（待開發）**：上游 2.7.1 尚未通過遊戲實測；graphics pack 不打包 `lib/dxvk2`，engine pack 與 Cyder release verify 遇到即失敗 |
 | DXMT | 上游 0.80，獨立 `lib/dxmt` payload |
@@ -31,7 +31,7 @@ Canonical contract 為 [`config/engine-release.json`](../config/engine-release.j
 MoltenVK 的 `--vulkan-source crossover` 參數名稱是 Wine 的 CrossOver Vulkan
 整合路徑；在目前流程中，它讀取 `install/graphics-cx26-x86_64` 內由上游
 MoltenVK 1.4.2 建出的 dylib，**不是**從 CrossOver.app 複製 MoltenVK。明確設定
-`MOLTENVK_SOURCE=crossover-foss` 可建 release 所需的 1.2.10 legacy real，並可用於比較。
+`MOLTENVK_SOURCE=crossover-foss` 可另建 CrossOver FOSS 版本作比較，但不進 release。
 新楓之谷的正式 D3DMetal 路徑不需要 MoltenVK；MoltenVK 只在另建 DXVK 驗證路徑時
 啟用。
 
@@ -42,7 +42,7 @@ flowchart LR
     subgraph I[輸入與工具]
         CX[CrossOver FOSS 26.3 source archive]
         LLVM[llvm-mingw x86_64 toolchain]
-        MVKS[上游 MoltenVK 1.4.2 / CX legacy 1.2.10]
+        MVKS[上游 MoltenVK 1.4.2]
         DXVKS[DXVK source]
         DXMTS[DXMT 0.80 release]
         XCODE[完整 Xcode + macOS SDK]
@@ -53,7 +53,7 @@ flowchart LR
         WP[build-wine.sh<br/>Wine patches + configure]
         MP[build-media-stack.sh<br/>GLib/GStreamer]
         MVB[build-graphics-stack.sh<br/>upstream: capability + present]
-        MVD[install-moltenvk-dual-variant.sh<br/>雙 real + wait-poll shim]
+        MVD[install-moltenvk-dual-variant.sh<br/>1.4.2 real + wait-poll shim]
         CDB[build-cyder-cxcompatdb.sh<br/>cxcompatdb.so]
         EI[install/wine-cx26-x86_64<br/>Wine + cxcompatdb<br/>+ optional MoltenVK]
         GP[pack-graphics-payloads.sh]
@@ -263,7 +263,7 @@ install/graphics-cx26-x86_64/version
 ```
 
 確認 `version` 顯示 `moltenvk 1.4.2`、`source upstream`，且 `otool -l` 的
-`minos` 不高於 12.0。兩個 versioned reals 的建置目標預設為 12.0，Vulkan 要求 macOS 12+；
+`minos` 不高於 12.0。versioned real 的建置目標預設為 12.0，Vulkan 要求 macOS 12+；
 其他 host binaries 與 shim 仍不得高於 10.15：
 
 ```bash
@@ -271,27 +271,8 @@ cat install/graphics-cx26-x86_64/version
 otool -l install/graphics-cx26-x86_64/lib/libMoltenVK.dylib | grep -A2 minos
 ```
 
-### 5.3 建立 legacy real
-
-使用 CrossOver FOSS source，在隔離的 graphics install 產生 MoltenVK 1.2.10，
-保留上一節的 upstream real。此來源已有 Damavand capability hacks，建置腳本
-不套 upstream capability／present patch：
-
-```bash
-MOLTENVK_SOURCE=crossover-foss MOLTENVK_VERSION=1.2.10 \
-GRAPHICS_INSTALL="$PWD/install/graphics-cx26-moltenvk-legacy-x86_64" \
-MOLTENVK_DEPLOYMENT_TARGET=12.0 \
-  bash scripts/build-graphics-stack.sh --cx 26 --moltenvk-source crossover-foss
-
-cat install/graphics-cx26-moltenvk-legacy-x86_64/version
-otool -l install/graphics-cx26-moltenvk-legacy-x86_64/lib/libMoltenVK.dylib | grep -A2 minos
-```
-
-確認 legacy `version` 為 `moltenvk 1.2.10`、`source crossover-foss`，且 `minos`
-不高於 12.0。legacy 指 MoltenVK 版本，不能據此宣稱支援 macOS 10.15／11。
-
-若任一 MoltenVK real 的 minOS 為 12.0，在啟用 Vulkan 的完整 Wine build **之前**，
-先把兩個 reals 與 10.15 shim 組裝到另一個 graphics prefix 的 `lib/`，並將
+MoltenVK real 的 minOS 為 12.0，因此在啟用 Vulkan 的完整 Wine build **之前**，
+先把 real 與 10.15 shim 組裝到另一個 graphics prefix 的 `lib/`，並將
 `GRAPHICS_INSTALL` 指向該 prefix。不要直接讓 Wine bundler 把 12.0 real 當成
 未版本化的 `libMoltenVK.dylib`；這會被一般 10.15 gate 拒絕。組裝順序與
 MoltenVK target 與 Xcode 27 的設定方式，見
@@ -328,26 +309,24 @@ bash scripts/build-wine.sh \
 5. 若使用 `--with-vulkan`，以新版 `GRAPHICS_INSTALL` 綁定 MoltenVK，並重寫 dylib
    install name；`--without-vulkan` 的 MapleStory D3DMetal build 不執行這個依賴。
 
-目前 release pack 要求 dual-variant MoltenVK，即使 D3DMetal 開發 build 本身
-不依賴它。Wine build／bundling 完成後，組裝 versioned reals + `.real` symlink +
-wait-poll shim；兩個輸入都必須是 real dylib，不能拿既有 shim 當 real：
+目前 release pack 要求 MoltenVK 1.4.2 layout，即使 D3DMetal 開發 build 本身
+不依賴它。Wine build／bundling 完成後，組裝 versioned real + `.real` symlink +
+wait-poll shim；輸入必須是 real dylib，不能拿既有 shim 當 real。腳本會刪除
+舊 layout 留下的其他 versioned real：
 
 ```bash
 bash scripts/install-moltenvk-dual-variant.sh \
   --unix-lib "$PWD/install/wine-cx26-x86_64/lib/wine/x86_64-unix" \
-  --v142 "$PWD/install/graphics-cx26-x86_64/lib/libMoltenVK.dylib" \
-  --v1210 "$PWD/install/graphics-cx26-moltenvk-legacy-x86_64/lib/libMoltenVK.dylib" \
-  --default 1.4.2
+  --v142 "$PWD/install/graphics-cx26-x86_64/lib/libMoltenVK.dylib"
 ```
 
-release 的預設 `.real` 指向 1.4.2；1.2.10 保留作版本比較。兩個 real 以 12.0 建置時，Vulkan 後端都要求 macOS 12+，不能在 macOS 10.15／11 以切換 legacy 恢復支援。
+`.real` 指向 1.4.2。real 以 12.0 建置，Vulkan 後端要求 macOS 12+。
 確認：
 
 ```bash
 arch -x86_64 install/wine-cx26-x86_64/bin/wine --version
 test -f install/wine-cx26-x86_64/lib/wine/x86_64-unix/cxcompatdb.so
 test -f install/wine-cx26-x86_64/lib/wine/x86_64-unix/libMoltenVK-1.4.2.dylib
-test -f install/wine-cx26-x86_64/lib/wine/x86_64-unix/libMoltenVK-1.2.10.dylib
 test -L install/wine-cx26-x86_64/lib/wine/x86_64-unix/libMoltenVK.real.dylib
 test -f install/wine-cx26-x86_64/lib/wine/x86_64-unix/libMoltenVK.dylib
 ```
@@ -430,22 +409,22 @@ copy（排除 lib/dxvk、lib/dxvk2、lib/dxmt）
 輸出：
 
 ```text
-dist/artifacts/engine-CX26-3-0-W11-Cyder013.tar.zst
-dist/artifacts/engine-CX26-3-0-W11-Cyder013.tar.zst.sha256
-dist/artifacts/engine-CX26-3-0-W11-Cyder013.tar.zst.manifest.json
+dist/artifacts/engine-CX26-3-0-W11-Cyder014.tar.zst
+dist/artifacts/engine-CX26-3-0-W11-Cyder014.tar.zst.sha256
+dist/artifacts/engine-CX26-3-0-W11-Cyder014.tar.zst.manifest.json
 dist/artifacts/graphics/dxvk-1.10.3.tar.zst
 dist/artifacts/graphics/dxmt-0.80.tar.zst   # Developer ID 簽署，沿用上游版本
 ```
 
-確認 engine archive 含 dual-variant MoltenVK：
+確認 engine archive 的 MoltenVK layout：
 
 ```bash
-zstd -dc dist/artifacts/engine-CX26-3-0-W11-Cyder013.tar.zst | tar -tf - \
+zstd -dc dist/artifacts/engine-CX26-3-0-W11-Cyder014.tar.zst | tar -tf - \
   | grep -E 'libMoltenVK|lib/dxvk|lib/dxmt'
 ```
 
-預期含 `libMoltenVK-1.4.2.dylib`、`libMoltenVK-1.2.10.dylib`、
-`libMoltenVK.real.dylib`、`libMoltenVK.dylib`（shim）；graphics payload 仍在
+預期含 `libMoltenVK-1.4.2.dylib`、`libMoltenVK.real.dylib`、
+`libMoltenVK.dylib`（shim），沒有其他 versioned real；graphics payload 仍在
 `dist/artifacts/graphics/` 的獨立 archive。
 
 ## 9. 匯入 Cyder 並做 smoke test
@@ -483,7 +462,7 @@ import／release 流程；不要手動解壓覆蓋使用者 runtime。Cyder 應�
 | DXVK 建置缺 `glslangValidator` | `.brew-x86` 尚未安裝 glslang | 在專案的 x86_64 Homebrew 安裝 `glslang` 後重跑 |
 | DXVK 建置找不到 `crossover-sources-25.0.1.tar.gz` | CyderBits `build-dxvk.sh` 的預設來源仍是舊版封存檔 | CX26.3 內含相同的 DXVK 1.10.3；設定 `DXVK_SOURCE_ARCHIVE=tools/archives/crossover-sources-26.3.0.tar.gz` |
 | 從零建置時 bundle gate 因 `libMoltenVK.dylib` minos 12.0 失敗 | `--vulkan-source crossover` 先把 12.0 的 real 複製成未版本化檔名，dual layout 尚未組裝 | 先跑 `install-moltenvk-dual-variant.sh`，再以 `VULKAN_SOURCE=existing` 重新 bundle |
-| 新建的 MoltenVK 1.2.10 變成 minos 12.0 | 目前的 Xcode SDK 無法以低於 macOS 12 為目標 | Cyder013 是最後支援 macOS 10.15／11 的引擎，沿用前一版引擎的 10.15 版 1.2.10；之後的引擎僅支援 macOS 12+ |
+| Pack 報 `unexpected MoltenVK real` | install tree 留有舊 two-real layout 的 legacy real | 重跑 `install-moltenvk-dual-variant.sh`（會刪除它）；本版只打包 1.4.2 |
 | 長時間建置中途卡住、等不到輸出 | checkout 位於 `~/Documents`／`~/Desktop`／`~/Downloads`，macOS 隱私權提示擋住背景程序 | 把 checkout 放在這些資料夾之外（目前為 `~/ogom/cyder-wine-engine`） |
 
 ## 相關文件

@@ -274,11 +274,11 @@ SIGN_IDENTITY='-' \
   bash scripts/pack-engine-artifact.sh --zst --force
 ```
 
-The current release contract requires `libMoltenVK-1.4.2.dylib` and
-`libMoltenVK-1.2.10.dylib`, the `.real` selection symlink, and the wait-poll shim.
+The current release contract requires `libMoltenVK-1.4.2.dylib` (the only
+versioned real), the `.real` symlink pointing at it, and the wait-poll shim.
 See the [from-scratch guide](build-engine-from-scratch.zh-TW.md) for assembly.
 Pack refuses to ship without graphics payloads, with any Mach-O above its
-allowed minOS (MoltenVK 1.4.2 / 1.2.10 reals: 12.0; other engine hosts: 10.15;
+allowed minOS (MoltenVK 1.4.2 real: 12.0; other engine hosts: 10.15;
 DXMT payload: 15.0; Vulkan requires macOS 12+),
 or with broken codesign after archive round-trip.
 

@@ -206,7 +206,7 @@ build_moltenvk() {
 
   ensure_moltenvk_source
   # Cyder capability/present patches target upstream 1.4.x. CrossOver FOSS
-  # 1.2.10 already carries Damavand capability hacks; present hunks do not apply.
+  # MoltenVK already carries Damavand capability hacks; present hunks do not apply.
   # timeline-wait stays in the wait-poll shim (libMoltenVK.dylib), never in reals.
   local capability_stamp="none"
   local present_stamp="none"

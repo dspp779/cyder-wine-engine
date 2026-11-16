@@ -26,8 +26,8 @@ This checkout is `~/ogom/cyder-wine-engine`.
 2. **Host binaries must run on macOS 10.15** (`minos` ≤ 10.15 for `wine`,
    `wineserver`, `*.so`, bundled dylibs). Exceptions, checked by
    `scripts/pack-minos-scan.py`: DXMT under `lib/dxmt/` (up to 15.0) and the
-   versioned MoltenVK files `libMoltenVK-1.4.2.dylib` and
-   `libMoltenVK-1.2.10.dylib` (up to 12.0). The unversioned MoltenVK shim stays
+   versioned MoltenVK file `libMoltenVK-1.4.2.dylib` (up to 12.0). The
+   unversioned MoltenVK shim stays
    at 10.15. `minos` is not enough: a function the SDK has and the floor lacks
    is a weak import that is NULL on older macOS. `scripts/pack-weak-import-scan.py`
    refuses any macOS weak import without a reviewed row in
