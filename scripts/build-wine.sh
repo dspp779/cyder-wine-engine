@@ -549,6 +549,7 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/wine-winemac-initialize-style-masks.patch"
   apply_cyder_patch "$OGOM/patches/wine-win32u-full-client-visible-rect.patch"
   apply_cyder_patch "$OGOM/patches/cyder-ntdll-native-ddraw-path.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-ntdll-mono-gs-last-error.patch"
 
   apply_maplestory_patch() {
       local patch_name="$1"
