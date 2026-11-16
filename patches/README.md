@@ -110,6 +110,21 @@ repro. See
 [`docs/maplestory-cx26-h2-file-cache-prewarm-spec.zh-TW.md`](../docs/maplestory-cx26-h2-file-cache-prewarm-spec.zh-TW.md)
 and findings §5.3.
 
+`maplestory-cx26-wz-readahead.patch` (experimental, 2026-11) adds
+Windows-style read-ahead to the adaptive WZ cache. The first hit scans large
+WZ files forward with 8–208 KiB gaps (`Sound/Sound_030.wz`,
+`Etc/_Canvas/_Canvas_009.wz`); macOS only reads ahead for contiguous reads, so
+each 8 KiB window fill waits for the SSD alone (~70 µs, ~370 ms per first hit).
+With `CYDER_MAPLESTORY_READAHEAD=1`, once fills on a handle keep moving
+forward (gaps ≤ 1 MiB, two in a row) it issues an asynchronous
+`fcntl(F_RDADVISE)` for the next 2 MiB past a moving frontier, the way the NT
+cache manager reads ahead. Off by default; applies on top of the adaptive cache
+patches and is **not** in the apply list yet. Game test (2026-11-15, DXVK,
+files evicted, one run): first-hit window fills 388 → 108 ms, longest frame
+gap ~1 s → 291 ms. Measurements and the reasoning
+are in CyderBits `docs/games/maplestory/stutter-test-plan.md` (branch
+`claude/stutter-trace`).
+
 The following patches are development-only diagnostics and are not in the
 release patch stack: `maplestory-cx26-io-ring.patch`,
 `maplestory-cx26-io-ring-arm.patch`, `maplestory-cx26-io-summary.patch`,
