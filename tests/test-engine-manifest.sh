@@ -22,8 +22,15 @@ assert_contains "$(cat "$TMP/engine-manifest.json")" "\"ntdllSHA256\": \"$ntdll_
 assert_contains "$(cat "$TMP/engine-manifest.json")" "\"artifactSHA256\": \"$artifact_sha\"" \
   "sidecar manifest should pin the archive"
 assert_eq "$(plutil -extract engineId raw -o - "$TMP/engine-manifest.json")" \
-  "cx26.3-w11-cyder013" \
+  "cx26.3-w11-cyder014" \
   "manifest should use the canonical release engine ID"
+# The ID must follow the label when the engine generation is bumped.
+label_generation="$(head -n 1 "$ROOT/config/engine-version.txt" | sed -n 's/.*-\(Cyder[0-9]*\).*/\1/p' | tr '[:upper:]' '[:lower:]')"
+engine_id="$(plutil -extract engineId raw -o - "$ROOT/config/engine-release.json")"
+[[ -n "$label_generation" && "$engine_id" == *"-$label_generation" ]] || {
+  echo "ASSERT failed: engineId $engine_id does not match the label generation $label_generation" >&2
+  exit 1
+}
 assert_eq "$(plutil -extract minimumCyderVersion raw -o - "$TMP/engine-manifest.json")" \
   "0.9.6" \
   "manifest should use the canonical minimum Cyder version"
