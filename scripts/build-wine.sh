@@ -432,6 +432,9 @@ apply_cyder_patch() {
   elif [[ "$(basename "$patch_file")" == "cyder-wineserver-add-completion-guard.patch" ]] &&
        grep -Fq 'add_completion: invalid completion' "$WINE_SRC/server/completion.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-wineserver-wake-up-hold-object.patch" ]] &&
+       grep -Fq 'cyder: wake_up holds obj' "$WINE_SRC/server/thread.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
   elif [[ "$(basename "$patch_file")" == "cyder-ntdll-query-directory-object-trace.patch" ]] &&
        grep -Fq 'cyder QDO' "$WINE_SRC/dlls/ntdll/unix/sync.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
@@ -525,6 +528,7 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-free-async-queue-null-fd.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-pipe-end-disconnect-null-fd.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-add-completion-guard.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-wineserver-wake-up-hold-object.patch"
   # QDO TRACE was temporary diagnosis (also a heisenbug bandage). Prefer narrow
   # optnone on NtQueryDirectoryObject for the grap-core leave-game livelock.
   remove_obsolete_cyder_patch \
