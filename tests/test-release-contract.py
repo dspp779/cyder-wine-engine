@@ -42,6 +42,7 @@ HISTORICAL_FILES = {
     "docs/maplestory-cx26-wz-cache-experiments.zh-TW.md": "Cyder012 WZ cache experiment record",
     "docs/maplestory-exit-hang-20261029.zh-TW.md": "Dated 2026-10-29 exit-hang investigation on Cyder012",
     "docs/upstream-wine-11/test-runtime-kit-validation.md": "Cyder012-based PR2/PR3 test kit validation record",
+    "docs/pr14-sdk27-validation.zh-TW.md": "PR #14 SDK 27 validation record on a Cyder013-labelled test pack",
 }
 HISTORICAL_SECTIONS = {
     "docs/maplestory-cx26-worklog.zh-TW.md": {
@@ -67,6 +68,10 @@ HISTORICAL_LINES = {
     "docs/upstream-wine-11/README.md": {
         '版本公告只是變更索引，不是 Cyder 相容性證明。本 PR 不升級 Wine base、不宣稱 CS2 已可玩、不替換使用者 runtime。保留現有 Cyder012 identity，正式打包前需按 repository 發行流程決定新版本識別。':
             "PR3 review record written against Cyder012",
+    },
+    "docs/native-ddraw-path.zh-TW.md": {
+        "`CX26.3.0-W11-Cyder013` 新增 `native-ddraw-path-v1`。":
+            "Release that introduced the capability",
     },
     README: {
         "The patch application is idempotent and can migrate a Cyder006 combined":
@@ -146,11 +151,11 @@ def audit(corpus):
                 r"CX" + SEMVER + r"-W\d+-Cyder\d+(?:-rc\d+)?", label):
             raise ValueError("invalid versionLabel")
         notes = contract["notes"]
-        if not isinstance(notes, str) or "Dual-variant MoltenVK ships" not in notes:
-            raise ValueError("missing dual-variant MoltenVK contract")
+        if not isinstance(notes, str) or "MoltenVK ships" not in notes:
+            raise ValueError("missing MoltenVK layout contract")
         variants = set(LIBRARY.findall(notes))
-        if len(variants) != 2:
-            raise ValueError("expected two distinct versioned MoltenVK reals in notes")
+        if len(variants) != 1:
+            raise ValueError("expected exactly one versioned MoltenVK real in notes")
     except (ValueError, KeyError, TypeError) as exc:
         return [f"Invalid canonical contract: {exc}"]
 
@@ -209,7 +214,6 @@ def negative_regressions(corpus):
     label = contract["versionLabel"]
     variants = sorted(set(LIBRARY.findall(contract["notes"])))
     default = re.search(r'MOLTENVK_VERSION="\$\{MOLTENVK_VERSION:-([^}]+)\}"', corpus[ENV])[1]
-    alternate = next(variant for variant in variants if variant != default)
     next_label = re.sub(r"Cyder(\d+)", lambda m: f"Cyder{int(m[1]) + 1:03d}", label)
     next_variant = default.rsplit(".", 1)[0] + "." + str(int(default.split(".")[-1]) + 1)
     while next_variant in variants:
@@ -233,7 +237,9 @@ def negative_regressions(corpus):
     rejected("release bump without doc updates",
              {CONFIG: json.dumps(changed), VERSION: next_label + "\n"}, "engine pin")
     changed = dict(contract, notes=LIBRARY.sub("libMoltenVK.dylib", contract["notes"]))
-    rejected("unparseable variant contract", {CONFIG: json.dumps(changed)}, "two distinct")
+    rejected("unparseable variant contract", {CONFIG: json.dumps(changed)}, "exactly one")
+    changed = dict(contract, notes=contract["notes"] + f" Also libMoltenVK-{next_variant}.dylib.")
+    rejected("second real in contract", {CONFIG: json.dumps(changed)}, "exactly one")
     changed = dict(contract, notes=contract["notes"].replace(
         f"libMoltenVK-{default}.dylib", f"libMoltenVK-{next_variant}.dylib"))
     rejected("variant bump without doc updates", {CONFIG: json.dumps(changed)}, "documented MoltenVK variants")
@@ -253,10 +259,12 @@ def negative_regressions(corpus):
     rejected("graphics default drift", {ENV: corpus[ENV].replace(
         f"MOLTENVK_VERSION:-{default}", f"MOLTENVK_VERSION:-{next_variant}")}, "default MoltenVK version")
     rejected("installer default drift", {INSTALLER: corpus[INSTALLER].replace(
-        f'DEFAULT_VARIANT="{default}"', f'DEFAULT_VARIANT="{alternate}"')}, "default variant disagrees")
+        f'DEFAULT_VARIANT="{default}"', f'DEFAULT_VARIANT="{next_variant}"')}, "default variant disagrees")
     for name in (PACKER, INSTALLER):
-        rejected("release script missing fallback real", {name: corpus[name].replace(
-            f"libMoltenVK-{alternate}.dylib", "libMoltenVK.real.dylib")}, "documented MoltenVK variants")
+        rejected("release script missing real", {name: corpus[name].replace(
+            f"libMoltenVK-{default}.dylib", "libMoltenVK.real.dylib")}, "documented MoltenVK variants")
+    rejected("retired real back in a release script", {PACKER: corpus[PACKER] +
+             "\n# libMoltenVK-1.2.10.dylib\n"}, "outside canonical variants")
     rejected("archive example drift", {GUIDE: corpus[GUIDE].replace(
         label.replace(".", "-"), next_label.replace(".", "-"))}, "engine pin")
     rejected("legacy exception copied into current docs", {README: corpus[README] +

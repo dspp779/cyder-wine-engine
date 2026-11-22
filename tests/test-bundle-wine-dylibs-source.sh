@@ -92,18 +92,24 @@ for version in 1.4.2 1.2.10; do
     "$TMP/probe.c" -o "$unix/libMoltenVK-$version.dylib"
 done
 "$TMP/run.sh" "$ROOT" "$TMP/wine" "$TMP/brew" \
-  "$TMP/empty-graphics" "$TMP/empty-media" > "$TMP/reals.out" 2>&1
-
-/usr/bin/clang -arch x86_64 -dynamiclib -mmacosx-version-min=12.1 \
-  "$TMP/probe.c" -o "$unix/libMoltenVK-1.2.10.dylib"
-if "$TMP/run.sh" "$ROOT" "$TMP/wine" "$TMP/brew" \
-  "$TMP/empty-graphics" "$TMP/empty-media" > "$TMP/legacy-high.out" 2>&1; then
-  echo 'expected legacy above macOS 12.0 to fail bundling' >&2
+  "$TMP/empty-graphics" "$TMP/empty-media" > "$TMP/reals.out" 2>&1 || { cat "$TMP/reals.out" >&2; exit 1; }
+if [[ -e "$unix/libMoltenVK-1.2.10.dylib" ]]; then
+  echo 'bundler must drop the retired 1.2.10 real as an orphan' >&2
   exit 1
 fi
-assert_contains "$(cat "$TMP/legacy-high.out")" 'libMoltenVK-1.2.10.dylib minos=12.1' \
-  'bundler must enforce the legacy real ceiling'
-rm "$unix/libMoltenVK-1.2.10.dylib"
+assert test -f "$unix/libMoltenVK-1.4.2.dylib"
+
+cp -p "$unix/libMoltenVK-1.4.2.dylib" "$TMP/libMoltenVK-1.4.2.bundled"
+/usr/bin/clang -arch x86_64 -dynamiclib -mmacosx-version-min=12.1 \
+  "$TMP/probe.c" -o "$unix/libMoltenVK-1.4.2.dylib"
+if "$TMP/run.sh" "$ROOT" "$TMP/wine" "$TMP/brew" \
+  "$TMP/empty-graphics" "$TMP/empty-media" > "$TMP/real-high.out" 2>&1; then
+  echo 'expected a real above macOS 12.0 to fail bundling' >&2
+  exit 1
+fi
+assert_contains "$(cat "$TMP/real-high.out")" 'libMoltenVK-1.4.2.dylib minos=12.1' \
+  'bundler must enforce the real ceiling'
+cp -p "$TMP/libMoltenVK-1.4.2.bundled" "$unix/libMoltenVK-1.4.2.dylib"
 cp "$unix/libMoltenVK-1.4.2.dylib" "$unix/libMoltenVK.dylib"
 if "$TMP/run.sh" "$ROOT" "$TMP/wine" "$TMP/brew" \
   "$TMP/empty-graphics" "$TMP/empty-media" > "$TMP/shim-high.out" 2>&1; then

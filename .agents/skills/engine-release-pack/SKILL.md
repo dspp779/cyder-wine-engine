@@ -75,8 +75,8 @@ python3 scripts/graphics-signing.py verify-archive --archive dist/artifacts/grap
 Then, in the packed engine archive:
 
 1. MoltenVK layout: the shim `libMoltenVK.dylib`, `libMoltenVK-1.4.2.dylib`,
-   `libMoltenVK-1.2.10.dylib`, and the link `libMoltenVK.real.dylib`.
-2. `otool -l <file> | grep -A3 LC_BUILD_VERSION` on both versioned files shows
+   and the link `libMoltenVK.real.dylib` pointing at it; no other versioned real.
+2. `otool -l <file> | grep -A3 LC_BUILD_VERSION` on the versioned file shows
    the macOS floor you intend to support. A current Xcode SDK cannot target
    below macOS 12, which silently raises the floor of a rebuilt file.
 3. `codesign -dv` on `bin/wine` and the MoltenVK files shows Developer ID.

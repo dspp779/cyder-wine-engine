@@ -5,7 +5,7 @@ The product host minOS floor is 10.15. Narrow exceptions:
 
 - upstream DXMT under `lib/dxmt/**` (ceiling 15.0; Cyder only offers DXMT on
   macOS 15+)
-- versioned MoltenVK 1.4.2 and 1.2.10 reals (ceiling 12.0; Vulkan requires
+- the versioned MoltenVK 1.4.2 real (ceiling 12.0; Vulkan requires
   macOS 12+; the unversioned shim retains the product floor)
 """
 import re
@@ -15,7 +15,7 @@ from pathlib import Path
 
 DXMT_PATH_PREFIX = "lib/dxmt/"
 DXMT_MINOS_CEILING = (15, 0, 0)
-MOLTENVK_REAL_NAMES = {"libMoltenVK-1.4.2.dylib", "libMoltenVK-1.2.10.dylib"}
+MOLTENVK_REAL_NAMES = {"libMoltenVK-1.4.2.dylib"}
 MOLTENVK_REAL_CEILING = (12, 0, 0)
 
 
@@ -33,7 +33,7 @@ def is_dxmt_exempt_path(rel_path: str) -> bool:
 
 
 def is_moltenvk_real_exempt_path(rel_path: str) -> bool:
-    """Only the two named reals may exceed the shim's product floor."""
+    """Only the named real may exceed the shim's product floor."""
     return Path(rel_path).name in MOLTENVK_REAL_NAMES
 
 

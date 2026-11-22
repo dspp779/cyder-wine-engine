@@ -1,0 +1,91 @@
+--- a/dlls/ntdll/unix/file.c
++++ b/dlls/ntdll/unix/file.c
+@@ -297,6 +297,13 @@
+     ULONG cache_last_request_length;
+     unsigned int cache_sequential_reads;
+     BOOL cache_have_last_request;
++    /* Windows-style read-ahead for forward scans with gaps (see
++     * cyder_maplestory_file_cache_readahead). */
++    off_t readahead_last_fill;
++    off_t readahead_frontier;
++    unsigned int readahead_forward_fills;
++    BOOL readahead_have_last_fill;
++    unsigned long long readahead_advises;
+     unsigned long long profile_tiny_reads;
+     unsigned long long profile_small_reads;
+     unsigned long long profile_large_reads;
+@@ -698,7 +705,66 @@
+     }
+     pthread_mutex_unlock( &cyder_maplestory_file_cache_mutex );
+ }
++
++#define CYDER_MAPLESTORY_READAHEAD_MAX_GAP   (1024 * 1024)
++#define CYDER_MAPLESTORY_READAHEAD_CHUNK     (2 * 1024 * 1024)
++#define CYDER_MAPLESTORY_READAHEAD_MIN_FILLS 2
+ 
++static BOOL cyder_maplestory_readahead_enabled(void)
++{
++    static int enabled = -1;
++    const char *value;
++
++    if (enabled == -1)
++    {
++        value = getenv( "CYDER_MAPLESTORY_READAHEAD" );
++        enabled = value && (!strcmp( value, "1" ) || !strcmp( value, "true" ));
++    }
++    return enabled == 1;
++}
++
++/* Called with the cache mutex held, before a window fill.  MapleStory scans
++ * large WZ files forward with gaps (e.g. 8-208 KiB between 8 KiB reads on the
++ * first hit).  macOS only reads ahead for contiguous reads, so each fill
++ * waits for the SSD on its own; the NT cache manager instead detects forward
++ * (and strided) progress and reads ahead asynchronously.  Mirror that: once
++ * fills keep moving forward with gaps up to MAX_GAP, ask the kernel to read
++ * the next CHUNK past a moving frontier (F_RDADVISE is asynchronous). */
++static void cyder_maplestory_file_cache_readahead( struct cyder_maplestory_file_cache_entry *entry,
++                                                   int fd, off_t window_offset, size_t window_size )
++{
++    struct radvisory advice;
++    off_t start;
++
++    if (!cyder_maplestory_readahead_enabled()) return;
++
++    if (entry->readahead_have_last_fill && window_offset > entry->readahead_last_fill &&
++        window_offset - entry->readahead_last_fill <= CYDER_MAPLESTORY_READAHEAD_MAX_GAP)
++    {
++        if (entry->readahead_forward_fills < CYDER_MAPLESTORY_READAHEAD_MIN_FILLS)
++            entry->readahead_forward_fills++;
++    }
++    else
++    {
++        entry->readahead_forward_fills = 0;
++        entry->readahead_frontier = 0;
++    }
++    entry->readahead_last_fill = window_offset;
++    entry->readahead_have_last_fill = TRUE;
++
++    if (entry->readahead_forward_fills < CYDER_MAPLESTORY_READAHEAD_MIN_FILLS) return;
++    if (window_offset + CYDER_MAPLESTORY_READAHEAD_CHUNK / 2 < entry->readahead_frontier) return;
++
++    start = window_offset + (off_t)window_size;
++    if (entry->readahead_frontier > start) start = entry->readahead_frontier;
++    advice.ra_offset = start;
++    advice.ra_count = CYDER_MAPLESTORY_READAHEAD_CHUNK;
++    /* Errors (e.g. past EOF) are harmless: this is only a hint. */
++    fcntl( fd, F_RDADVISE, &advice );
++    entry->readahead_frontier = start + CYDER_MAPLESTORY_READAHEAD_CHUNK;
++    entry->readahead_advises++;
++}
++
+ /* Return TRUE when a small request was served from, or filled, the adaptive
+  * read-ahead window.  Larger requests and requests crossing a window fall
+  * through to Wine's original read path so large payloads do not pollute the
+@@ -781,6 +847,7 @@
+     if (entry->trace && (!cyder_maplestory_io_profile_enabled() ||
+                          cyder_maplestory_io_profile_timing_enabled()))
+             fill_start = cyder_maplestory_io_timestamp_us();
++    cyder_maplestory_file_cache_readahead( entry, fd, window_offset, window_size );
+     do read_size = pread( fd, entry->data, window_size, window_offset );
+     while (read_size == -1 && errno == EINTR);
+     if (read_size <= 0)

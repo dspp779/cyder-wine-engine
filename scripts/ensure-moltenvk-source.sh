@@ -14,7 +14,7 @@ fi
 [[ $# -eq 0 ]] || { echo "Usage: $(basename "$0") [--dry-run]" >&2; exit 1; }
 
 # Non-upstream trees (crossover-foss / custom) are already on disk; do not
-# require an upstream tarball SHA pin for legacy versions such as 1.2.10.
+# require an upstream tarball SHA pin for them.
 if [[ "$MOLTENVK_SOURCE" != "upstream" ]]; then
   [[ -d "$MOLTENVK_SRC" ]] || {
     echo "MOLTENVK_SOURCE=$MOLTENVK_SOURCE requires an existing source tree: $MOLTENVK_SRC" >&2

@@ -47,11 +47,10 @@ xcrun --sdk macosx --show-sdk-path
 ### Xcode 27 與 MoltenVK 的 macOS 12 目標
 
 本機隔離建置已確認：Xcode 27 會直接拒絕 deployment target 10.15，回報
-允許範圍為 12.0 至 27.0.x。已在 macOS 27.0.1／Xcode 27 從 CrossOver FOSS
-實際建成 legacy MoltenVK 1.2.10：x86_64、minOS 12.0、SDK 27.0。
-這是編譯與 Mach-O 檢查結果，尚非 macOS 12 實機或遊戲驗收。
+允許範圍為 12.0 至 27.0.x。目前引擎只打包 MoltenVK 1.4.2 real（minOS 12.0）；
+前一版引擎的 legacy real 已移除，Cyder 端的 MoltenVK 版本選項也一併移除。
 
-`build-graphics-stack.sh` 對兩個 MoltenVK reals 都預設
+`build-graphics-stack.sh` 對 MoltenVK real 預設
 `MOLTENVK_DEPLOYMENT_TARGET=12.0`，與 Wine／media 的
 `MACOSX_DEPLOYMENT_TARGET=10.15` 分開。腳本產生 xcconfig，透過
 `XCODE_XCCONFIG_FILE` 傳給 dependency 與本體的 Xcode 建置，以覆寫舊專案
@@ -59,17 +58,9 @@ xcrun --sdk macosx --show-sdk-path
 呼叫端既有 xcconfig 會被 include，目標與架構則以本腳本明確設定為準。
 變更 MoltenVK target 後，舊 install manifest 不會被當作相同建置而跳過。
 
-```bash
-MOLTENVK_SOURCE=crossover-foss MOLTENVK_VERSION=1.2.10 \
-MOLTENVK_DEPLOYMENT_TARGET=12.0 \
-GRAPHICS_INSTALL="$PWD/install/graphics-cx26-legacy-x86_64" \
-  bash scripts/build-graphics-stack.sh --cx 26 --moltenvk-source crossover-foss
-```
-
-封裝允許兩個具名 reals 的 minOS 到 12.0；一般 Wine host、其他 bundled
-libraries 與未版本化 wait-poll shim 仍維持 10.15。因此這套 Vulkan 後端
-要求 macOS 12+；在 macOS 10.15／11 選擇 legacy 1.2.10 並不能恢復 Vulkan
-支援。`legacy` 現在表示 MoltenVK 程式版本，並非舊 macOS 相容性承諾。
+封裝只允許具名的 `libMoltenVK-1.4.2.dylib` real 的 minOS 到 12.0；一般 Wine
+host、其他 bundled libraries 與未版本化 wait-poll shim 仍維持 10.15。因此
+Vulkan 後端要求 macOS 12+。
 
 若另有支援 10.15 的工具鏈，可明確設定 `MOLTENVK_DEPLOYMENT_TARGET=10.15`
 另建並驗證；Xcode 27 不支援這個目標。不要提高 Wine 的全域 minOS、改寫
@@ -77,28 +68,27 @@ Mach-O load command，或把其他 dylib 改名來繞過 pack gate。
 
 ### Cyder 啟動端的相容性檢查
 
-CyderBits 的 `scripts/cyder-moltenvk-variant.sh` 保留 macOS 12 以下優先選
-1.2.10 的舊引擎策略，但這僅產生候選版本。DXVK 啟動前，必須讀取目前
-shim 與所選 `.real` 的 **x86_64 slice** Mach-O minOS，再與主機版本比較；
+CyderBits 不再提供 MoltenVK 版本選項。DXVK 啟動前，必須讀取目前
+shim 與 `.real` 的 **x86_64 slice** Mach-O minOS，再與主機版本比較；
 無法讀取、缺少 real 或 minOS 超出主機時停止啟動，不能以版本名稱作保證。
 舊單 dylib（包括 `lib64`）若實際 minOS 足夠低，仍可使用。
 WineD3D、D3DMetal、DXMT 不受這項 Vulkan 檢查限制；各自既有門檻仍適用。
 
-程式回歸測試只驗證建置目標、封裝與啟動阻擋契約。macOS 10.15／11 的舊
-產物、12／13 的新產物，仍需各自測試實際載入與遊戲。CyderBits Issue #7
+程式回歸測試只驗證建置目標、封裝與啟動阻擋契約。macOS 12／13 的產物
+仍需測試實際載入與遊戲。CyderBits Issue #7
 的 macOS 13 Intel GPU 黑畫面／間歇閃爍必須另做 rendering 驗收；Mach-O
 minOS 合格不代表該問題已修復，也不代表這批新產物已正式發行。
 
-### Vulkan 建置前的 dual layout
+### Vulkan 建置前的 MoltenVK layout
 
-若任一 MoltenVK real 以 minOS 12.0 建出，先用
+MoltenVK real 以 minOS 12.0 建出，先用
 `scripts/install-moltenvk-dual-variant.sh` 在獨立的 graphics prefix 的 `lib/`
-組裝 versioned reals、`.real` symlink 與 10.15 shim，再將 `GRAPHICS_INSTALL`
+組裝 versioned real、`.real` symlink 與 10.15 shim，再將 `GRAPHICS_INSTALL`
 指向這個 prefix 執行 `build-wine.sh --with-vulkan --vulkan-source crossover`。
-兩個 reals 的原始輸出都作為輸入保留。
+real 的原始輸出作為輸入保留。
 
 不要先把 minOS 12.0 的 real 當成未版本化的 `libMoltenVK.dylib` 直接交給 Wine
-bundler；該檔名必須維持 10.15，12.0 例外只適用於具名的 1.4.2／1.2.10 reals。
+bundler；該檔名必須維持 10.15，12.0 例外只適用於具名的 1.4.2 real。
 這個順序讓完整 build/install/bundling 與後續 pack 都能使用同一套 minOS gate。
 
 一般 Wine host binaries 與 cxcompatdb 維持 `MACOSX_DEPLOYMENT_TARGET=10.15`；

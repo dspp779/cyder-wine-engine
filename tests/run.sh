@@ -49,6 +49,7 @@ tests=(
   test-wineserver-free-async-queue-null-fd.sh
   test-wineserver-pipe-end-disconnect-null-fd.sh
   test-wineserver-add-completion-guard.sh
+  test-wineserver-wake-up-hold-object.sh
   test-gamesir-platform-p1-patches.sh
   test-wined3d-gl-sm5-patch.sh
   test-ntdll-query-directory-object-trace.sh
@@ -62,6 +63,9 @@ tests=(
   test-pack-engine-dxmt-gate.sh
   test-pack-minos-scan.sh
   test-pack-minos-scan-moltenvk-exempt.sh
+  test-pack-weak-import-scan.sh
+  test-minos-unavailable-funcs.sh
+  test-wpcap-pcap-init-availability.sh
 )
 
 for test_file in "${tests[@]}"; do

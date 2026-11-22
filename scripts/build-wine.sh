@@ -432,6 +432,9 @@ apply_cyder_patch() {
   elif [[ "$(basename "$patch_file")" == "cyder-wineserver-add-completion-guard.patch" ]] &&
        grep -Fq 'add_completion: invalid completion' "$WINE_SRC/server/completion.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-wineserver-wake-up-hold-object.patch" ]] &&
+       grep -Fq 'cyder: wake_up holds obj' "$WINE_SRC/server/thread.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
   elif [[ "$(basename "$patch_file")" == "cyder-ntdll-query-directory-object-trace.patch" ]] &&
        grep -Fq 'cyder QDO' "$WINE_SRC/dlls/ntdll/unix/sync.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
@@ -458,6 +461,9 @@ apply_cyder_patch() {
     echo "Already applied: $(basename "$patch_file") (guard detected)"
   elif [[ "$(basename "$patch_file")" == "cyder-wined3d-gl-sm5-feature-level-11.patch" ]] &&
        grep -Fq 'CyderGLShaderModel5' "$WINE_SRC/dlls/wined3d/wined3d_main.c" 2>/dev/null; then
+    echo "Already applied: $(basename "$patch_file") (guard detected)"
+  elif [[ "$(basename "$patch_file")" == "cyder-wpcap-pcap-init-availability.patch" ]] &&
+       grep -Fq 'pcap_init() is macOS 12.1+' "$WINE_SRC/dlls/wpcap/unixlib.c" 2>/dev/null; then
     echo "Already applied: $(basename "$patch_file") (guard detected)"
   else
     echo "Cannot apply required Wine patch: $patch_file" >&2
@@ -522,6 +528,7 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-free-async-queue-null-fd.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-pipe-end-disconnect-null-fd.patch"
   apply_cyder_patch "$OGOM/patches/cyder-wineserver-add-completion-guard.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-wineserver-wake-up-hold-object.patch"
   # QDO TRACE was temporary diagnosis (also a heisenbug bandage). Prefer narrow
   # optnone on NtQueryDirectoryObject for the grap-core leave-game livelock.
   remove_obsolete_cyder_patch \
@@ -550,6 +557,7 @@ if [[ "$CX_VERSION" == "26" ]]; then
   apply_cyder_patch "$OGOM/patches/wine-win32u-full-client-visible-rect.patch"
   apply_cyder_patch "$OGOM/patches/cyder-ntdll-native-ddraw-path.patch"
   apply_cyder_patch "$OGOM/patches/cyder-ntdll-mono-gs-last-error.patch"
+  apply_cyder_patch "$OGOM/patches/cyder-wpcap-pcap-init-availability.patch"
 
   apply_maplestory_patch() {
       local patch_name="$1"
@@ -623,6 +631,10 @@ if [[ "$CX_VERSION" == "26" ]]; then
       "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW"
     apply_maplestory_patch "maplestory-cx26-file-cache-capacity.patch" \
       "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_FILE_CACHE_SLOTS 512"
+    # Windows-style read-ahead for forward WZ scans with gaps; gated at run
+    # time by CYDER_MAPLESTORY_READAHEAD (Cyder sets it with the WZ cache).
+    apply_maplestory_patch "maplestory-cx26-wz-readahead.patch" \
+      "dlls/ntdll/unix/file.c" "CYDER_MAPLESTORY_READAHEAD_CHUNK"
   fi
 fi
 
@@ -676,6 +688,21 @@ fi
 if [[ ${#CONFIGURE_VULKAN_FLAG[@]} -gt 0 ]]; then
   CONFIGURE_CMD+=("${CONFIGURE_VULKAN_FLAG[@]}")
 fi
+
+# configure only checks that a function links. A newer SDK declares functions
+# the floor lacks (pipe2 in SDK 27), so HAVE_PIPE2 got set and ntdll called a
+# NULL weak import on macOS 15.8. Mark every such function as missing.
+MINOS_UNAVAILABLE=""
+if [[ -f "$WINE_SRC/configure.ac" ]]; then
+  MINOS_UNAVAILABLE="$(python3 "$SCRIPT_DIR/minos-unavailable-funcs.py" \
+    --floor "$CYDER_MIN_OS_TARGET" --cc "${CC:-/usr/bin/clang -arch x86_64}" \
+    --configure-ac "$WINE_SRC/configure.ac")"
+fi
+while IFS=$'\t' read -r func introduced; do
+  [[ -n "$func" ]] || continue
+  echo "host minOS: $func needs macOS $introduced; configure override ac_cv_func_$func=no"
+  CONFIGURE_CMD+=("ac_cv_func_$func=no")
+done <<<"$MINOS_UNAVAILABLE"
 
 echo "configure command:"
 printf '  '

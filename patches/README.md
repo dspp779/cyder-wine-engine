@@ -14,41 +14,45 @@ Patch order for the CX26.3 / Wine 11.0 Cyder engine:
 10. `cyder-wineserver-free-async-queue-null-fd.patch`
 11. `cyder-wineserver-pipe-end-disconnect-null-fd.patch`
 12. `cyder-wineserver-add-completion-guard.patch`
-13. `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch`
-14. `cyder-wineserver-macos-timezone-bias.patch`
-15. `cyder-wineserver-registry-fsync.patch`
-16. `cyder-winemac-hide-ime-only-klid.patch`
-17. `cyder-winemac-gl-front-buffer-present.patch`
+13. `cyder-wineserver-wake-up-hold-object.patch`
+14. `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch`
+15. `cyder-wineserver-macos-timezone-bias.patch`
+16. `cyder-wineserver-registry-fsync.patch`
+17. `cyder-winemac-hide-ime-only-klid.patch`
+18. `cyder-winemac-gl-front-buffer-present.patch`
     - First apply `wine-win32u-preserve-flush-flags.patch` (b3c408b3), then
       `wine-win32u-no-present-on-context-bind.patch` (62da9c02).
     - Then apply `cyder-winemac-gl-profile.patch` (opt-in diagnostics).
-18. `cyder-kernelbase-disk-free-space-fallback.patch`
-19. `cyder-wined3d-gl-sm5-feature-level-11.patch`
-20. `cyder-ntdll-native-ddraw-path.patch`
-21. `cyder-ntdll-mono-gs-last-error.patch`
-22. `maplestory-cx26-message-wait-handoff.patch`
-23. `maplestory-cx26-kernelbase-charprev-null.patch`
-24. `maplestory-cx26-win32u-spi-sticky-filter-keys.patch`
-25. `maplestory-cx26-core.patch`
-26. `maplestory-cx26-window-resizable-flag.patch`
-27. `maplestory-cx26-tmp-module-name.patch`
-28. `maplestory-cx26-dbghelp-dwarf-guard.patch`
-29. `maplestory-cx26-d3d11-shared-texture-test.patch`
-30. `maplestory-cx26-d3dmetal-legacy-surface.patch`
-31. `maplestory-cx26-plain-metal-layer.patch`
-32. `maplestory-cx26-d3d11-full-clear.patch`
-33. `maplestory-cx26-dxgi-shared-handle.patch`
-34. `maplestory-cx26-texture-user-memory-reload.patch`
-35. `maplestory-cx26-blackxchg-foreground.patch`
-36. `maplestory-cx26-fullscreen-restore.patch`
-37. `maplestory-cx26-no-sched-yield.patch`
-38. `maplestory-cx26-file-cache-adaptive.patch`
-39. `maplestory-cx26-io-ring.patch`
-40. `maplestory-cx26-io-ring-arm.patch`
-41. `maplestory-cx26-io-summary.patch`
-42. `maplestory-cx26-io-timeline.patch`
-43. `maplestory-cx26-io-cache-stats.patch`
-44. `maplestory-cx26-section-map-summary.patch`
+19. `cyder-kernelbase-disk-free-space-fallback.patch`
+20. `cyder-wined3d-gl-sm5-feature-level-11.patch`
+21. `cyder-ntdll-native-ddraw-path.patch`
+22. `cyder-ntdll-mono-gs-last-error.patch`
+23. `cyder-wpcap-pcap-init-availability.patch`
+24. `maplestory-cx26-message-wait-handoff.patch`
+25. `maplestory-cx26-kernelbase-charprev-null.patch`
+26. `maplestory-cx26-win32u-spi-sticky-filter-keys.patch`
+27. `maplestory-cx26-core.patch`
+28. `maplestory-cx26-window-resizable-flag.patch`
+29. `maplestory-cx26-tmp-module-name.patch`
+30. `maplestory-cx26-dbghelp-dwarf-guard.patch`
+31. `maplestory-cx26-d3d11-shared-texture-test.patch`
+32. `maplestory-cx26-d3dmetal-legacy-surface.patch`
+33. `maplestory-cx26-plain-metal-layer.patch`
+34. `maplestory-cx26-d3d11-full-clear.patch`
+35. `maplestory-cx26-dxgi-shared-handle.patch`
+36. `maplestory-cx26-texture-user-memory-reload.patch`
+37. `maplestory-cx26-blackxchg-foreground.patch`
+38. `maplestory-cx26-fullscreen-restore.patch`
+39. `maplestory-cx26-no-sched-yield.patch`
+40. `maplestory-cx26-file-cache-adaptive.patch`
+41. `maplestory-cx26-file-cache-capacity.patch`
+42. `maplestory-cx26-wz-readahead.patch`
+43. `maplestory-cx26-io-ring.patch`
+44. `maplestory-cx26-io-ring-arm.patch`
+45. `maplestory-cx26-io-summary.patch`
+46. `maplestory-cx26-io-timeline.patch`
+47. `maplestory-cx26-io-cache-stats.patch`
+48. `maplestory-cx26-section-map-summary.patch`
 
 `w1-win32u-vulkan-soname.patch` is not part of the default patch set. It is a
 special-case build-only fallback for CX26 source trees where `win32u/vulkan.c`
@@ -107,6 +111,24 @@ only and is likewise not a next-engine product feature. Patch file kept for
 repro. See
 [`docs/maplestory-cx26-h2-file-cache-prewarm-spec.zh-TW.md`](../docs/maplestory-cx26-h2-file-cache-prewarm-spec.zh-TW.md)
 and findings §5.3.
+
+`maplestory-cx26-wz-readahead.patch` (2026-11, in the release stack since
+Cyder014) adds
+Windows-style read-ahead to the adaptive WZ cache. The first hit scans large
+WZ files forward with 8–208 KiB gaps (`Sound/Sound_030.wz`,
+`Etc/_Canvas/_Canvas_009.wz`); macOS only reads ahead for contiguous reads, so
+each 8 KiB window fill waits for the SSD alone (~70 µs, ~370 ms per first hit).
+With `CYDER_MAPLESTORY_READAHEAD=1`, once fills on a handle keep moving
+forward (gaps ≤ 1 MiB, two in a row) it issues an asynchronous
+`fcntl(F_RDADVISE)` for the next 2 MiB past a moving frontier, the way the NT
+cache manager reads ahead. The engine keeps it off unless the variable is set;
+Cyder sets it together with `CYDER_MAPLESTORY_FILE_CACHE` for MapleStory under
+the single "MapleStory WZ read optimization" setting (on by default). It only
+runs inside the adaptive cache's window fill, so it is inert when the cache is
+off. Game test (2026-11-15, DXVK,
+files evicted, one run): first-hit window fills 388 → 108 ms, longest frame
+gap ~1 s → 291 ms. Measurements and the reasoning
+are in CyderBits `docs/games/maplestory/stutter-test-plan.md`.
 
 The following patches are development-only diagnostics and are not in the
 release patch stack: `maplestory-cx26-io-ring.patch`,
@@ -210,6 +232,13 @@ INI policy, registry mutation or child-context repair is introduced. Its stable
 markers are `CYDER_NATIVE_DDRAW_PATH_V1`, the startup initialization call, and
 the snapshot-based `find_dll_file` call. See `docs/native-ddraw-path.zh-TW.md`.
 
+`cyder-wpcap-pcap-init-availability.patch` calls `pcap_init()` only on macOS 12.1 and later.
+The SDK declares it from 12.1, so on the 10.15 floor it is a weak import and
+an unguarded call would jump to NULL on older macOS. Earlier libpcap needs no
+initialization, so the wrapper reports success there.
+`tests/test-wpcap-pcap-init-availability.sh` compiles the patched wrapper at
+the floor with availability warnings as errors.
+
 `a6-final-same-view-backing-sync.patch` finalizes Retina/backing-size changes
 on the same `NSView` before OpenGL presents again. It prevents the resize,
 Alt+Enter, and minimize/restore black-screen path without forcing a view swap.
@@ -302,6 +331,22 @@ job teardown (`release_job_process` → `add_job_completion`) when
 Validates `completion_ops`, skips bad `completion_wait` entries, and logs via
 `wineserver_diag_printf`.
 
+`cyder-wineserver-wake-up-hold-object.patch` fixes a wineserver crash when a
+Windows program is killed by a Unix signal (SIGTERM, force quit;
+[issue #15](https://github.com/dspp779/cyder-wine-engine/issues/15)). The crash
+showed as `SIGSEGV … event_sync_signal` under `main_loop`, with `si_addr` of
+0x18, 0x1d or 0x47, and left Wine's system processes running with no server.
+`wake_up()` walked `obj->wait_queue` without a reference to `obj`. Waking a
+thread of the dying process fails with EPIPE, so `send_thread_wakeup()` calls
+`kill_thread()`; the process's last thread then destroys its handle table, and
+when one of those handles held the last reference to `obj`, `obj` was freed
+while the loop still walked its queue (malloc stack logging: the 80-byte
+`event_sync` is freed by `handle_table_destroy` ← `remove_process_thread` ←
+`kill_thread` ← `send_thread_wakeup` ← `wake_thread` ← `wake_up`). The patch
+holds `obj` for the loop. A non-empty queue proves `obj` is alive (each waiter
+holds a reference), so an empty queue returns before the grab and an object
+being destroyed is never resurrected. Upstream Wine 11 has the same loop.
+
 `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch` is a **narrow bandage**
 for the MapleStory Classic `grap-core64.aes` leave-game busy-loop that hammers
 `NtQueryDirectoryObject` → `get_directory_entries(index=0)` on Wine’s virtual
@@ -382,6 +427,7 @@ strings as “already applied”:
 | `cyder-wineserver-free-async-queue-null-fd.patch` | `!async->completion && async->fd` (`async.c`) |
 | `cyder-wineserver-pipe-end-disconnect-null-fd.patch` | `pipe_end_disconnect: null fd` (`named_pipe.c`) |
 | `cyder-wineserver-add-completion-guard.patch` | `add_completion: invalid completion` (`completion.c`) |
+| `cyder-wineserver-wake-up-hold-object.patch` | `cyder: wake_up holds obj` (`thread.c`) |
 | `cyder-ntdll-query-directory-object-trace.patch` | `cyder QDO` (`dlls/ntdll/unix/sync.c`) — optional / not default |
 | `cyder-ntdll-qdo-optnone-NtQueryDirectoryObject.patch` | `cyder QDO optnone` (`dlls/ntdll/unix/sync.c`) |
 | `cyder-wineserver-macos-timezone-bias.patch` | `get_timezone_bias` (`server/fd.c`) |
@@ -393,12 +439,14 @@ strings as “already applied”:
 | `cyder-wined3d-gl-sm5-feature-level-11.patch` | `CyderGLShaderModel5` (`dlls/wined3d/wined3d_main.c`) |
 | `cyder-ntdll-native-ddraw-path.patch` | `CYDER_NATIVE_DDRAW_PATH_V1` (`dlls/ntdll/loader.c`) |
 | `cyder-ntdll-mono-gs-last-error.patch` | `cyder: mono gs LastErrorValue` (`dlls/ntdll/loader.c`) |
+| `cyder-wpcap-pcap-init-availability.patch` | `pcap_init() is macOS 12.1+` (`dlls/wpcap/unixlib.c`) |
 | `maplestory-cx26-message-wait-handoff.patch` | `MapleStoryPort: preserve one driver wait result` (`dlls/win32u/message.c`) |
 | `maplestory-cx26-kernelbase-charprev-null.patch` | `MapleStoryPort: CharPrev NULL start` (`dlls/kernelbase/string.c`) |
 | `maplestory-cx26-win32u-spi-sticky-filter-keys.patch` | `MapleStoryPort: SPI sticky/filter success` (`dlls/win32u/sysparams.c`) |
 | `maplestory-cx26-no-sched-yield.patch` | `if (is_maplestory_process()) return STATUS_NO_YIELD_PERFORMED;` (`dlls/ntdll/unix/sync.c`) |
 | `maplestory-cx26-file-cache-adaptive.patch` | `CYDER_MAPLESTORY_FILE_CACHE_MIN_WINDOW` (`dlls/ntdll/unix/file.c`) |
 | `maplestory-cx26-file-cache-capacity.patch` | `CYDER_MAPLESTORY_FILE_CACHE_SLOTS 512` (`dlls/ntdll/unix/file.c`) |
+| `maplestory-cx26-wz-readahead.patch` | `CYDER_MAPLESTORY_READAHEAD_CHUNK` (`dlls/ntdll/unix/file.c`) |
 | `maplestory-cx26-file-cache-fast-hit.patch` | `CYDER_MAPLESTORY_FILE_CACHE_FAST_HIT_MARKER` (`dlls/ntdll/unix/file.c`) |
 | `maplestory-cx26-file-cache-hit-prewarm.patch` | `CYDER_MAPLESTORY_FILE_CACHE_HIT_PREWARM_MARKER` (`dlls/ntdll/unix/file.c`) |
 | `maplestory-cx26-io-cache-stats.patch` | `CYDER_MAPLESTORY_IO_CACHE_STATS` (`dlls/ntdll/unix/file.c`) |
@@ -430,13 +478,13 @@ and legacy-GPU MSL cap; timeline-wait is **not** applied to the real):
 | `cyder-moltenvk-crossover-capability-hacks.patch` | Port the three CrossOver DXVK compatibility advertisements (`geometryShader`, `pipelineStatisticsQuery`, `shaderCullDistance`) required for the D3D10/11 feature-level probe to reach 10_x/11_1. It deliberately does not fake `VK_EXT_transform_feedback` or the AMD bitwise-not compiler workaround. |
 | `cyder-moltenvk-present-autoreleasepool.patch` | Drain `@autoreleasepool` on Metal present / presented-handler threads. |
 | `cyder-moltenvk-legacy-gpu-msl-cap.patch` | Cap MSL at 2.4 on macOS GPUs below GPU Family Mac 2 (e.g. NVIDIA Kepler on macOS 13+ via OpenCore Legacy Patcher). Their Metal 2.x-era backend rejects `-std=metal3.2` and crashes `MTLCompilerService` (`GeForceAIRPlugin`) on some MSL 3.x shaders, which hangs DXVK pipeline creation. Supported Macs on macOS 13+ are all Mac 2 or Apple family and are unaffected. |
-| `cyder-moltenvk-timeline-wait-poll.patch` | **Retained for reference / optional local experiments.** Dual-variant engines deliver the equivalent host-wait fix via `tools/cyder-mvk-timeline-wait-poll/` as `libMoltenVK.dylib` (shim) over versioned `.real` dylibs — do not bake this into the 1.4.2 / 1.2.10 reals. |
+| `cyder-moltenvk-timeline-wait-poll.patch` | **Retained for reference / optional local experiments.** Dual-variant engines deliver the equivalent host-wait fix via `tools/cyder-mvk-timeline-wait-poll/` as `libMoltenVK.dylib` (shim) over versioned `.real` dylibs — do not bake this into the 1.4.2 real. |
 
 The default graphics build is pinned to upstream MoltenVK **1.4.2** by
 `scripts/ensure-moltenvk-source.sh` (SHA-256 is checked before extraction). The
 1.4.2 real may declare minos 12.0; product floor for other host Mach-O remains
-macOS 10.15. Set `MOLTENVK_SOURCE=crossover-foss` for the legacy **1.2.10** real
-used in the dual-variant layout; `custom` requires an explicit `MOLTENVK_SRC`.
+macOS 10.15. `MOLTENVK_SOURCE=crossover-foss` builds the CrossOver FOSS tree for comparison
+only (its legacy real no longer ships); `custom` requires an explicit `MOLTENVK_SRC`.
 
 CrossOver's other capability changes were reviewed but are not silently copied
 into the 1.4.2 tree:
@@ -457,12 +505,12 @@ Markers: `Cyder: Metal scheduled-handler threads` (`MVKImage.mm`) and
 `Cyder: GPUs below GPU Family Mac 2` (`MVKDevice.mm`) on the real;
 wait-poll shim marker `cyder-moltenvk-timeline-wait-poll` on `libMoltenVK.dylib`.
 
-Dual-variant engines ship:
+The current engine ships:
 
 ```text
-libMoltenVK-1.4.2.dylib / libMoltenVK-1.2.10.dylib   # reals
-libMoltenVK.real.dylib -> selected real
-libMoltenVK.dylib                                  # wait-poll shim
+libMoltenVK-1.4.2.dylib                  # real
+libMoltenVK.real.dylib -> libMoltenVK-1.4.2.dylib
+libMoltenVK.dylib                        # wait-poll shim
 ```
 
 For local development, build/install the re-export shim with Apple clang:

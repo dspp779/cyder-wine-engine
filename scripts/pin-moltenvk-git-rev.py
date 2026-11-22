@@ -3,7 +3,7 @@
 
 The script runs `git rev-parse HEAD` with no GIT_DIR. Inside Cyder/ogom that
 records the app/engine commit instead of a MoltenVK revision. Rewrite it to
-emit the pure MVK_VERSION_STRING from the API headers (e.g. 1.2.10).
+emit the pure MVK_VERSION_STRING from the API headers (e.g. 1.4.2).
 """
 from __future__ import annotations
 

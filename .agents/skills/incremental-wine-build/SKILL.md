@@ -107,10 +107,15 @@ strings "$ENGINE/lib/wine/x86_64-unix/ntdll.so" | grep -E 'CYDER_MAPLESTORY|CYDE
 test -f "$ENGINE/lib/dxvk/x86_64-windows/d3d11.dll"
 test -f "$ENGINE/lib/dxmt/x86_64-unix/winemetal.so"
 test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK-1.4.2.dylib"
-test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK-1.2.10.dylib"
 test -L "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.real.dylib"
 test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.dylib"
 strings "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.dylib" | grep -q cyder-moltenvk-timeline-wait-poll
+```
+
+Then check weak imports, which `minos` does not show:
+
+```bash
+python3 "$HOME/ogom/cyder-wine-engine/scripts/pack-weak-import-scan.py" "$ENGINE"
 ```
 
 Product host binaries must declare minOS ≤ 10.15; DXMT (macOS 15+) and the
@@ -232,6 +237,8 @@ bash tests/test-maplestory-file-cache-patch.sh
 bash tests/test-maplestory-d3dmetal-launcher.sh
 bash tests/test-engine-manifest.sh
 bash tests/test-pack-minos-scan.sh
+bash tests/test-pack-weak-import-scan.sh
+bash tests/test-minos-unavailable-funcs.sh
 bash tests/run.sh
 ```
 

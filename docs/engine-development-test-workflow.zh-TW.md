@@ -5,7 +5,7 @@
 錯誤的 engine install、舊 wineserver、污染的 build tree 或過量 log 而得到
 無法比較的結果。
 
-目前 CX26 產品基準為 `CX26.3.0-W11-Cyder013`，以
+目前 CX26 產品基準為 `CX26.3.0-W11-Cyder014`，以
 `config/engine-release.json` 與 `config/engine-version.txt` 為 canonical contract。
 引擎工作一律在
 `$HOME/ogom/cyder-wine-engine` 進行，不要透過 Cyder.app 來替代引擎測試。
@@ -154,7 +154,6 @@ ENGINE="$ENGINE_ROOT/install/wine-cx26-x86_64"
 cat "$ENGINE/version"
 test "$(cat "$ENGINE/version")" = "$(head -n 1 config/engine-version.txt)"
 test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK-1.4.2.dylib"
-test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK-1.2.10.dylib"
 test -L "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.real.dylib"
 test -f "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.dylib"
 strings "$ENGINE/lib/wine/x86_64-unix/libMoltenVK.dylib" | grep -q cyder-moltenvk-timeline-wait-poll
